@@ -1,5 +1,5 @@
 {
-  "name": "@APPNAME/web",
+  "name": "@console/web",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@proappstore/sdk": "^0.2.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },

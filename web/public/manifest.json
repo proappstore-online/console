@@ -1,7 +1,7 @@
 {
-  "name": "APPNAME",
-  "short_name": "APPNAME",
-  "description": "Free APPNAME app — part of FreeAppStore",
+  "name": "console",
+  "short_name": "console",
+  "description": "Free console app — part of FreeAppStore",
   "start_url": "/",
   "display": "standalone",
   "orientation": "any",

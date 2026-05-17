@@ -1,13 +1,15 @@
 {
-  "name": "APPNAME",
+  "name": "console",
   "private": true,
   "packageManager": "pnpm@10.30.3",
   "engines": { "node": ">=22" },
   "pnpm": { "onlyBuiltDependencies": ["esbuild"] },
+  "repository": { "type": "git", "url": "git+https://github.com/proappstore-online/console.git" },
   "scripts": {
-    "dev": "pnpm --filter @APPNAME/web dev",
-    "build": "pnpm --filter @APPNAME/web build",
-    "preview": "pnpm --filter @APPNAME/web preview",
-    "typecheck": "pnpm --filter @APPNAME/web exec tsc -b"
+    "dev": "pnpm --filter @console/web dev",
+    "build": "pnpm --filter @console/web build",
+    "preview": "pnpm --filter @console/web preview",
+    "typecheck": "pnpm --filter @console/web exec tsc -b",
+    "test": "pnpm --filter @console/web exec tsc -b"
   }
 }
