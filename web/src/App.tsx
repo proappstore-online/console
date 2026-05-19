@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { initPro } from '@proappstore/sdk'
 import type { User, Subscription } from '@proappstore/sdk'
+import { PublishView } from './PublishView'
 
 const pro = initPro({ appId: 'console' })
 
-type View = 'dashboard' | 'app-detail' | 'subscription' | 'settings'
+type View = 'dashboard' | 'app-detail' | 'publish' | 'subscription' | 'settings'
 
 interface AppEntry {
   id: string
@@ -68,6 +69,7 @@ export default function App() {
         {view === 'app-detail' && selectedAppId && (
           <AppDetail appId={selectedAppId} onBack={() => setView('dashboard')} />
         )}
+        {view === 'publish' && <PublishView getToken={() => pro.auth.token} />}
         {view === 'subscription' && <SubscriptionView />}
         {view === 'settings' && <Settings />}
       </main>
@@ -111,6 +113,7 @@ function Landing() {
 
 const TABS: { key: View; label: string }[] = [
   { key: 'dashboard', label: 'Dashboard' },
+  { key: 'publish', label: 'Publish' },
   { key: 'subscription', label: 'Subscription' },
   { key: 'settings', label: 'Settings' },
 ]
