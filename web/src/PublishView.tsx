@@ -87,10 +87,6 @@ function validateAppId(value: string): string | null {
   return null
 }
 
-function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}/mo`
-}
-
 async function apiFetch<T>(
   path: string,
   init: RequestInit & { token: string | null },
@@ -388,7 +384,6 @@ interface FormState {
   icon: string
   iconBg: string
   proFeatures: string[]
-  suggestedPriceDollars: string
   repoUrl: string
 }
 
@@ -401,7 +396,6 @@ function emptyForm(): FormState {
     icon: DEFAULT_ICON,
     iconBg: DEFAULT_ICON_BG,
     proFeatures: [],
-    suggestedPriceDollars: '',
     repoUrl: '',
   }
 }
@@ -415,10 +409,6 @@ function fromSubmission(s: Submission): FormState {
     icon: s.icon ?? DEFAULT_ICON,
     iconBg: s.icon_bg ?? DEFAULT_ICON_BG,
     proFeatures: s.pro_features ?? [],
-    suggestedPriceDollars:
-      s.suggested_monthly_price_cents != null
-        ? (s.suggested_monthly_price_cents / 100).toFixed(2)
-        : '',
     repoUrl: s.repo_url ?? '',
   }
 }
@@ -520,12 +510,6 @@ function SubmissionForm({
     else if (form.icon) body.icon = form.icon
     if (form.iconBg) body.iconBg = form.iconBg
     if (form.proFeatures.length > 0) body.proFeatures = form.proFeatures
-    if (form.suggestedPriceDollars.trim()) {
-      const dollars = Number.parseFloat(form.suggestedPriceDollars)
-      if (Number.isFinite(dollars) && dollars >= 0) {
-        body.suggestedMonthlyPriceCents = Math.round(dollars * 100)
-      }
-    }
     if (form.repoUrl.trim()) body.repoUrl = form.repoUrl.trim()
 
     setSubmitting(true)
@@ -552,10 +536,6 @@ function SubmissionForm({
 
   const descCount = form.description.length
   const descOver = descCount > 500
-  const previewCents = (() => {
-    const n = Number.parseFloat(form.suggestedPriceDollars)
-    return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null
-  })()
 
   return (
     <form
@@ -677,28 +657,19 @@ function SubmissionForm({
         </div>
       </div>
 
-      {/* Suggested price */}
-      <div>
-        <label className="block text-sm font-medium text-[var(--ink)] mb-1">
-          Suggested monthly price <span className="text-[var(--muted)] font-normal">(USD, optional)</span>
-        </label>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--muted)]">$</span>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={form.suggestedPriceDollars}
-              onChange={(e) => update('suggestedPriceDollars', e.target.value)}
-              placeholder="9.00"
-              className="w-32 rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] pl-6 pr-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40"
-            />
-          </div>
-          {previewCents != null && (
-            <span className="text-sm text-[var(--muted)]">{formatPrice(previewCents)}</span>
-          )}
-        </div>
+      {/* Payouts note — replaces the old per-app price field. ProAppStore is
+          all-you-can-use for $9/mo; creators get paid from a monthly pool
+          proportional to their app's share of usage. There's no per-app price. */}
+      <div className="rounded-lg border border-[var(--line)] bg-[var(--paper-soft,var(--paper))] p-3 text-xs text-[var(--muted)]">
+        <p>
+          <strong className="text-[var(--ink)]">How you get paid:</strong>{' '}
+          ProAppStore is a single $9/mo subscription for every Pro app. Each month, after the
+          10% platform fee, the rest is split among creators in proportion to how much their
+          app was used. You don't set a price — make a great app, and your share follows.{' '}
+          <a href="https://proappstore.online/pricing" target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--ink)]">
+            Full details
+          </a>.
+        </p>
       </div>
 
       {/* Repo URL */}
