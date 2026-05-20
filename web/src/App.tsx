@@ -2,13 +2,14 @@ import { useState, useEffect, useCallback } from 'react'
 import { initPro } from '@proappstore/sdk'
 import type { User, Subscription } from '@proappstore/sdk'
 import { PublishView } from './PublishView'
+import { PayoutsView } from './PayoutsView'
 import { AppDetail } from './AppDetail'
 import { AdminView } from './AdminView'
 import { fetchOwnerSummary, formatNumber, type OwnerSummary } from './usage'
 
 const pro = initPro({ appId: 'console' })
 
-type View = 'dashboard' | 'app-detail' | 'publish' | 'subscription' | 'admin' | 'settings'
+type View = 'dashboard' | 'app-detail' | 'publish' | 'payouts' | 'subscription' | 'admin' | 'settings'
 
 interface AppEntry {
   id: string
@@ -186,6 +187,7 @@ export default function App() {
           />
         )}
         {view === 'publish' && <PublishView getToken={() => pro.auth.token} />}
+        {view === 'payouts' && <PayoutsView getToken={() => pro.auth.token} />}
         {view === 'subscription' && <SubscriptionView />}
         {view === 'admin' && isAdmin && <AdminView getToken={() => pro.auth.token} />}
         {view === 'settings' && <Settings />}
@@ -231,6 +233,7 @@ function Landing() {
 const TABS: { key: View; label: string }[] = [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'publish', label: 'Publish' },
+  { key: 'payouts', label: 'Payouts' },
   { key: 'subscription', label: 'Subscription' },
   { key: 'settings', label: 'Settings' },
 ]
