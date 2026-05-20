@@ -301,6 +301,9 @@ function Dashboard({
       </div>
 
       {/* Quick stats */}
+      {/* TODO: aggregate-active-users endpoint — once the backend exposes a
+          roll-up across all of a creator's apps, add a third "Active 30d" stat
+          card. For now, per-app usage lives on AppDetail (UsageSection). */}
       <div className="grid grid-cols-2 gap-4">
         <StatCard label="Total Apps" value={apps.length} />
         <StatCard label="Plan" value={sub?.status === 'active' ? 'Pro' : 'Free'} />
