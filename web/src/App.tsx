@@ -3,6 +3,7 @@ import { initPro } from '@proappstore/sdk'
 import type { User, Subscription } from '@proappstore/sdk'
 import { PublishView } from './PublishView'
 import { AppDetail } from './AppDetail'
+import { fetchOwnerSummary, formatNumber, type OwnerSummary } from './usage'
 
 const pro = initPro({ appId: 'console' })
 
@@ -266,12 +267,20 @@ function Dashboard({
   onPublishNew: () => void
 }) {
   const [sub, setSub] = useState<Subscription | null>(null)
+  const [summary, setSummary] = useState<OwnerSummary | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let cancelled = false
-    pro.subscription.status()
-      .then((s) => { if (!cancelled) setSub(s) })
+    Promise.all([
+      pro.subscription.status().catch(() => null),
+      fetchOwnerSummary(pro.auth.token, 30),
+    ])
+      .then(([s, sum]) => {
+        if (cancelled) return
+        setSub(s)
+        setSummary(sum)
+      })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
@@ -301,11 +310,12 @@ function Dashboard({
       </div>
 
       {/* Quick stats */}
-      {/* TODO: aggregate-active-users endpoint — once the backend exposes a
-          roll-up across all of a creator's apps, add a third "Active 30d" stat
-          card. For now, per-app usage lives on AppDetail (UsageSection). */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <StatCard label="Total Apps" value={apps.length} />
+        <StatCard
+          label="Active 30d"
+          value={summary ? formatNumber(summary.activeUsers) : '—'}
+        />
         <StatCard label="Plan" value={sub?.status === 'active' ? 'Pro' : 'Free'} />
       </div>
 

@@ -42,6 +42,14 @@ export interface MyUsageResponse {
   totals: { sessionSeconds: number; apiCalls: number }
 }
 
+export interface OwnerSummary {
+  days: number
+  appCount: number
+  activeUsers: number
+  sessionSeconds: number
+  apiCalls: number
+}
+
 function bearer(token: string): HeadersInit {
   return { Authorization: `Bearer ${token}` }
 }
@@ -63,6 +71,27 @@ export async function fetchMyUsage(token: string, days = 30): Promise<MyUsageRes
   const res = await fetch(`${API_BASE}/usage/me?days=${days}`, { headers: bearer(token) })
   if (!res.ok) throw new Error(`fetchMyUsage failed: ${res.status} ${await res.text()}`)
   return (await res.json()) as MyUsageResponse
+}
+
+/**
+ * Owner-wide aggregate across every app the signed-in user owns. Powers the
+ * Console Dashboard's "Active 30d" stat. Returns null (instead of throwing)
+ * on auth/network failure so the dashboard degrades to "—" gracefully.
+ */
+export async function fetchOwnerSummary(
+  token: string | null,
+  days = 30,
+): Promise<OwnerSummary | null> {
+  if (!token) return null
+  try {
+    const res = await fetch(`${API_BASE}/usage/owner-summary?days=${days}`, {
+      headers: bearer(token),
+    })
+    if (!res.ok) return null
+    return (await res.json()) as OwnerSummary
+  } catch {
+    return null
+  }
 }
 
 // ---------------------------------------------------------------------------
