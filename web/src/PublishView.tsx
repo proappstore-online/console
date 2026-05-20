@@ -356,7 +356,7 @@ function SubmissionCard({
   )
 }
 
-function StatusBadge({ status }: { status: SubmissionStatus }) {
+export function StatusBadge({ status }: { status: SubmissionStatus }) {
   const styles: Record<SubmissionStatus, string> = {
     pending: 'bg-[var(--warning)]/15 text-[var(--warning)]',
     approved: 'bg-[var(--sky-soft)] text-[var(--sky-deep)]',

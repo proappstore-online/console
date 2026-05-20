@@ -3,11 +3,12 @@ import { initPro } from '@proappstore/sdk'
 import type { User, Subscription } from '@proappstore/sdk'
 import { PublishView } from './PublishView'
 import { AppDetail } from './AppDetail'
+import { AdminView } from './AdminView'
 import { fetchOwnerSummary, formatNumber, type OwnerSummary } from './usage'
 
 const pro = initPro({ appId: 'console' })
 
-type View = 'dashboard' | 'app-detail' | 'publish' | 'subscription' | 'settings'
+type View = 'dashboard' | 'app-detail' | 'publish' | 'subscription' | 'admin' | 'settings'
 
 interface AppEntry {
   id: string
@@ -70,6 +71,27 @@ async function deleteAppApi(token: string | null, id: string): Promise<boolean> 
   return res.ok
 }
 
+/**
+ * Probe whether the signed-in user is a platform admin. Backed by
+ * `GET /v1/me/is-admin` which checks ADMIN_GITHUB_IDS — same membership
+ * the approve/reject gates use, so this is authoritative (not a heuristic).
+ * Falls back to `false` on any error so a flaky network never accidentally
+ * shows the Admin tab.
+ */
+async function fetchIsAdmin(token: string | null): Promise<boolean> {
+  if (!token) return false
+  try {
+    const res = await fetch(`${API_BASE}/me/is-admin`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) return false
+    const data = (await res.json()) as { admin?: boolean }
+    return data.admin === true
+  } catch {
+    return false
+  }
+}
+
 type Theme = 'system' | 'light' | 'dark'
 
 interface Prefs {
@@ -90,6 +112,7 @@ export default function App() {
   const [view, setView] = useState<View>('dashboard')
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null)
   const [apps, setApps] = useState<AppEntry[]>([])
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     pro.auth.init().then(() => setReady(true))
@@ -103,6 +126,15 @@ export default function App() {
   useEffect(() => {
     if (user) reloadApps()
   }, [user, reloadApps])
+
+  useEffect(() => {
+    if (!user) { setIsAdmin(false); return }
+    let cancelled = false
+    fetchIsAdmin(pro.auth.token).then((admin) => {
+      if (!cancelled) setIsAdmin(admin)
+    })
+    return () => { cancelled = true }
+  }, [user])
 
   const openAppDetail = useCallback((id: string) => {
     setSelectedAppId(id)
@@ -134,7 +166,7 @@ export default function App() {
 
   return (
     <div className="min-h-[100dvh] flex flex-col">
-      <Header user={user} view={view} onNavigate={setView} />
+      <Header user={user} view={view} onNavigate={setView} isAdmin={isAdmin} />
       <main className="flex-1 mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
         {view === 'dashboard' && (
           <Dashboard
@@ -155,6 +187,7 @@ export default function App() {
         )}
         {view === 'publish' && <PublishView getToken={() => pro.auth.token} />}
         {view === 'subscription' && <SubscriptionView />}
+        {view === 'admin' && isAdmin && <AdminView getToken={() => pro.auth.token} />}
         {view === 'settings' && <Settings />}
       </main>
     </div>
@@ -202,7 +235,12 @@ const TABS: { key: View; label: string }[] = [
   { key: 'settings', label: 'Settings' },
 ]
 
-function Header({ user, view, onNavigate }: { user: User; view: View; onNavigate: (v: View) => void }) {
+function Header({ user, view, onNavigate, isAdmin }: { user: User; view: View; onNavigate: (v: View) => void; isAdmin: boolean }) {
+  // Admin tab is inserted before Settings only when the backend confirms
+  // the signed-in user is in ADMIN_GITHUB_IDS. Non-admins never see it.
+  const tabs: { key: View; label: string }[] = isAdmin
+    ? [...TABS.slice(0, -1), { key: 'admin', label: 'Admin' }, TABS[TABS.length - 1]!]
+    : TABS
   return (
     <header className="border-b border-[var(--line)] bg-[var(--glass-strong)] backdrop-blur-xl sticky top-0 z-30">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
@@ -231,7 +269,7 @@ function Header({ user, view, onNavigate }: { user: User; view: View; onNavigate
           </div>
         </div>
         <nav className="flex gap-1 -mb-px">
-          {TABS.map((tab) => (
+          {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => onNavigate(tab.key)}
