@@ -13,6 +13,48 @@ interface ConnectStatus {
   updatedAt?: number
 }
 
+interface MonthPreview {
+  month: string
+  isCurrent: boolean
+  daysCovered: number
+  totalDays: number
+  activeUsers: number
+  estimatedCents: number
+  perApp: { appId: string; estimatedCents: number }[]
+}
+
+interface PreviewResponse {
+  subscriberPriceCents: number
+  platformFeeBps: number
+  perSubscriberPoolCents: number
+  months: MonthPreview[]
+}
+
+async function fetchPreview(token: string | null, months = 2): Promise<PreviewResponse | null> {
+  if (!token) return null
+  try {
+    const res = await fetch(`${API_BASE}/payouts/me/preview?months=${months}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) return null
+    return (await res.json()) as PreviewResponse
+  } catch {
+    return null
+  }
+}
+
+function formatDollars(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`
+}
+
+function formatMonthLabel(ym: string): string {
+  // 'YYYY-MM' → 'May 2026'
+  const [y, m] = ym.split('-').map(Number)
+  if (!y || !m) return ym
+  const d = new Date(Date.UTC(y, m - 1, 1))
+  return d.toLocaleString(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' })
+}
+
 async function fetchStatus(token: string | null): Promise<ConnectStatus | null> {
   if (!token) return null
   try {
@@ -55,14 +97,19 @@ async function startOnboarding(token: string | null): Promise<OnboardSuccess | {
 
 export function PayoutsView({ getToken }: { getToken: () => string | null }) {
   const [status, setStatus] = useState<ConnectStatus | null>(null)
+  const [preview, setPreview] = useState<PreviewResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
-    const next = await fetchStatus(getToken())
-    setStatus(next)
+    const [s, p] = await Promise.all([
+      fetchStatus(getToken()),
+      fetchPreview(getToken(), 2),
+    ])
+    setStatus(s)
+    setPreview(p)
     setLoading(false)
   }, [getToken])
 
@@ -102,6 +149,9 @@ export function PayoutsView({ getToken }: { getToken: () => string | null }) {
       ) : (
         <StatusCard status={status} busy={busy} onConnect={onConnect} error={error} onRefresh={refresh} />
       )}
+
+      {/* Earnings preview */}
+      {!loading && preview && <EarningsPreview preview={preview} />}
 
       {/* How payouts work */}
       <div className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
@@ -256,4 +306,90 @@ function StatusDot({ color }: { color: 'muted' | 'warning' | 'success' }) {
       ? 'bg-[var(--warning)]'
       : 'bg-[var(--muted)]'
   return <span className={`inline-block h-2.5 w-2.5 rounded-full ${cls}`} aria-hidden />
+}
+
+function EarningsPreview({ preview }: { preview: PreviewResponse }) {
+  const current = preview.months.find((m) => m.isCurrent) ?? preview.months[0]
+  const previous = preview.months.find((m) => !m.isCurrent)
+  if (!current) return null
+
+  return (
+    <section className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
+      <div className="flex items-baseline justify-between mb-4">
+        <h3 className="display-font text-lg font-bold text-[var(--ink)]">Estimated earnings</h3>
+        <span className="text-xs text-[var(--muted)]">Preview · not final</span>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <PreviewMonth
+          label={`${formatMonthLabel(current.month)} (so far)`}
+          month={current}
+          highlight
+        />
+        {previous && (
+          <PreviewMonth label={formatMonthLabel(previous.month)} month={previous} />
+        )}
+      </div>
+
+      {/* Per-app breakdown (current month, top 5) */}
+      {current.perApp.length > 0 && (
+        <div className="mt-6">
+          <h4 className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wide mb-3">
+            {formatMonthLabel(current.month)} so far — by app
+          </h4>
+          <ul className="space-y-1.5">
+            {current.perApp.slice(0, 5).map((row) => (
+              <li
+                key={row.appId}
+                className="flex items-center justify-between rounded-lg border border-[var(--line)] bg-[var(--glass)] px-3 py-2 text-sm"
+              >
+                <span className="font-mono text-[var(--ink)]">{row.appId}</span>
+                <span className="font-semibold text-[var(--ink)]">{formatDollars(row.estimatedCents)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <p className="mt-5 text-xs text-[var(--muted)] leading-relaxed">
+        Estimates assume every active user is a paid subscriber at{' '}
+        {formatDollars(preview.subscriberPriceCents)}/mo and the
+        {' '}{(preview.platformFeeBps / 100).toFixed(0)}% platform fee. Each subscriber's $
+        {(preview.perSubscriberPoolCents / 100).toFixed(2)} contribution to the pool is split
+        across the apps they used, weighted by session time. Actual end-of-month payouts will
+        only count subscribers who are paid up at the time the cron runs.
+      </p>
+    </section>
+  )
+}
+
+function PreviewMonth({
+  label,
+  month,
+  highlight = false,
+}: {
+  label: string
+  month: MonthPreview
+  highlight?: boolean
+}) {
+  const empty = month.estimatedCents === 0
+  return (
+    <div
+      className={`rounded-xl border p-4 ${
+        highlight
+          ? 'border-[var(--accent)]/40 bg-[var(--accent-soft)]/30'
+          : 'border-[var(--line)] bg-[var(--glass)]'
+      }`}
+    >
+      <p className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wide">{label}</p>
+      <p className="mt-1 display-font text-3xl font-bold text-[var(--ink)]">
+        {formatDollars(month.estimatedCents)}
+      </p>
+      <p className="mt-1 text-xs text-[var(--muted)]">
+        {empty
+          ? 'No usage yet'
+          : `${month.activeUsers} active user${month.activeUsers === 1 ? '' : 's'} · ${month.daysCovered}/${month.totalDays} days`}
+      </p>
+    </div>
+  )
 }
