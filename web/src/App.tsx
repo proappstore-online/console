@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { initPro } from '@proappstore/sdk'
 import type { User, Subscription } from '@proappstore/sdk'
 import { PublishView } from './PublishView'
+import { AppDetail } from './AppDetail'
 
 const pro = initPro({ appId: 'console' })
 
@@ -68,10 +69,6 @@ async function deleteAppApi(token: string | null, id: string): Promise<boolean> 
   return res.ok
 }
 
-interface AppConfig {
-  description: string
-}
-
 type Theme = 'system' | 'light' | 'dark'
 
 interface Prefs {
@@ -95,16 +92,36 @@ export default function App() {
   const [ready, setReady] = useState(false)
   const [view, setView] = useState<View>('dashboard')
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null)
+  const [apps, setApps] = useState<AppEntry[]>([])
 
   useEffect(() => {
     pro.auth.init().then(() => setReady(true))
     return pro.auth.onChange(setUser)
   }, [])
 
+  const reloadApps = useCallback(async () => {
+    try { setApps(await fetchApps(pro.auth.token)) } catch { /* ignore */ }
+  }, [])
+
+  useEffect(() => {
+    if (user) reloadApps()
+  }, [user, reloadApps])
+
   const openAppDetail = useCallback((id: string) => {
     setSelectedAppId(id)
     setView('app-detail')
   }, [])
+
+  const deleteSelectedApp = useCallback(async () => {
+    if (!selectedAppId) return
+    const ok = await deleteAppApi(pro.auth.token, selectedAppId)
+    if (ok) {
+      await pro.kv.delete(`app-config:${selectedAppId}`).catch(() => {})
+      setApps((prev) => prev.filter((a) => a.id !== selectedAppId))
+      setSelectedAppId(null)
+      setView('dashboard')
+    }
+  }, [selectedAppId])
 
   if (!ready) {
     return (
@@ -116,13 +133,28 @@ export default function App() {
 
   if (!user) return <Landing />
 
+  const selected = apps.find((a) => a.id === selectedAppId)
+
   return (
     <div className="min-h-[100dvh] flex flex-col">
       <Header user={user} view={view} onNavigate={setView} />
       <main className="flex-1 mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
-        {view === 'dashboard' && <Dashboard user={user} onOpenApp={openAppDetail} onPublishNew={() => setView('publish')} />}
+        {view === 'dashboard' && (
+          <Dashboard
+            user={user}
+            apps={apps}
+            onOpenApp={openAppDetail}
+            onPublishNew={() => setView('publish')}
+          />
+        )}
         {view === 'app-detail' && selectedAppId && (
-          <AppDetail appId={selectedAppId} onBack={() => setView('dashboard')} />
+          <AppDetail
+            appId={selectedAppId}
+            appName={selected?.name ?? null}
+            getToken={() => pro.auth.token}
+            onBack={() => setView('dashboard')}
+            onDelete={deleteSelectedApp}
+          />
         )}
         {view === 'publish' && <PublishView getToken={() => pro.auth.token} />}
         {view === 'subscription' && <SubscriptionView />}
@@ -225,29 +257,23 @@ function Header({ user, view, onNavigate }: { user: User; view: View; onNavigate
 // Dashboard
 // ---------------------------------------------------------------------------
 
-function Dashboard({ user, onOpenApp, onPublishNew }: { user: User; onOpenApp: (id: string) => void; onPublishNew: () => void }) {
-  const [apps, setApps] = useState<AppEntry[]>([])
+function Dashboard({
+  user, apps, onOpenApp, onPublishNew,
+}: {
+  user: User
+  apps: AppEntry[]
+  onOpenApp: (id: string) => void
+  onPublishNew: () => void
+}) {
   const [sub, setSub] = useState<Subscription | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let cancelled = false
-    async function load() {
-      try {
-        const [list, subResult] = await Promise.all([
-          fetchApps(pro.auth.token),
-          pro.subscription.status().catch(() => null),
-        ])
-        if (cancelled) return
-        setApps(list)
-        setSub(subResult)
-      } catch {
-        // signed out or network error
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    load()
+    pro.subscription.status()
+      .then((s) => { if (!cancelled) setSub(s) })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [])
 
@@ -328,166 +354,7 @@ function Dashboard({ user, onOpenApp, onPublishNew }: { user: User; onOpenApp: (
   )
 }
 
-// ---------------------------------------------------------------------------
-// App Detail
-// ---------------------------------------------------------------------------
-
-function AppDetail({ appId, onBack }: { appId: string; onBack: () => void }) {
-  const [apps, setApps] = useState<AppEntry[]>([])
-  const [config, setConfig] = useState<AppConfig>({ description: '' })
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-
-  const entry = apps.find((a) => a.id === appId)
-
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      try {
-        const [list, storedConfig] = await Promise.all([
-          fetchApps(pro.auth.token),
-          pro.kv.get<AppConfig>(`app-config:${appId}`),
-        ])
-        if (cancelled) return
-        setApps(list)
-        if (storedConfig) setConfig(storedConfig)
-      } catch {
-        // error loading
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    load()
-    return () => { cancelled = true }
-  }, [appId])
-
-  const saveDescription = async () => {
-    setSaving(true)
-    try {
-      await pro.kv.set(`app-config:${appId}`, config)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const deleteApp = async () => {
-    setDeleting(true)
-    try {
-      // Remove the row server-side (apps table). CF Pages, D1, DNS, the
-      // GitHub repo, and the storefront entry are intentionally left alive —
-      // this is a dashboard-listing delete, not a deprovision.
-      const ok = await deleteAppApi(pro.auth.token, appId)
-      if (ok) {
-        await pro.kv.delete(`app-config:${appId}`).catch(() => {})
-        onBack()
-      }
-    } finally {
-      setDeleting(false)
-    }
-  }
-
-  if (loading) {
-    return <p className="text-[var(--muted)] py-12 text-center">Loading app details...</p>
-  }
-
-  return (
-    <div className="space-y-6">
-      <button
-        onClick={onBack}
-        className="text-sm font-medium text-[var(--accent)] hover:underline"
-      >
-        &larr; Back to Dashboard
-      </button>
-
-      {/* App info */}
-      <div className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6 shadow-[var(--shadow-card)]">
-        <h2 className="display-font text-2xl font-bold text-[var(--ink)]">
-          {entry?.name ?? appId}
-        </h2>
-        <p className="mt-1 text-sm text-[var(--muted)] font-mono">{appId}</p>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          {appId}.proappstore.online
-        </p>
-        <div className="mt-4 flex gap-3">
-          <a
-            href={`https://${appId}.proappstore.online`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--line-strong)] bg-[var(--glass)] px-4 py-2 text-sm font-medium text-[var(--ink)] hover:bg-[var(--glass-hover)]"
-          >
-            Open App
-          </a>
-          <a
-            href={`https://github.com/proappstore-online/${appId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--line-strong)] bg-[var(--glass)] px-4 py-2 text-sm font-medium text-[var(--ink)] hover:bg-[var(--glass-hover)]"
-          >
-            View Code
-          </a>
-        </div>
-      </div>
-
-      {/* Settings — description (local note shown only to the owner) */}
-      <div className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
-        <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide mb-3">Owner Note</h3>
-        <p className="text-xs text-[var(--muted)] mb-2">
-          Private to you. The public storefront description comes from your submission, not this field.
-        </p>
-        <textarea
-          value={config.description}
-          onChange={(e) => setConfig({ ...config, description: e.target.value })}
-          rows={3}
-          className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40"
-          placeholder="Internal notes about this app..."
-        />
-        <button
-          onClick={saveDescription}
-          disabled={saving}
-          className="mt-2 rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
-        >
-          {saving ? 'Saving...' : 'Save'}
-        </button>
-      </div>
-
-      {/* Danger zone */}
-      <div className="rounded-2xl border border-[var(--error)]/30 bg-[var(--glass-strong)] p-6">
-        <h3 className="text-sm font-semibold text-[var(--error)] uppercase tracking-wide mb-3">Danger Zone</h3>
-        {!showDeleteConfirm ? (
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="rounded-lg border border-[var(--error)]/40 px-4 py-2 text-sm font-semibold text-[var(--error)] hover:bg-[var(--error)]/10"
-          >
-            Delete App
-          </button>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-sm text-[var(--error)]">
-              This will remove <strong>{entry?.name ?? appId}</strong> from your apps list and delete its configuration. This action cannot be undone.
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={deleteApp}
-                disabled={deleting}
-                className="rounded-lg bg-[var(--error)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
-              >
-                {deleting ? 'Deleting...' : 'Yes, delete'}
-              </button>
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="rounded-lg border border-[var(--line-strong)] px-4 py-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
+// AppDetail moved to ./AppDetail.tsx — multi-section listing editor
 
 // ---------------------------------------------------------------------------
 // Subscription
