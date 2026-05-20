@@ -501,6 +501,8 @@ function LegalSection({ appId, listing, update, getToken }: SectionProps) {
   const privacyRef = useRef<HTMLInputElement>(null)
   const termsRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState<'privacy' | 'terms' | null>(null)
+  // Probe results: undefined = not yet probed, true = file responded 200, false = 404/other.
+  const [repoProbe, setRepoProbe] = useState<{ privacy?: boolean; terms?: boolean }>({})
 
   async function uploadMd(kind: 'privacy-policy' | 'terms', file: File) {
     const token = getToken()
@@ -515,6 +517,21 @@ function LegalSection({ appId, listing, update, getToken }: SectionProps) {
       alert((e as Error).message)
     } finally {
       setBusy(null)
+    }
+  }
+
+  // Set the URL to the app's own subdomain (CF Pages serves web/public/<file>),
+  // then HEAD-probe to surface a friendly warning when the file is missing.
+  async function useRepoFile(kind: 'privacy' | 'terms') {
+    const file = kind === 'privacy' ? 'privacy.md' : 'terms.md'
+    const url = `https://${appId}.proappstore.online/${file}`
+    if (kind === 'privacy') set('privacyPolicyUrl', url)
+    else set('termsUrl', url)
+    try {
+      const res = await fetch(url, { method: 'HEAD' })
+      setRepoProbe((prev) => ({ ...prev, [kind]: res.ok }))
+    } catch {
+      setRepoProbe((prev) => ({ ...prev, [kind]: false }))
     }
   }
 
@@ -552,6 +569,14 @@ function LegalSection({ appId, listing, update, getToken }: SectionProps) {
           <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
             <button
               type="button"
+              onClick={() => useRepoFile('privacy')}
+              className="hover:text-[var(--ink)] underline"
+            >
+              Use privacy.md from my app
+            </button>
+            <span>·</span>
+            <button
+              type="button"
               onClick={() => set('privacyPolicyUrl', PLATFORM_PRIVACY)}
               className="hover:text-[var(--ink)] underline"
             >
@@ -571,6 +596,16 @@ function LegalSection({ appId, listing, update, getToken }: SectionProps) {
               {busy === 'privacy' ? 'Uploading…' : 'Upload privacy.md'}
             </button>
           </div>
+          {repoProbe.privacy === false && (
+            <p className="text-xs text-[var(--warning)]">
+              {`No privacy.md found at https://${appId}.proappstore.online/privacy.md yet. Commit `}
+              <code className="font-mono">web/public/privacy.md</code>
+              {` to your app repo and push — CF Pages will serve it.`}
+            </p>
+          )}
+          {repoProbe.privacy === true && (
+            <p className="text-xs text-[var(--success)]">Looks good — the file responds 200.</p>
+          )}
         </div>
       </Row>
       <Row label="Terms of service">
@@ -592,6 +627,14 @@ function LegalSection({ appId, listing, update, getToken }: SectionProps) {
           <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
             <button
               type="button"
+              onClick={() => useRepoFile('terms')}
+              className="hover:text-[var(--ink)] underline"
+            >
+              Use terms.md from my app
+            </button>
+            <span>·</span>
+            <button
+              type="button"
               onClick={() => set('termsUrl', PLATFORM_TERMS)}
               className="hover:text-[var(--ink)] underline"
             >
@@ -607,6 +650,16 @@ function LegalSection({ appId, listing, update, getToken }: SectionProps) {
               {busy === 'terms' ? 'Uploading…' : 'Upload terms.md'}
             </button>
           </div>
+          {repoProbe.terms === false && (
+            <p className="text-xs text-[var(--warning)]">
+              {`No terms.md found at https://${appId}.proappstore.online/terms.md yet. Commit `}
+              <code className="font-mono">web/public/terms.md</code>
+              {` to your app repo and push.`}
+            </p>
+          )}
+          {repoProbe.terms === true && (
+            <p className="text-xs text-[var(--success)]">Looks good — the file responds 200.</p>
+          )}
         </div>
       </Row>
     </Section>
