@@ -10,7 +10,62 @@ type View = 'dashboard' | 'app-detail' | 'publish' | 'subscription' | 'settings'
 interface AppEntry {
   id: string
   name: string
+  /** ISO timestamp string, derived from the backend's created_at (epoch ms). */
   createdAt: string
+  category?: string | null
+  description?: string | null
+  hasSubmission?: boolean
+  submissionStatus?: string | null
+}
+
+const API_BASE = 'https://api.proappstore.online/v1'
+
+interface AppApiRow {
+  id: string
+  creator_id: string
+  created_at: number
+  d1_database_id: string
+  name: string
+  category: string | null
+  description: string | null
+  icon: string | null
+  icon_bg: string | null
+  pro_features: string[] | null
+  has_submission: boolean
+  submission_status: string | null
+}
+
+/**
+ * Fetch the signed-in user's apps from the platform API. Source of truth is
+ * the `apps` table (every successful `pas create` / `pas publish` /
+ * `/v1/submissions/:id/approve` INSERTs a row). Falls back to an empty list
+ * on auth or network errors so the UI degrades gracefully.
+ */
+async function fetchApps(token: string | null): Promise<AppEntry[]> {
+  if (!token) return []
+  const res = await fetch(`${API_BASE}/apps`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) return []
+  const data = (await res.json()) as { apps: AppApiRow[] }
+  return (data.apps ?? []).map((a) => ({
+    id: a.id,
+    name: a.name,
+    createdAt: new Date(a.created_at).toISOString(),
+    category: a.category,
+    description: a.description,
+    hasSubmission: a.has_submission,
+    submissionStatus: a.submission_status,
+  }))
+}
+
+async function deleteAppApi(token: string | null, id: string): Promise<boolean> {
+  if (!token) return false
+  const res = await fetch(`${API_BASE}/apps/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return res.ok
 }
 
 interface AppConfig {
@@ -180,12 +235,11 @@ function Dashboard({ user, onOpenApp }: { user: User; onOpenApp: (id: string) =>
     let cancelled = false
     async function load() {
       try {
-        const [stored, subResult] = await Promise.all([
-          pro.kv.get<AppEntry[]>('my-apps'),
+        const [list, subResult] = await Promise.all([
+          fetchApps(pro.auth.token),
           pro.subscription.status().catch(() => null),
         ])
         if (cancelled) return
-        const list = stored ?? []
         setApps(list)
         setSub(subResult)
 
@@ -302,13 +356,13 @@ function AppDetail({ appId, onBack }: { appId: string; onBack: () => void }) {
     let cancelled = false
     async function load() {
       try {
-        const [storedApps, storedConfig, viewCount] = await Promise.all([
-          pro.kv.get<AppEntry[]>('my-apps'),
+        const [list, storedConfig, viewCount] = await Promise.all([
+          fetchApps(pro.auth.token),
           pro.kv.get<AppConfig>(`app-config:${appId}`),
           pro.counters.get(`views:${appId}`).catch(() => 0),
         ])
         if (cancelled) return
-        setApps(storedApps ?? [])
+        setApps(list)
         if (storedConfig) setConfig(storedConfig)
         setViews(viewCount)
       } catch {
@@ -333,12 +387,14 @@ function AppDetail({ appId, onBack }: { appId: string; onBack: () => void }) {
   const deleteApp = async () => {
     setDeleting(true)
     try {
-      const updated = apps.filter((a) => a.id !== appId)
-      await Promise.all([
-        pro.kv.set('my-apps', updated),
-        pro.kv.delete(`app-config:${appId}`),
-      ])
-      onBack()
+      // Remove the row server-side (apps table). CF Pages, D1, DNS, the
+      // GitHub repo, and the storefront entry are intentionally left alive —
+      // this is a dashboard-listing delete, not a deprovision.
+      const ok = await deleteAppApi(pro.auth.token, appId)
+      if (ok) {
+        await pro.kv.delete(`app-config:${appId}`).catch(() => {})
+        onBack()
+      }
     } finally {
       setDeleting(false)
     }
