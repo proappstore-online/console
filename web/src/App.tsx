@@ -120,7 +120,7 @@ export default function App() {
     <div className="min-h-[100dvh] flex flex-col">
       <Header user={user} view={view} onNavigate={setView} />
       <main className="flex-1 mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
-        {view === 'dashboard' && <Dashboard user={user} onOpenApp={openAppDetail} />}
+        {view === 'dashboard' && <Dashboard user={user} onOpenApp={openAppDetail} onPublishNew={() => setView('publish')} />}
         {view === 'app-detail' && selectedAppId && (
           <AppDetail appId={selectedAppId} onBack={() => setView('dashboard')} />
         )}
@@ -225,10 +225,9 @@ function Header({ user, view, onNavigate }: { user: User; view: View; onNavigate
 // Dashboard
 // ---------------------------------------------------------------------------
 
-function Dashboard({ user, onOpenApp }: { user: User; onOpenApp: (id: string) => void }) {
+function Dashboard({ user, onOpenApp, onPublishNew }: { user: User; onOpenApp: (id: string) => void; onPublishNew: () => void }) {
   const [apps, setApps] = useState<AppEntry[]>([])
   const [sub, setSub] = useState<Subscription | null>(null)
-  const [totalViews, setTotalViews] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -242,18 +241,6 @@ function Dashboard({ user, onOpenApp }: { user: User; onOpenApp: (id: string) =>
         if (cancelled) return
         setApps(list)
         setSub(subResult)
-
-        if (list.length > 0) {
-          try {
-            const counters = await pro.counters.list({ prefix: 'views:' })
-            if (!cancelled) {
-              const total = Object.values(counters).reduce((a, b) => a + b, 0)
-              setTotalViews(total)
-            }
-          } catch {
-            // counters may not be available
-          }
-        }
       } catch {
         // signed out or network error
       } finally {
@@ -288,9 +275,8 @@ function Dashboard({ user, onOpenApp }: { user: User; onOpenApp: (id: string) =>
       </div>
 
       {/* Quick stats */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4">
         <StatCard label="Total Apps" value={apps.length} />
-        <StatCard label="Total Views" value={totalViews ?? 0} />
         <StatCard label="Plan" value={sub?.status === 'active' ? 'Pro' : 'Free'} />
       </div>
 
@@ -298,19 +284,24 @@ function Dashboard({ user, onOpenApp }: { user: User; onOpenApp: (id: string) =>
       <div>
         <div className="flex items-center justify-between mb-4">
           <h3 className="display-font text-xl font-bold text-[var(--ink)]">Your Apps</h3>
-          <a
-            href="https://create.freeappstore.online"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={onPublishNew}
             className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
           >
-            + Create New App
-          </a>
+            + Publish New App
+          </button>
         </div>
 
         {apps.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-[var(--line-strong)] p-12 text-center">
-            <p className="text-[var(--muted)]">No apps yet. Create your first app to get started.</p>
+            <p className="text-[var(--muted)]">
+              No apps yet.{' '}
+              <button type="button" onClick={onPublishNew} className="text-[var(--accent)] font-semibold underline">
+                Submit your first app
+              </button>{' '}
+              for review.
+            </p>
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
@@ -322,7 +313,7 @@ function Dashboard({ user, onOpenApp }: { user: User; onOpenApp: (id: string) =>
               >
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-[var(--ink)]">{a.name}</span>
-                  <span className="inline-block h-2 w-2 rounded-full bg-[var(--success)]" title="Active" />
+                  <AppStatusBadge submissionStatus={a.submissionStatus} hasSubmission={a.hasSubmission} />
                 </div>
                 <p className="mt-1 text-xs text-[var(--muted)] font-mono">{a.id}</p>
                 <p className="mt-1 text-xs text-[var(--muted)]">
@@ -344,7 +335,6 @@ function Dashboard({ user, onOpenApp }: { user: User; onOpenApp: (id: string) =>
 function AppDetail({ appId, onBack }: { appId: string; onBack: () => void }) {
   const [apps, setApps] = useState<AppEntry[]>([])
   const [config, setConfig] = useState<AppConfig>({ description: '' })
-  const [views, setViews] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -356,15 +346,13 @@ function AppDetail({ appId, onBack }: { appId: string; onBack: () => void }) {
     let cancelled = false
     async function load() {
       try {
-        const [list, storedConfig, viewCount] = await Promise.all([
+        const [list, storedConfig] = await Promise.all([
           fetchApps(pro.auth.token),
           pro.kv.get<AppConfig>(`app-config:${appId}`),
-          pro.counters.get(`views:${appId}`).catch(() => 0),
         ])
         if (cancelled) return
         setApps(list)
         if (storedConfig) setConfig(storedConfig)
-        setViews(viewCount)
       } catch {
         // error loading
       } finally {
@@ -442,24 +430,18 @@ function AppDetail({ appId, onBack }: { appId: string; onBack: () => void }) {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Settings — description (local note shown only to the owner) */}
       <div className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
-        <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide mb-3">Stats</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <StatCard label="Views" value={views ?? 0} />
-        </div>
-      </div>
-
-      {/* Settings — description */}
-      <div className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
-        <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide mb-3">Settings</h3>
-        <label className="block text-sm font-medium text-[var(--ink)] mb-1">Description</label>
+        <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide mb-3">Owner Note</h3>
+        <p className="text-xs text-[var(--muted)] mb-2">
+          Private to you. The public storefront description comes from your submission, not this field.
+        </p>
         <textarea
           value={config.description}
           onChange={(e) => setConfig({ ...config, description: e.target.value })}
           rows={3}
           className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40"
-          placeholder="Describe your app..."
+          placeholder="Internal notes about this app..."
         />
         <button
           onClick={saveDescription}
@@ -742,6 +724,29 @@ function StatCard({ label, value }: { label: string; value: number | string }) {
       <p className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wide">{label}</p>
       <p className="mt-1 display-font text-2xl font-bold text-[var(--ink)]">{value}</p>
     </div>
+  )
+}
+
+function AppStatusBadge({ submissionStatus, hasSubmission }: { submissionStatus?: string | null; hasSubmission?: boolean }) {
+  // The apps table only has a row when provisioning succeeded, so by default
+  // every entry is "Live." If the dev's latest submission for this app is
+  // pending or rejected (e.g. a re-submission for changes), surface that.
+  let label: string
+  let cls: string
+  if (hasSubmission && submissionStatus === 'pending') {
+    label = 'In review'
+    cls = 'bg-[var(--warning)]/15 text-[var(--warning)]'
+  } else if (hasSubmission && submissionStatus === 'rejected') {
+    label = 'Rejected'
+    cls = 'bg-[var(--error)]/15 text-[var(--error)]'
+  } else {
+    label = 'Live'
+    cls = 'bg-[var(--success)]/15 text-[var(--success)]'
+  }
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${cls}`}>
+      {label}
+    </span>
   )
 }
 
