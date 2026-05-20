@@ -74,14 +74,10 @@ type Theme = 'system' | 'light' | 'dark'
 
 interface Prefs {
   theme: Theme
-  emailNotifications: boolean
-  weeklyDigest: boolean
 }
 
 const DEFAULT_PREFS: Prefs = {
   theme: 'system',
-  emailNotifications: true,
-  weeklyDigest: false,
 }
 
 // ---------------------------------------------------------------------------
@@ -373,15 +369,36 @@ function Dashboard({
 // Subscription
 // ---------------------------------------------------------------------------
 
+interface Pricing {
+  proMonthly: { priceId: string; currency: string; dollars: number } | null
+}
+
+async function fetchPricing(): Promise<Pricing | null> {
+  try {
+    const res = await fetch(`${API_BASE}/pricing`)
+    if (!res.ok) return null
+    return (await res.json()) as Pricing
+  } catch {
+    return null
+  }
+}
+
 function SubscriptionView() {
   const [sub, setSub] = useState<Subscription | null>(null)
+  const [pricing, setPricing] = useState<Pricing | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let cancelled = false
-    pro.subscription.status()
-      .then((s) => { if (!cancelled) setSub(s) })
-      .catch(() => {})
+    Promise.all([
+      pro.subscription.status().catch(() => null),
+      fetchPricing(),
+    ])
+      .then(([s, p]) => {
+        if (cancelled) return
+        setSub(s)
+        setPricing(p)
+      })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [])
@@ -391,6 +408,8 @@ function SubscriptionView() {
   }
 
   const isPro = sub?.status === 'active'
+  const monthly = pricing?.proMonthly
+  const dollars = monthly?.dollars ?? 9
 
   return (
     <div className="space-y-8">
@@ -422,62 +441,68 @@ function SubscriptionView() {
         ) : (
           <div className="space-y-4">
             <p className="text-sm text-[var(--muted)]">
-              You are on the Free plan. Upgrade to Pro for $9/mo to unlock all features.
+              {monthly
+                ? `One subscription unlocks every Pro app on the platform — $${dollars}/mo, cancel anytime.`
+                : "Pro subscriptions aren't configured on this platform yet. Check back soon."}
             </p>
             <button
-              onClick={() =>
+              disabled={!monthly}
+              onClick={() => {
+                if (!monthly) return
                 pro.subscription.openCheckout({
-                  priceId: 'price_pro_monthly',
+                  priceId: monthly.priceId,
                   successUrl: window.location.href,
                   cancelUrl: window.location.href,
                 })
-              }
-              className="rounded-xl bg-[var(--accent)] px-6 py-3 text-sm font-semibold text-white shadow-lg hover:opacity-90"
+              }}
+              className="rounded-xl bg-[var(--accent)] px-6 py-3 text-sm font-semibold text-white shadow-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Upgrade to Pro -- $9/mo
+              {monthly ? `Upgrade to Pro — $${dollars}/mo` : 'Upgrade unavailable'}
             </button>
           </div>
         )}
       </div>
 
-      {/* Feature comparison */}
+      {/* Where your $9 goes — pool model explainer (replaces the old feature
+          comparison table, which described feature-gating that doesn't exist
+          on PAS). */}
       <div className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
-        <h3 className="display-font text-lg font-bold text-[var(--ink)] mb-4">Feature Comparison</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[var(--line)]">
-                <th className="text-left py-2 font-semibold text-[var(--ink)]">Feature</th>
-                <th className="text-center py-2 font-semibold text-[var(--muted)]">Free</th>
-                <th className="text-center py-2 font-semibold text-[var(--accent)]">Pro</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--line)]">
-              {FEATURES.map((f) => (
-                <tr key={f.name}>
-                  <td className="py-2.5 text-[var(--ink)]">{f.name}</td>
-                  <td className="py-2.5 text-center text-[var(--muted)]">{f.free}</td>
-                  <td className="py-2.5 text-center text-[var(--ink)]">{f.pro}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <h3 className="display-font text-lg font-bold text-[var(--ink)] mb-2">Where your ${dollars} goes</h3>
+        <p className="text-sm text-[var(--muted)] mb-4">
+          ProAppStore is one subscription for every Pro app — no per-app prices, no in-app upgrades.
+          Creators are paid monthly from the subscription pool in proportion to how much each
+          subscriber actually used their app.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-[var(--line)] bg-[var(--glass)] p-4">
+            <p className="text-2xl font-bold text-[var(--ink)]">90%</p>
+            <p className="text-xs text-[var(--muted)] mt-1">
+              Goes to creators of the apps you used this month, weighted by your usage of each.
+            </p>
+          </div>
+          <div className="rounded-xl border border-[var(--line)] bg-[var(--glass)] p-4">
+            <p className="text-2xl font-bold text-[var(--ink)]">10%</p>
+            <p className="text-xs text-[var(--muted)] mt-1">
+              Platform fee — covers hosting, databases, file storage, real-time, payments.
+            </p>
+          </div>
+          <div className="rounded-xl border border-[var(--line)] bg-[var(--glass)] p-4">
+            <p className="text-2xl font-bold text-[var(--ink)]">0</p>
+            <p className="text-xs text-[var(--muted)] mt-1">
+              Ads. Trackers. Data sold. Per-app paywalls. None of the above.
+            </p>
+          </div>
         </div>
+        <p className="text-xs text-[var(--muted)] mt-4">
+          Full mechanics, edge cases, and the math:{' '}
+          <a href="https://proappstore.online/pricing" target="_blank" rel="noopener noreferrer" className="underline text-[var(--accent)]">
+            proappstore.online/pricing
+          </a>
+        </p>
       </div>
     </div>
   )
 }
-
-const FEATURES = [
-  { name: 'KV Storage', free: '1 MB/user', pro: '10 MB/user' },
-  { name: 'Real-time Rooms', free: '50 user-hrs/day', pro: 'Unlimited' },
-  { name: 'Custom Domain', free: '--', pro: 'Yes' },
-  { name: 'Server-side AI', free: '--', pro: 'Included' },
-  { name: 'Cron Workers', free: '--', pro: 'Yes' },
-  { name: 'Transactional Email', free: '--', pro: 'Included' },
-  { name: 'Cloud Sync', free: '--', pro: 'Yes' },
-  { name: 'Priority Support', free: '--', pro: 'Yes' },
-]
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -547,31 +572,6 @@ function Settings() {
         </div>
       </div>
 
-      {/* Notifications */}
-      <div className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
-        <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide mb-4">Notifications</h3>
-        <div className="space-y-3">
-          <Toggle
-            label="Email notifications"
-            checked={prefs.emailNotifications}
-            onChange={(v) => save({ ...prefs, emailNotifications: v })}
-          />
-          <Toggle
-            label="Weekly digest"
-            checked={prefs.weeklyDigest}
-            onChange={(v) => save({ ...prefs, weeklyDigest: v })}
-          />
-        </div>
-      </div>
-
-      {/* API Keys */}
-      <div className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
-        <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide mb-3">API Keys</h3>
-        <p className="text-sm text-[var(--muted)]">
-          Coming soon: manage your API proxy keys for server-side AI access.
-        </p>
-      </div>
-
       {saving && (
         <p className="text-xs text-[var(--muted)] text-center">Saving...</p>
       )}
@@ -630,28 +630,10 @@ function AppStatusBadge({ submissionStatus, hasSubmission }: { submissionStatus?
   )
 }
 
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label className="flex items-center justify-between cursor-pointer">
-      <span className="text-sm text-[var(--ink)]">{label}</span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-10 shrink-0 rounded-full transition-colors ${
-          checked ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'
-        }`}
-      >
-        <span
-          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform mt-0.5 ${
-            checked ? 'translate-x-[1.125rem] ml-0.5' : 'translate-x-0.5'
-          }`}
-        />
-      </button>
-    </label>
-  )
-}
+// (The Toggle component lived here. Removed alongside the fake email-
+// notifications + weekly-digest controls in Settings — those wired to
+// per-user KV but no backend ever read them. Restore from git history
+// if a real toggle is wanted.)
 
 function GitHubIcon() {
   return (
