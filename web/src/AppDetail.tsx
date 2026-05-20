@@ -155,7 +155,7 @@ function Section({
   title, hint, state, children, onSave,
 }: {
   title: string
-  hint?: string
+  hint?: React.ReactNode
   state: SaveState
   children: React.ReactNode
   onSave: () => void | Promise<void>
@@ -518,8 +518,21 @@ function LegalSection({ appId, listing, update, getToken }: SectionProps) {
     }
   }
 
+  const PLATFORM_PRIVACY = 'https://proappstore.online/privacy'
+  const PLATFORM_TERMS = 'https://proappstore.online/terms'
+  const TEMPLATE = 'https://proappstore.online/privacy-template'
+
   return (
-    <Section title="Legal" hint="Public policies. Paste a URL or upload a markdown file." state={state} onSave={save}>
+    <Section
+      title="Legal"
+      hint={
+        <>
+          The platform's <a href={PLATFORM_PRIVACY} target="_blank" rel="noopener noreferrer" className="underline">privacy policy</a> and <a href={PLATFORM_TERMS} target="_blank" rel="noopener noreferrer" className="underline">terms</a> already cover standard platform behavior (auth, billing, storage, usage analytics, deletion). Link to those if your app doesn't add anything app-specific; otherwise <a href={TEMPLATE} target="_blank" rel="noopener noreferrer" className="underline">copy the template</a> and host or upload your own.
+        </>
+      }
+      state={state}
+      onSave={save}
+    >
       <Row label="Privacy policy">
         <div className="flex flex-col gap-2">
           <input
@@ -536,13 +549,28 @@ function LegalSection({ appId, listing, update, getToken }: SectionProps) {
             className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadMd('privacy-policy', f) }}
           />
-          <button
-            onClick={() => privacyRef.current?.click()}
-            disabled={busy === 'privacy'}
-            className="self-start text-xs text-[var(--muted)] hover:text-[var(--ink)] underline"
-          >
-            {busy === 'privacy' ? 'Uploading…' : 'or upload privacy.md'}
-          </button>
+          <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
+            <button
+              type="button"
+              onClick={() => set('privacyPolicyUrl', PLATFORM_PRIVACY)}
+              className="hover:text-[var(--ink)] underline"
+            >
+              Use the platform policy
+            </button>
+            <span>·</span>
+            <a href={TEMPLATE} target="_blank" rel="noopener noreferrer" className="hover:text-[var(--ink)] underline">
+              Copy the template
+            </a>
+            <span>·</span>
+            <button
+              type="button"
+              onClick={() => privacyRef.current?.click()}
+              disabled={busy === 'privacy'}
+              className="hover:text-[var(--ink)] underline"
+            >
+              {busy === 'privacy' ? 'Uploading…' : 'Upload privacy.md'}
+            </button>
+          </div>
         </div>
       </Row>
       <Row label="Terms of service">
@@ -561,13 +589,24 @@ function LegalSection({ appId, listing, update, getToken }: SectionProps) {
             className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadMd('terms', f) }}
           />
-          <button
-            onClick={() => termsRef.current?.click()}
-            disabled={busy === 'terms'}
-            className="self-start text-xs text-[var(--muted)] hover:text-[var(--ink)] underline"
-          >
-            {busy === 'terms' ? 'Uploading…' : 'or upload terms.md'}
-          </button>
+          <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
+            <button
+              type="button"
+              onClick={() => set('termsUrl', PLATFORM_TERMS)}
+              className="hover:text-[var(--ink)] underline"
+            >
+              Use the platform terms
+            </button>
+            <span>·</span>
+            <button
+              type="button"
+              onClick={() => termsRef.current?.click()}
+              disabled={busy === 'terms'}
+              className="hover:text-[var(--ink)] underline"
+            >
+              {busy === 'terms' ? 'Uploading…' : 'Upload terms.md'}
+            </button>
+          </div>
         </div>
       </Row>
     </Section>
