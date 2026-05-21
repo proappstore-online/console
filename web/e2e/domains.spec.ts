@@ -24,7 +24,9 @@ test.describe('Console SPA — public', () => {
   test('shows Sign in with GitHub CTA when not authenticated', async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: 'Creator Console' })).toBeVisible();
-    await expect(page.getByText('Sign in with GitHub')).toBeVisible();
+    // The phrase appears both in the descriptive paragraph and on the
+    // button; target the button so strict-mode matching has one result.
+    await expect(page.getByRole('button', { name: 'Sign in with GitHub' })).toBeVisible();
   });
 });
 
