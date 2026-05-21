@@ -167,6 +167,30 @@ export function fetchAnalyticsDiagnostics(
   )
 }
 
+/** Platform-wide aggregate (admin-only). Cross-app totals + top apps +
+ *  countries + device split + daily/hourly series. */
+export interface PlatformAnalyticsResponse {
+  days: number
+  bucket: AnalyticsBucket
+  total_views: number
+  active_apps: number
+  custom_events: number
+  series: Array<{ t: string; views: number }>
+  top_apps: Array<{ app: string; views: number }>
+  top_countries: Array<{ country: string; views: number }>
+  device_split: Array<{ device: string; views: number }>
+}
+
+export function fetchPlatformAnalytics(
+  token: string,
+  days = 7,
+): Promise<PlatformAnalyticsResponse> {
+  return call<PlatformAnalyticsResponse>(
+    token,
+    `/analytics/admin/platform?days=${days}`,
+  )
+}
+
 /** List the distinct custom event kinds (everything except 'pageview')
  *  fired in the window, sorted by count desc. Drives the "Custom events"
  *  panel — empty array means the creator hasn't called

@@ -17,6 +17,8 @@ test.describe('FAS analytics API contract', () => {
     '/v1/apps/example/analytics/events?days=7',
     '/v1/apps/example/analytics/live',
     '/v1/apps/example/analytics/diagnostics',
+    '/v1/analytics/admin/platform?days=7',
+    '/v1/analytics/admin/platform?days=1&bucket=hour',
   ];
 
   for (const path of ownerOnlyEndpoints) {
