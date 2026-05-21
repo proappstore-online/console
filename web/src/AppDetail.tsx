@@ -13,6 +13,14 @@ import {
   dayOfWeekLabel,
   type UsageResponse,
 } from './usage'
+import {
+  fetchAnalyticsConfig,
+  fetchAnalyticsStats,
+  updateAnalyticsConfig,
+  formatViewCount,
+  type AnalyticsConfig,
+  type AnalyticsStats,
+} from './analytics'
 
 interface Props {
   appId: string
@@ -90,6 +98,7 @@ export function AppDetail({ appId, appName, getToken, onBack, onDelete }: Props)
           <ListingCopySection appId={appId} listing={listing} update={update} getToken={getToken} />
           <ScreenshotsSection appId={appId} listing={listing} update={update} getToken={getToken} />
           <UsageSection appId={appId} getToken={getToken} />
+          <AnalyticsSection appId={appId} getToken={getToken} />
           <DeveloperSection appId={appId} listing={listing} update={update} getToken={getToken} />
           <SocialSection appId={appId} listing={listing} update={update} getToken={getToken} />
           <LegalSection appId={appId} listing={listing} update={update} getToken={getToken} />
@@ -937,6 +946,298 @@ function Preview({ iconUrl, splashColor }: { iconUrl: string | null; splashColor
         <span className="text-2xl text-[var(--muted)]">?</span>
       )}
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Analytics — visitor stats + BYO tag config. Pulls from the backend's
+// `/analytics` (config) and `/analytics/stats` (Workers Analytics Engine
+// aggregates) endpoints. Owner-only — relies on the bearer-token auth.
+// ---------------------------------------------------------------------------
+
+function AnalyticsSection({ appId, getToken }: { appId: string; getToken: () => string | null }) {
+  const [stats, setStats] = useState<AnalyticsStats | null>(null)
+  const [config, setConfig] = useState<AnalyticsConfig | null>(null)
+  const [days, setDays] = useState<7 | 30 | 90>(7)
+  const [loading, setLoading] = useState(true)
+  const [statsError, setStatsError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const token = getToken()
+    if (!token) return
+    setLoading(true)
+    setStatsError(null)
+    Promise.all([
+      fetchAnalyticsStats(token, appId, days).then((r) => r.stats),
+      fetchAnalyticsConfig(token, appId),
+    ])
+      .then(([s, c]) => {
+        if (!cancelled) {
+          setStats(s)
+          setConfig(c)
+        }
+      })
+      .catch((e: Error) => {
+        if (!cancelled) setStatsError(e.message)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [appId, getToken, days])
+
+  return (
+    <section className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
+      <div className="flex items-baseline justify-between mb-1">
+        <h3 className="display-font text-lg font-bold text-[var(--ink)]">Visitor analytics</h3>
+        <div className="flex gap-1 text-xs">
+          {[7, 30, 90].map((d) => (
+            <button
+              key={d}
+              onClick={() => setDays(d as 7 | 30 | 90)}
+              className={`px-2 py-1 rounded ${days === d ? 'bg-[var(--ink)] text-[var(--paper)]' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}
+            >
+              {d}d
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="text-sm text-[var(--muted)] mb-4">
+        First-party page-view stats powered by Workers Analytics Engine. Cookieless, no PII.
+      </p>
+
+      {loading && <UsageSkeleton />}
+      {!loading && statsError && (
+        <p className="text-sm text-[var(--error)]">Couldn't load analytics. {statsError}</p>
+      )}
+      {!loading && !statsError && stats && (
+        <AnalyticsBody stats={stats} days={days} />
+      )}
+
+      <div className="mt-6 pt-6 border-t border-[var(--line)]">
+        <AnalyticsConfigForm
+          appId={appId}
+          config={config}
+          onSaved={setConfig}
+          getToken={getToken}
+        />
+      </div>
+    </section>
+  )
+}
+
+function AnalyticsBody({ stats, days }: { stats: AnalyticsStats; days: number }) {
+  if (stats.total_views === 0) {
+    return (
+      <p className="text-sm text-[var(--muted)] py-6 text-center">
+        No visitor data yet in the last {days} days. Once visitors land on your app, daily
+        page views will appear here.
+      </p>
+    )
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Kpi label={`Page views (${days}d)`} value={formatViewCount(stats.total_views)} />
+        <Kpi label="Unique paths" value={String(stats.unique_paths)} />
+        <Kpi
+          label="Top country"
+          value={stats.top_countries[0]?.country || '—'}
+        />
+      </div>
+
+      <DailyViewsChart series={stats.daily} />
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <RankedList title="Top pages" rows={stats.top_paths.map((r) => ({ label: r.path || '/', value: r.views }))} />
+        <RankedList title="Top referrers" rows={stats.top_referrers.map((r) => ({ label: r.referrer || '(direct)', value: r.views }))} />
+        <RankedList title="Top countries" rows={stats.top_countries.map((r) => ({ label: r.country || '—', value: r.views }))} />
+        <RankedList title="Device" rows={stats.device_split.map((r) => ({ label: r.device, value: r.views }))} />
+      </div>
+    </div>
+  )
+}
+
+function DailyViewsChart({ series }: { series: AnalyticsStats['daily'] }) {
+  const { bars, maxViews } = useMemo(() => {
+    const vs = series.map((d) => d.views)
+    return { bars: vs, maxViews: Math.max(1, ...vs) }
+  }, [series])
+
+  if (series.length === 0) {
+    return <p className="text-sm text-[var(--muted)]">No daily data in this window.</p>
+  }
+
+  const W = 600
+  const H = 120
+  const gap = 2
+  const slot = W / series.length
+  const barW = Math.max(1, slot - gap)
+
+  return (
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--glass)] p-3">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
+        role="img"
+        aria-label={`Daily page views (${series.length} days)`}
+        className="w-full h-32 block"
+      >
+        <line x1={0} x2={W} y1={H - 0.5} y2={H - 0.5} stroke="currentColor" strokeOpacity="0.15" />
+        {bars.map((v, i) => {
+          const h = (v / maxViews) * (H - 2)
+          return (
+            <rect
+              key={i}
+              x={i * slot}
+              y={H - h}
+              width={barW}
+              height={h}
+              fill="var(--accent)"
+              opacity={v > 0 ? 0.85 : 0.2}
+            >
+              <title>{`${series[i].day}: ${v} view${v === 1 ? '' : 's'}`}</title>
+            </rect>
+          )
+        })}
+      </svg>
+      <div className="flex justify-between mt-1 text-[10px] text-[var(--muted)]">
+        <span>{series[0]?.day.slice(5) ?? ''}</span>
+        <span>peak {maxViews}</span>
+        <span>{series[series.length - 1]?.day.slice(5) ?? ''}</span>
+      </div>
+    </div>
+  )
+}
+
+function RankedList({ title, rows }: { title: string; rows: Array<{ label: string; value: number }> }) {
+  const max = Math.max(1, ...rows.map((r) => r.value))
+  return (
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--glass)] p-3">
+      <h4 className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wide mb-2">
+        {title}
+      </h4>
+      {rows.length === 0 ? (
+        <p className="text-xs text-[var(--muted)]">No data.</p>
+      ) : (
+        <ul className="space-y-1">
+          {rows.slice(0, 5).map((r, i) => (
+            <li key={i} className="text-xs">
+              <div className="flex justify-between mb-0.5">
+                <span className="text-[var(--ink)] truncate">{r.label}</span>
+                <span className="text-[var(--muted)] tabular-nums">{formatViewCount(r.value)}</span>
+              </div>
+              <div className="h-1 bg-[var(--line)] rounded overflow-hidden">
+                <div
+                  className="h-1 bg-[var(--accent)]"
+                  style={{ width: `${(r.value / max) * 100}%` }}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function AnalyticsConfigForm({
+  appId,
+  config,
+  onSaved,
+  getToken,
+}: {
+  appId: string
+  config: AnalyticsConfig | null
+  onSaved: (c: AnalyticsConfig) => void
+  getToken: () => string | null
+}) {
+  const [ga4, setGa4] = useState(config?.ga4 ?? '')
+  const [plausible, setPlausible] = useState(config?.plausible ?? '')
+  const [customHead, setCustomHead] = useState(config?.customHead ?? '')
+  const [state, setState] = useState<SaveState>('idle')
+
+  useEffect(() => {
+    setGa4(config?.ga4 ?? '')
+    setPlausible(config?.plausible ?? '')
+    setCustomHead(config?.customHead ?? '')
+  }, [config])
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const token = getToken()
+    if (!token) return
+    setState('saving')
+    try {
+      const fresh = await updateAnalyticsConfig(token, appId, {
+        ga4: ga4.trim() || null,
+        plausible: plausible.trim() || null,
+        custom_head: customHead.trim() || null,
+      })
+      onSaved(fresh)
+      setState('saved')
+      setTimeout(() => setState('idle'), 2000)
+    } catch (err) {
+      setState({ error: err instanceof Error ? err.message : 'failed' })
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-3">
+      <h4 className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wide">
+        Add your own tags (optional)
+      </h4>
+      <p className="text-xs text-[var(--muted)]">
+        Wire Google Analytics, Plausible, or a custom &lt;head&gt; snippet on top of the
+        cookieless first-party tracking already in place. The platform CF Web Analytics token
+        {config?.cfBeaconToken ? ' is active' : ' will be auto-provisioned at next publish'}.
+      </p>
+      <label className="block">
+        <span className="text-xs text-[var(--muted)]">Google Analytics 4 ID</span>
+        <input
+          type="text"
+          placeholder="G-XXXXXXXXXX"
+          value={ga4}
+          onChange={(e) => setGa4(e.target.value)}
+          className="mt-1 w-full px-3 py-2 text-sm rounded-lg border border-[var(--line)] bg-[var(--glass)] text-[var(--ink)] placeholder-[var(--muted)]"
+        />
+      </label>
+      <label className="block">
+        <span className="text-xs text-[var(--muted)]">Plausible domain</span>
+        <input
+          type="text"
+          placeholder="mysite.com"
+          value={plausible}
+          onChange={(e) => setPlausible(e.target.value)}
+          className="mt-1 w-full px-3 py-2 text-sm rounded-lg border border-[var(--line)] bg-[var(--glass)] text-[var(--ink)] placeholder-[var(--muted)]"
+        />
+      </label>
+      <label className="block">
+        <span className="text-xs text-[var(--muted)]">Custom &lt;head&gt; snippet (max 4 KB)</span>
+        <textarea
+          rows={3}
+          placeholder='<meta name="custom" content="..." />'
+          value={customHead}
+          onChange={(e) => setCustomHead(e.target.value)}
+          className="mt-1 w-full px-3 py-2 font-mono text-xs rounded-lg border border-[var(--line)] bg-[var(--glass)] text-[var(--ink)] placeholder-[var(--muted)]"
+        />
+      </label>
+      <div className="flex items-center gap-3">
+        <button
+          type="submit"
+          disabled={state === 'saving'}
+          className="px-4 py-2 text-sm font-medium rounded-lg bg-[var(--accent)] text-[var(--paper)] disabled:opacity-50"
+        >
+          {state === 'saving' ? 'Saving…' : 'Save analytics tags'}
+        </button>
+        {state === 'saved' && <span className="text-xs text-[var(--success)]">Saved.</span>}
+        {typeof state === 'object' && state.error && (
+          <span className="text-xs text-[var(--error)]">{state.error}</span>
+        )}
+      </div>
+    </form>
   )
 }
 
