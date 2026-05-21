@@ -1474,35 +1474,47 @@ function DomainRow({
               {verifyState === 'verifying' ? 'Checking…' : 'Verify'}
             </button>
           )}
-          {removeState === 'confirm' ? (
-            <>
-              <button
-                onClick={onRemove}
-                className="rounded-lg bg-[var(--error)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
-              >
-                Confirm detach
-              </button>
-              <button
-                onClick={() => setRemoveState('idle')}
-                className="rounded-lg border border-[var(--line-strong)] px-3 py-1.5 text-xs font-medium text-[var(--muted)] hover:text-[var(--ink)]"
-              >
-                Cancel
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={() => setRemoveState('confirm')}
-              disabled={removeState === 'removing'}
-              className="rounded-lg border border-[var(--error)]/40 px-3 py-1.5 text-xs font-semibold text-[var(--error)] hover:bg-[var(--error)]/10 disabled:opacity-50"
-            >
-              {removeState === 'removing' ? 'Detaching…' : 'Detach'}
-            </button>
-          )}
+          <button
+            onClick={() => setRemoveState('confirm')}
+            disabled={removeState === 'confirm' || removeState === 'removing'}
+            className="rounded-lg border border-[var(--error)]/40 px-3 py-1.5 text-xs font-semibold text-[var(--error)] hover:bg-[var(--error)]/10 disabled:opacity-50"
+          >
+            {removeState === 'removing' ? 'Detaching…' : 'Detach'}
+          </button>
         </div>
       </div>
 
       {typeof verifyState === 'object' && (
         <p className="mt-2 text-xs text-[var(--error)]">{verifyState.error}</p>
+      )}
+
+      {removeState === 'confirm' && (
+        <div className="mt-3 pt-3 border-t border-[var(--error)]/30 space-y-2">
+          <p className="text-xs text-[var(--ink)]">
+            Detach <span className="font-mono font-semibold">{d.domain}</span>?
+            Cloudflare will stop serving the app at this hostname.
+          </p>
+          <p className="text-xs text-[var(--muted)]">
+            <strong className="text-[var(--ink)]">Also remove the CNAME at your registrar</strong>{' '}
+            ({d.domain} → {cnameTarget(appId)}) so the domain isn't left pointing at our infra.
+            That DNS lives on your account — we can't touch it.
+          </p>
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={onRemove}
+              disabled={removeState !== 'confirm'}
+              className="rounded-lg bg-[var(--error)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+            >
+              Yes, detach
+            </button>
+            <button
+              onClick={() => setRemoveState('idle')}
+              className="rounded-lg border border-[var(--line-strong)] px-3 py-1.5 text-xs font-medium text-[var(--muted)] hover:text-[var(--ink)]"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
       {typeof removeState === 'object' && (
         <p className="mt-2 text-xs text-[var(--error)]">{removeState.error}</p>
