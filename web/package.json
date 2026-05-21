@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "check": "npx -y @proappstore/cli@latest check"
+    "check": "npx -y @proappstore/cli@latest check",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@proappstore/sdk": "^0.2.0",
@@ -15,6 +16,7 @@
     "react-dom": "^19.2.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/vite": "^4.2.4",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
