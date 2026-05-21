@@ -19,6 +19,12 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <title>Creator Console — ProAppStore</title>
+    <!-- CF Web Analytics beacon for the console itself. Cookieless, no PII.
+         Token is the literal string until set; replace PROAPPSTORE_CONSOLE_CF_BEACON_TOKEN
+         with the real Web Analytics site_token from the CF dashboard
+         (or wire a build-time substitution if/when the console grows a build pipeline). -->
+    <script defer src="https://static.cloudflareinsights.com/beacon.min.js"
+            data-cf-beacon='{"token":"PROAPPSTORE_CONSOLE_CF_BEACON_TOKEN"}'></script>
   </head>
   <body>
     <div id="root"></div>
