@@ -54,6 +54,30 @@ export interface LiveResponse {
   top_paths: Array<{ path: string; views: number }>
 }
 
+/** Diagnostics — why this app's dashboard shows no data. The verdict picks
+ *  the worst-still-actionable cause; the UI renders human-readable guidance
+ *  based on it. `checks` carries the raw signals for power-user inspection. */
+export type DiagnosticsVerdict =
+  | 'ok'
+  | 'never_seen_event'
+  | 'no_dataset_binding'
+  | 'no_stats_query'
+  | 'silent_24h'
+
+export interface DiagnosticsResponse {
+  appId: string
+  verdict: DiagnosticsVerdict
+  checks: {
+    cf_beacon_configured: boolean
+    byo_tag_configured: boolean
+    dataset_bound: boolean
+    stats_queryable: boolean
+    events_ever: boolean
+    events_last_24h: number
+  }
+  loader_url: string
+}
+
 /** Per-event-kind summary returned from /v1/apps/:id/analytics/events. */
 export interface EventKindSummary {
   kind: string
@@ -131,6 +155,16 @@ export function fetchAnalyticsLive(
   appId: string,
 ): Promise<LiveResponse> {
   return call<LiveResponse>(token, `/apps/${encodeURIComponent(appId)}/analytics/live`)
+}
+
+export function fetchAnalyticsDiagnostics(
+  token: string,
+  appId: string,
+): Promise<DiagnosticsResponse> {
+  return call<DiagnosticsResponse>(
+    token,
+    `/apps/${encodeURIComponent(appId)}/analytics/diagnostics`,
+  )
 }
 
 /** List the distinct custom event kinds (everything except 'pageview')
