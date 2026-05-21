@@ -6,6 +6,9 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: './e2e',
   timeout: 30_000,
+  // Retry transient failures in CI — deploy-just-finished CDN propagation
+  // races, network jitter. Locally fail fast.
+  retries: process.env.CI ? 2 : 0,
   use: {
     baseURL: 'https://console.proappstore.online',
     headless: true,
