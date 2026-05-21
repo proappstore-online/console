@@ -30,7 +30,23 @@ export interface AnalyticsStats {
 export interface StatsResponse {
   appId: string
   days: number
+  /** Echoes back the kind that was queried — useful when the same component
+   *  re-uses the response to render a heading like "purchase events". */
+  kind: string
   stats: AnalyticsStats
+}
+
+/** Per-event-kind summary returned from /v1/apps/:id/analytics/events. */
+export interface EventKindSummary {
+  kind: string
+  count: number
+}
+
+export interface EventsResponse {
+  appId: string
+  days: number
+  total_events: number
+  events: EventKindSummary[]
 }
 
 async function call<T>(
@@ -81,10 +97,27 @@ export function fetchAnalyticsStats(
   token: string,
   appId: string,
   days = 7,
+  kind = 'pageview',
 ): Promise<StatsResponse> {
+  const params = new URLSearchParams({ days: String(days), kind })
   return call<StatsResponse>(
     token,
-    `/apps/${encodeURIComponent(appId)}/analytics/stats?days=${days}`,
+    `/apps/${encodeURIComponent(appId)}/analytics/stats?${params}`,
+  )
+}
+
+/** List the distinct custom event kinds (everything except 'pageview')
+ *  fired in the window, sorted by count desc. Drives the "Custom events"
+ *  panel — empty array means the creator hasn't called
+ *  `window.pasAnalytics.event(...)` yet (or no visitors triggered it). */
+export function fetchAnalyticsEvents(
+  token: string,
+  appId: string,
+  days = 7,
+): Promise<EventsResponse> {
+  return call<EventsResponse>(
+    token,
+    `/apps/${encodeURIComponent(appId)}/analytics/events?days=${days}`,
   )
 }
 

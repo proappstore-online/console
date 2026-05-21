@@ -15,11 +15,13 @@ import {
 } from './usage'
 import {
   fetchAnalyticsConfig,
+  fetchAnalyticsEvents,
   fetchAnalyticsStats,
   updateAnalyticsConfig,
   formatViewCount,
   type AnalyticsConfig,
   type AnalyticsStats,
+  type EventKindSummary,
 } from './analytics'
 import {
   listDomains,
@@ -967,6 +969,11 @@ function Preview({ iconUrl, splashColor }: { iconUrl: string | null; splashColor
 function AnalyticsSection({ appId, getToken }: { appId: string; getToken: () => string | null }) {
   const [stats, setStats] = useState<AnalyticsStats | null>(null)
   const [config, setConfig] = useState<AnalyticsConfig | null>(null)
+  // Active event kind being graphed. 'pageview' is the default; clicking a
+  // custom-event row in the panel below swaps it. Switching kind reuses the
+  // same stats query + body component — one less thing to maintain.
+  const [kind, setKind] = useState<string>('pageview')
+  const [events, setEvents] = useState<EventKindSummary[]>([])
   const [days, setDays] = useState<7 | 30 | 90>(7)
   const [loading, setLoading] = useState(true)
   const [statsError, setStatsError] = useState<string | null>(null)
@@ -978,13 +985,15 @@ function AnalyticsSection({ appId, getToken }: { appId: string; getToken: () => 
     setLoading(true)
     setStatsError(null)
     Promise.all([
-      fetchAnalyticsStats(token, appId, days).then((r) => r.stats),
+      fetchAnalyticsStats(token, appId, days, kind).then((r) => r.stats),
       fetchAnalyticsConfig(token, appId),
+      fetchAnalyticsEvents(token, appId, days).then((r) => r.events).catch(() => [] as EventKindSummary[]),
     ])
-      .then(([s, c]) => {
+      .then(([s, c, ev]) => {
         if (!cancelled) {
           setStats(s)
           setConfig(c)
+          setEvents(ev)
         }
       })
       .catch((e: Error) => {
@@ -994,12 +1003,29 @@ function AnalyticsSection({ appId, getToken }: { appId: string; getToken: () => 
         if (!cancelled) setLoading(false)
       })
     return () => { cancelled = true }
-  }, [appId, getToken, days])
+  }, [appId, getToken, days, kind])
+
+  const isCustomKind = kind !== 'pageview'
 
   return (
     <section className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
       <div className="flex items-baseline justify-between mb-1">
-        <h3 className="display-font text-lg font-bold text-[var(--ink)]">Visitor analytics</h3>
+        <h3 className="display-font text-lg font-bold text-[var(--ink)]">
+          {isCustomKind ? (
+            <>
+              Event:{' '}
+              <span className="font-mono text-base">{kind}</span>{' '}
+              <button
+                onClick={() => setKind('pageview')}
+                className="text-xs font-normal text-[var(--muted)] hover:text-[var(--ink)] underline ml-1"
+              >
+                ← back to pageviews
+              </button>
+            </>
+          ) : (
+            'Visitor analytics'
+          )}
+        </h3>
         <div className="flex gap-1 text-xs">
           {[7, 30, 90].map((d) => (
             <button
@@ -1013,7 +1039,9 @@ function AnalyticsSection({ appId, getToken }: { appId: string; getToken: () => 
         </div>
       </div>
       <p className="text-sm text-[var(--muted)] mb-4">
-        First-party page-view stats powered by Workers Analytics Engine. Cookieless, no PII.
+        {isCustomKind
+          ? `Custom event tracked from app code via window.pasAnalytics.event("${kind}", ...).`
+          : 'First-party page-view stats powered by Workers Analytics Engine. Cookieless, no PII.'}
       </p>
 
       {loading && <UsageSkeleton />}
@@ -1021,7 +1049,13 @@ function AnalyticsSection({ appId, getToken }: { appId: string; getToken: () => 
         <p className="text-sm text-[var(--error)]">Couldn't load analytics. {statsError}</p>
       )}
       {!loading && !statsError && stats && (
-        <AnalyticsBody stats={stats} days={days} />
+        <AnalyticsBody stats={stats} days={days} kind={kind} />
+      )}
+
+      {!loading && !statsError && !isCustomKind && (
+        <div className="mt-6 pt-6 border-t border-[var(--line)]">
+          <CustomEventsPanel events={events} days={days} onPickKind={setKind} />
+        </div>
       )}
 
       <div className="mt-6 pt-6 border-t border-[var(--line)]">
@@ -1036,12 +1070,61 @@ function AnalyticsSection({ appId, getToken }: { appId: string; getToken: () => 
   )
 }
 
-function AnalyticsBody({ stats, days }: { stats: AnalyticsStats; days: number }) {
+/**
+ * Lists custom event kinds (anything except 'pageview') sorted by count.
+ * Empty state explains how to fire one — most creators don't realise the
+ * SDK exposes window.pasAnalytics.event() until they're told.
+ */
+function CustomEventsPanel({
+  events,
+  days,
+  onPickKind,
+}: {
+  events: EventKindSummary[]
+  days: number
+  onPickKind: (kind: string) => void
+}) {
+  return (
+    <div>
+      <h4 className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wide mb-2">
+        Custom events
+      </h4>
+      {events.length === 0 ? (
+        <p className="text-xs text-[var(--muted)]">
+          No custom events fired in the last {days} days. Fire one from your app code:
+          <code className="block mt-1 px-2 py-1 bg-[var(--glass)] rounded text-[10px] font-mono">
+            window.pasAnalytics.event('purchase', {`{ amount: 999 }`})
+          </code>
+        </p>
+      ) : (
+        <ul className="space-y-1">
+          {events.map((e) => (
+            <li key={e.kind}>
+              <button
+                onClick={() => onPickKind(e.kind)}
+                className="w-full text-left rounded px-2 py-1.5 hover:bg-[var(--glass)] transition-colors flex items-baseline justify-between"
+              >
+                <span className="font-mono text-sm text-[var(--ink)]">{e.kind}</span>
+                <span className="text-xs text-[var(--muted)] tabular-nums">{formatViewCount(e.count)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function AnalyticsBody({ stats, days, kind = 'pageview' }: { stats: AnalyticsStats; days: number; kind?: string }) {
+  const isCustom = kind !== 'pageview'
+  const noun = isCustom ? `${kind} events` : 'page views'
   if (stats.total_views === 0) {
     return (
       <p className="text-sm text-[var(--muted)] py-6 text-center">
-        No visitor data yet in the last {days} days. Once visitors land on your app, daily
-        page views will appear here.
+        No {noun} in the last {days} days.{' '}
+        {isCustom
+          ? `Once your app calls window.pasAnalytics.event("${kind}", ...) and a visitor triggers it, daily counts will appear here.`
+          : 'Once visitors land on your app, daily page views will appear here.'}
       </p>
     )
   }
@@ -1049,18 +1132,21 @@ function AnalyticsBody({ stats, days }: { stats: AnalyticsStats; days: number })
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Kpi label={`Page views (${days}d)`} value={formatViewCount(stats.total_views)} />
-        <Kpi label="Unique paths" value={String(stats.unique_paths)} />
         <Kpi
-          label="Top country"
-          value={stats.top_countries[0]?.country || '—'}
+          label={`${isCustom ? noun : 'Page views'} (${days}d)`}
+          value={formatViewCount(stats.total_views)}
         />
+        <Kpi label={isCustom ? 'Unique paths fired on' : 'Unique paths'} value={String(stats.unique_paths)} />
+        <Kpi label="Top country" value={stats.top_countries[0]?.country || '—'} />
       </div>
 
       <DailyViewsChart series={stats.daily} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <RankedList title="Top pages" rows={stats.top_paths.map((r) => ({ label: r.path || '/', value: r.views }))} />
+        <RankedList
+          title={isCustom ? 'Top pages firing event' : 'Top pages'}
+          rows={stats.top_paths.map((r) => ({ label: r.path || '/', value: r.views }))}
+        />
         <RankedList title="Top referrers" rows={stats.top_referrers.map((r) => ({ label: r.referrer || '(direct)', value: r.views }))} />
         <RankedList title="Top countries" rows={stats.top_countries.map((r) => ({ label: r.country || '—', value: r.views }))} />
         <RankedList title="Device" rows={stats.device_split.map((r) => ({ label: r.device, value: r.views }))} />
