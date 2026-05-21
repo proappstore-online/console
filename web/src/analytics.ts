@@ -20,12 +20,17 @@ export interface AnalyticsConfig {
 export interface AnalyticsStats {
   total_views: number
   unique_paths: number
-  daily: Array<{ day: string; views: number }>
+  /** Time series bucketed by hour or day per the envelope's `bucket` field.
+   *  Each entry's `t` is `YYYY-MM-DD` for day buckets, `YYYY-MM-DD HH:00:00`
+   *  for hour buckets. The chart picks a label format from `bucket`. */
+  series: Array<{ t: string; views: number }>
   top_paths: Array<{ path: string; views: number }>
   top_referrers: Array<{ referrer: string; views: number }>
   top_countries: Array<{ country: string; views: number }>
   device_split: Array<{ device: string; views: number }>
 }
+
+export type AnalyticsBucket = 'hour' | 'day'
 
 export interface StatsResponse {
   appId: string
@@ -33,7 +38,20 @@ export interface StatsResponse {
   /** Echoes back the kind that was queried — useful when the same component
    *  re-uses the response to render a heading like "purchase events". */
   kind: string
+  /** Bucket actually used. Defaults to 'hour' when days=1, 'day' otherwise;
+   *  override via the `bucket` arg on fetchAnalyticsStats. */
+  bucket: AnalyticsBucket
   stats: AnalyticsStats
+}
+
+/** "Right now" view — visitors / paths in the last 5 minutes. Returned by
+ *  /v1/apps/:id/analytics/live. The dashboard polls this every 30s. */
+export interface LiveResponse {
+  appId: string
+  window_minutes: number
+  views: number
+  unique_paths: number
+  top_paths: Array<{ path: string; views: number }>
 }
 
 /** Per-event-kind summary returned from /v1/apps/:id/analytics/events. */
@@ -98,12 +116,21 @@ export function fetchAnalyticsStats(
   appId: string,
   days = 7,
   kind = 'pageview',
+  bucket?: AnalyticsBucket,
 ): Promise<StatsResponse> {
   const params = new URLSearchParams({ days: String(days), kind })
+  if (bucket) params.set('bucket', bucket)
   return call<StatsResponse>(
     token,
     `/apps/${encodeURIComponent(appId)}/analytics/stats?${params}`,
   )
+}
+
+export function fetchAnalyticsLive(
+  token: string,
+  appId: string,
+): Promise<LiveResponse> {
+  return call<LiveResponse>(token, `/apps/${encodeURIComponent(appId)}/analytics/live`)
 }
 
 /** List the distinct custom event kinds (everything except 'pageview')

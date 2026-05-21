@@ -16,12 +16,14 @@ import {
 import {
   fetchAnalyticsConfig,
   fetchAnalyticsEvents,
+  fetchAnalyticsLive,
   fetchAnalyticsStats,
   updateAnalyticsConfig,
   formatViewCount,
   type AnalyticsConfig,
   type AnalyticsStats,
   type EventKindSummary,
+  type LiveResponse,
 } from './analytics'
 import {
   listDomains,
@@ -974,7 +976,10 @@ function AnalyticsSection({ appId, getToken }: { appId: string; getToken: () => 
   // same stats query + body component — one less thing to maintain.
   const [kind, setKind] = useState<string>('pageview')
   const [events, setEvents] = useState<EventKindSummary[]>([])
-  const [days, setDays] = useState<7 | 30 | 90>(7)
+  const [days, setDays] = useState<1 | 7 | 30 | 90>(7)
+  // Server defaults the bucket — `hour` when days=1, `day` otherwise. The
+  // response tells us which it used so the chart labels match.
+  const [bucket, setBucket] = useState<'hour' | 'day'>('day')
   const [loading, setLoading] = useState(true)
   const [statsError, setStatsError] = useState<string | null>(null)
 
@@ -985,13 +990,14 @@ function AnalyticsSection({ appId, getToken }: { appId: string; getToken: () => 
     setLoading(true)
     setStatsError(null)
     Promise.all([
-      fetchAnalyticsStats(token, appId, days, kind).then((r) => r.stats),
+      fetchAnalyticsStats(token, appId, days, kind),
       fetchAnalyticsConfig(token, appId),
       fetchAnalyticsEvents(token, appId, days).then((r) => r.events).catch(() => [] as EventKindSummary[]),
     ])
-      .then(([s, c, ev]) => {
+      .then(([statsRes, c, ev]) => {
         if (!cancelled) {
-          setStats(s)
+          setStats(statsRes.stats)
+          setBucket(statsRes.bucket)
           setConfig(c)
           setEvents(ev)
         }
@@ -1027,10 +1033,10 @@ function AnalyticsSection({ appId, getToken }: { appId: string; getToken: () => 
           )}
         </h3>
         <div className="flex gap-1 text-xs">
-          {[7, 30, 90].map((d) => (
+          {[1, 7, 30, 90].map((d) => (
             <button
               key={d}
-              onClick={() => setDays(d as 7 | 30 | 90)}
+              onClick={() => setDays(d as 1 | 7 | 30 | 90)}
               className={`px-2 py-1 rounded ${days === d ? 'bg-[var(--ink)] text-[var(--paper)]' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}
             >
               {d}d
@@ -1049,8 +1055,10 @@ function AnalyticsSection({ appId, getToken }: { appId: string; getToken: () => 
         <p className="text-sm text-[var(--error)]">Couldn't load analytics. {statsError}</p>
       )}
       {!loading && !statsError && stats && (
-        <AnalyticsBody stats={stats} days={days} kind={kind} />
+        <AnalyticsBody stats={stats} days={days} kind={kind} bucket={bucket} />
       )}
+
+      <LiveView appId={appId} getToken={getToken} />
 
       {!loading && !statsError && !isCustomKind && (
         <div className="mt-6 pt-6 border-t border-[var(--line)]">
@@ -1115,16 +1123,27 @@ function CustomEventsPanel({
   )
 }
 
-function AnalyticsBody({ stats, days, kind = 'pageview' }: { stats: AnalyticsStats; days: number; kind?: string }) {
+function AnalyticsBody({
+  stats,
+  days,
+  kind = 'pageview',
+  bucket = 'day',
+}: {
+  stats: AnalyticsStats
+  days: number
+  kind?: string
+  bucket?: 'hour' | 'day'
+}) {
   const isCustom = kind !== 'pageview'
   const noun = isCustom ? `${kind} events` : 'page views'
+  const windowLabel = days === 1 ? 'in the last 24h' : `in the last ${days} days`
   if (stats.total_views === 0) {
     return (
       <p className="text-sm text-[var(--muted)] py-6 text-center">
-        No {noun} in the last {days} days.{' '}
+        No {noun} {windowLabel}.{' '}
         {isCustom
-          ? `Once your app calls window.pasAnalytics.event("${kind}", ...) and a visitor triggers it, daily counts will appear here.`
-          : 'Once visitors land on your app, daily page views will appear here.'}
+          ? `Once your app calls window.pasAnalytics.event("${kind}", ...) and a visitor triggers it, the counts will appear here.`
+          : 'Once visitors land on your app, the chart will fill in.'}
       </p>
     )
   }
@@ -1133,14 +1152,14 @@ function AnalyticsBody({ stats, days, kind = 'pageview' }: { stats: AnalyticsSta
     <div className="space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Kpi
-          label={`${isCustom ? noun : 'Page views'} (${days}d)`}
+          label={`${isCustom ? noun : 'Page views'} (${days === 1 ? '24h' : `${days}d`})`}
           value={formatViewCount(stats.total_views)}
         />
         <Kpi label={isCustom ? 'Unique paths fired on' : 'Unique paths'} value={String(stats.unique_paths)} />
         <Kpi label="Top country" value={stats.top_countries[0]?.country || '—'} />
       </div>
 
-      <DailyViewsChart series={stats.daily} />
+      <DailyViewsChart series={stats.series} bucket={bucket} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <RankedList
@@ -1155,14 +1174,98 @@ function AnalyticsBody({ stats, days, kind = 'pageview' }: { stats: AnalyticsSta
   )
 }
 
-function DailyViewsChart({ series }: { series: AnalyticsStats['daily'] }) {
+/**
+ * Live view: polls /v1/apps/:id/analytics/live every 30s and shows a
+ * pulsing "X right now" counter + the hottest paths in the last 5 minutes.
+ * Renders nothing while loading the first response so we don't flash 0 →
+ * real-count on every navigation.
+ */
+function LiveView({ appId, getToken }: { appId: string; getToken: () => string | null }) {
+  const [data, setData] = useState<LiveResponse | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const tick = () => {
+      const token = getToken()
+      if (!token) return
+      fetchAnalyticsLive(token, appId)
+        .then((r) => {
+          if (!cancelled) {
+            setData(r)
+            setError(null)
+          }
+        })
+        .catch((e: Error) => {
+          if (!cancelled) setError(e.message)
+        })
+    }
+    tick()
+    const id = window.setInterval(tick, 30_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [appId, getToken])
+
+  if (error && !data) return null // silent if live endpoint isn't deployed yet
+  if (!data) return null
+
+  return (
+    <div className="mt-5 flex items-center gap-3 rounded-xl bg-[var(--glass)] border border-[var(--line)] px-4 py-2">
+      <span className="relative inline-flex h-2.5 w-2.5">
+        <span
+          className={`absolute inline-flex h-full w-full rounded-full bg-[var(--success)] ${data.views > 0 ? 'animate-ping opacity-60' : 'opacity-30'}`}
+        />
+        <span
+          className={`relative inline-flex h-2.5 w-2.5 rounded-full ${data.views > 0 ? 'bg-[var(--success)]' : 'bg-[var(--muted)]'}`}
+        />
+      </span>
+      <div className="text-sm">
+        <span className="font-bold text-[var(--ink)] tabular-nums">{formatViewCount(data.views)}</span>{' '}
+        <span className="text-[var(--muted)]">page view{data.views === 1 ? '' : 's'} in the last 5 min</span>
+        {data.top_paths.length > 0 && (
+          <>
+            {' · hot now: '}
+            {data.top_paths.slice(0, 3).map((p, i) => (
+              <span key={p.path}>
+                {i > 0 && ', '}
+                <span className="font-mono text-xs">{p.path || '/'}</span>
+                <span className="text-[var(--muted)] text-xs">{` (${p.views})`}</span>
+              </span>
+            ))}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function DailyViewsChart({
+  series,
+  bucket,
+}: {
+  series: AnalyticsStats['series']
+  bucket: 'hour' | 'day'
+}) {
   const { bars, maxViews } = useMemo(() => {
     const vs = series.map((d) => d.views)
     return { bars: vs, maxViews: Math.max(1, ...vs) }
   }, [series])
 
   if (series.length === 0) {
-    return <p className="text-sm text-[var(--muted)]">No daily data in this window.</p>
+    return (
+      <p className="text-sm text-[var(--muted)]">
+        No {bucket === 'hour' ? 'hourly' : 'daily'} data in this window.
+      </p>
+    )
+  }
+
+  // For hour buckets the `t` looks like "2026-05-21 14:00:00"; show just
+  // "14:00". For day buckets it's "2026-05-21"; show "05-21".
+  const labelFor = (t: string): string => {
+    if (bucket === 'hour') return t.slice(11, 16) || t
+    return t.slice(5, 10) || t
   }
 
   const W = 600
@@ -1177,7 +1280,7 @@ function DailyViewsChart({ series }: { series: AnalyticsStats['daily'] }) {
         viewBox={`0 0 ${W} ${H}`}
         preserveAspectRatio="none"
         role="img"
-        aria-label={`Daily page views (${series.length} days)`}
+        aria-label={`${bucket === 'hour' ? 'Hourly' : 'Daily'} page views (${series.length} ${bucket}s)`}
         className="w-full h-32 block"
       >
         <line x1={0} x2={W} y1={H - 0.5} y2={H - 0.5} stroke="currentColor" strokeOpacity="0.15" />
@@ -1193,15 +1296,15 @@ function DailyViewsChart({ series }: { series: AnalyticsStats['daily'] }) {
               fill="var(--accent)"
               opacity={v > 0 ? 0.85 : 0.2}
             >
-              <title>{`${series[i].day}: ${v} view${v === 1 ? '' : 's'}`}</title>
+              <title>{`${series[i].t}: ${v} view${v === 1 ? '' : 's'}`}</title>
             </rect>
           )
         })}
       </svg>
       <div className="flex justify-between mt-1 text-[10px] text-[var(--muted)]">
-        <span>{series[0]?.day.slice(5) ?? ''}</span>
+        <span>{labelFor(series[0]?.t ?? '')}</span>
         <span>peak {maxViews}</span>
-        <span>{series[series.length - 1]?.day.slice(5) ?? ''}</span>
+        <span>{labelFor(series[series.length - 1]?.t ?? '')}</span>
       </div>
     </div>
   )
