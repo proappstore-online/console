@@ -42,6 +42,7 @@ test.describe('Analytics API contract — owner-protected endpoints reject anony
     '/v1/apps/example/analytics',
     '/v1/apps/example/analytics/stats?days=7',
     '/v1/apps/example/analytics/stats?days=1&bucket=hour',
+    '/v1/apps/example/analytics/stats?days=7&path=%2F',
     '/v1/apps/example/analytics/events?days=7',
     '/v1/apps/example/analytics/live',
     '/v1/apps/example/analytics/diagnostics',

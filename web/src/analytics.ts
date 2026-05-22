@@ -41,6 +41,9 @@ export interface StatsResponse {
   /** Bucket actually used. Defaults to 'hour' when days=1, 'day' otherwise;
    *  override via the `bucket` arg on fetchAnalyticsStats. */
   bucket: AnalyticsBucket
+  /** When set, the stats describe only events on this URL pathname. Echoes
+   *  back the `?path=` arg from the request, or null for aggregate views. */
+  path: string | null
   stats: AnalyticsStats
 }
 
@@ -141,9 +144,11 @@ export function fetchAnalyticsStats(
   days = 7,
   kind = 'pageview',
   bucket?: AnalyticsBucket,
+  path?: string,
 ): Promise<StatsResponse> {
   const params = new URLSearchParams({ days: String(days), kind })
   if (bucket) params.set('bucket', bucket)
+  if (path) params.set('path', path)
   return call<StatsResponse>(
     token,
     `/apps/${encodeURIComponent(appId)}/analytics/stats?${params}`,

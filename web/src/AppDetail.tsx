@@ -977,6 +977,10 @@ function AnalyticsSection({ appId, getToken }: { appId: string; getToken: () => 
   // custom-event row in the panel below swaps it. Switching kind reuses the
   // same stats query + body component — one less thing to maintain.
   const [kind, setKind] = useState<string>('pageview')
+  // Active path drill-down. Empty string means "no filter" (aggregate view);
+  // clicking a row in the Top pages list sets this to that path. The whole
+  // dashboard then re-renders narrowed to that single page.
+  const [path, setPath] = useState<string>('')
   const [events, setEvents] = useState<EventKindSummary[]>([])
   const [days, setDays] = useState<1 | 7 | 30 | 90>(7)
   // Server defaults the bucket — `hour` when days=1, `day` otherwise. The
@@ -992,7 +996,7 @@ function AnalyticsSection({ appId, getToken }: { appId: string; getToken: () => 
     setLoading(true)
     setStatsError(null)
     Promise.all([
-      fetchAnalyticsStats(token, appId, days, kind),
+      fetchAnalyticsStats(token, appId, days, kind, undefined, path || undefined),
       fetchAnalyticsConfig(token, appId),
       fetchAnalyticsEvents(token, appId, days).then((r) => r.events).catch(() => [] as EventKindSummary[]),
     ])
@@ -1011,15 +1015,27 @@ function AnalyticsSection({ appId, getToken }: { appId: string; getToken: () => 
         if (!cancelled) setLoading(false)
       })
     return () => { cancelled = true }
-  }, [appId, getToken, days, kind])
+  }, [appId, getToken, days, kind, path])
 
   const isCustomKind = kind !== 'pageview'
+  const isPathFiltered = path !== ''
 
   return (
     <section className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
       <div className="flex items-baseline justify-between mb-1">
         <h3 className="display-font text-lg font-bold text-[var(--ink)]">
-          {isCustomKind ? (
+          {isPathFiltered ? (
+            <>
+              Path:{' '}
+              <span className="font-mono text-base">{path}</span>{' '}
+              <button
+                onClick={() => setPath('')}
+                className="text-xs font-normal text-[var(--muted)] hover:text-[var(--ink)] underline ml-1"
+              >
+                ← back to all pages
+              </button>
+            </>
+          ) : isCustomKind ? (
             <>
               Event:{' '}
               <span className="font-mono text-base">{kind}</span>{' '}
@@ -1047,9 +1063,11 @@ function AnalyticsSection({ appId, getToken }: { appId: string; getToken: () => 
         </div>
       </div>
       <p className="text-sm text-[var(--muted)] mb-4">
-        {isCustomKind
-          ? `Custom event tracked from app code via window.pasAnalytics.event("${kind}", ...).`
-          : 'First-party page-view stats powered by Workers Analytics Engine. Cookieless, no PII.'}
+        {isPathFiltered
+          ? `Pageviews on ${path} only. Click "back to all pages" to widen.`
+          : isCustomKind
+            ? `Custom event tracked from app code via window.pasAnalytics.event("${kind}", ...).`
+            : 'First-party page-view stats powered by Workers Analytics Engine. Cookieless, no PII.'}
       </p>
 
       {loading && <UsageSkeleton />}
@@ -1064,6 +1082,8 @@ function AnalyticsSection({ appId, getToken }: { appId: string; getToken: () => 
           bucket={bucket}
           appId={appId}
           getToken={getToken}
+          activePath={path}
+          onPickPath={(p) => setPath(p)}
         />
       )}
 
@@ -1139,6 +1159,8 @@ function AnalyticsBody({
   bucket = 'day',
   appId,
   getToken,
+  activePath = '',
+  onPickPath,
 }: {
   stats: AnalyticsStats
   days: number
@@ -1146,8 +1168,11 @@ function AnalyticsBody({
   bucket?: 'hour' | 'day'
   appId: string
   getToken: () => string | null
+  activePath?: string
+  onPickPath?: (path: string) => void
 }) {
   const isCustom = kind !== 'pageview'
+  const isPathFiltered = activePath !== ''
   const noun = isCustom ? `${kind} events` : 'page views'
   const windowLabel = days === 1 ? 'in the last 24h' : `in the last ${days} days`
   if (stats.total_views === 0) {
@@ -1177,10 +1202,18 @@ function AnalyticsBody({
       <DailyViewsChart series={stats.series} bucket={bucket} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <RankedList
-          title={isCustom ? 'Top pages firing event' : 'Top pages'}
-          rows={stats.top_paths.map((r) => ({ label: r.path || '/', value: r.views }))}
-        />
+        {/* Top pages: hidden when we're already filtered to one path (the
+            list would just be the active path with itself). Each row is a
+            button that drills into that path when there's an onPickPath
+            handler — turns the dashboard from "look at numbers" into
+            "click into the hot page to see its referrers + chart." */}
+        {!isPathFiltered && (
+          <RankedList
+            title={isCustom ? 'Top pages firing event' : 'Top pages'}
+            rows={stats.top_paths.map((r) => ({ label: r.path || '/', value: r.views }))}
+            onPick={!isCustom && onPickPath ? (label) => onPickPath(label) : undefined}
+          />
+        )}
         <RankedList title="Top referrers" rows={stats.top_referrers.map((r) => ({ label: r.referrer || '(direct)', value: r.views }))} />
         <RankedList title="Top countries" rows={stats.top_countries.map((r) => ({ label: r.country || '—', value: r.views }))} />
         <RankedList title="Device" rows={stats.device_split.map((r) => ({ label: r.device, value: r.views }))} />
@@ -1503,8 +1536,46 @@ function DailyViewsChart({
   )
 }
 
-function RankedList({ title, rows }: { title: string; rows: Array<{ label: string; value: number }> }) {
+function RankedList({
+  title,
+  rows,
+  onPick,
+}: {
+  title: string
+  rows: Array<{ label: string; value: number }>
+  /** When provided, each row becomes a button that calls onPick(label).
+   *  Used by the Top pages list to drill into a specific path. */
+  onPick?: (label: string) => void
+}) {
   const max = Math.max(1, ...rows.map((r) => r.value))
+  const renderRow = (r: { label: string; value: number }, i: number) => {
+    const inner = (
+      <>
+        <div className="flex justify-between mb-0.5">
+          <span className="text-[var(--ink)] truncate">{r.label}</span>
+          <span className="text-[var(--muted)] tabular-nums">{formatViewCount(r.value)}</span>
+        </div>
+        <div className="h-1 bg-[var(--line)] rounded overflow-hidden">
+          <div className="h-1 bg-[var(--accent)]" style={{ width: `${(r.value / max) * 100}%` }} />
+        </div>
+      </>
+    )
+    return (
+      <li key={i} className="text-xs">
+        {onPick ? (
+          <button
+            onClick={() => onPick(r.label)}
+            className="w-full text-left rounded px-1.5 py-1 -mx-1.5 hover:bg-[var(--glass-strong)] transition-colors"
+            title={`Drill into ${r.label}`}
+          >
+            {inner}
+          </button>
+        ) : (
+          inner
+        )}
+      </li>
+    )
+  }
   return (
     <div className="rounded-xl border border-[var(--line)] bg-[var(--glass)] p-3">
       <h4 className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wide mb-2">
@@ -1513,22 +1584,7 @@ function RankedList({ title, rows }: { title: string; rows: Array<{ label: strin
       {rows.length === 0 ? (
         <p className="text-xs text-[var(--muted)]">No data.</p>
       ) : (
-        <ul className="space-y-1">
-          {rows.slice(0, 5).map((r, i) => (
-            <li key={i} className="text-xs">
-              <div className="flex justify-between mb-0.5">
-                <span className="text-[var(--ink)] truncate">{r.label}</span>
-                <span className="text-[var(--muted)] tabular-nums">{formatViewCount(r.value)}</span>
-              </div>
-              <div className="h-1 bg-[var(--line)] rounded overflow-hidden">
-                <div
-                  className="h-1 bg-[var(--accent)]"
-                  style={{ width: `${(r.value / max) * 100}%` }}
-                />
-              </div>
-            </li>
-          ))}
-        </ul>
+        <ul className="space-y-1">{rows.slice(0, 5).map(renderRow)}</ul>
       )}
     </div>
   )
