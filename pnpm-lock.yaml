@@ -11,8 +11,8 @@ importers:
   web:
     dependencies:
       '@proappstore/sdk':
-        specifier: ^0.2.0
-        version: 0.2.1
+        specifier: file:../../platform/packages/sdk
+        version: file:../platform/packages/sdk(react@19.2.6)
       react:
         specifier: ^19.2.5
         version: 19.2.6
@@ -566,8 +566,13 @@ packages:
   '@emnapi/wasi-threads@1.2.1':
     resolution: {integrity: sha512-uTII7OYF+/Mes/MrcIOYp5yOtSMLBWSIoLPpcgwipoiKbli6k322tcoFsxoIIxPDqW01SQGAgko4EzZi2BNv2w==}
 
-  '@freeappstore/sdk@0.5.1':
-    resolution: {integrity: sha512-zsQ8gQ+HkjCOXXrvjQQjgZP3OH1v0L37768HVlITkNuEZoswRyXcuowSE06HN1w6EgcJk6vPvfa20Qoc+XDz3g==}
+  '@freeappstore/sdk@0.8.0':
+    resolution: {integrity: sha512-eyA70zz0o+q4yPUFeYbQQEz0eAkmwkjyBMexXIM5YM8FT+AiEKZ8UmS7WpHgit2mtnKVWMI5YXUNSr/QY2Vd2w==}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      react:
+        optional: true
 
   '@isaacs/cliui@9.0.0':
     resolution: {integrity: sha512-AokJm4tuBHillT+FpMtxQ60n8ObyXBatq7jD2/JA9dxbDDokKQm8KMht5ibGzLVU9IJDIKK4TPKgMHEYMn3lMg==}
@@ -606,8 +611,13 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  '@proappstore/sdk@0.2.1':
-    resolution: {integrity: sha512-SVnZng5FpmPtpBWAtrJULZwO+/Q0r8iPpXEqEeSI2cQc83YE9bcSmordTQJvsQLekII5U3CvLyl/YUl/KOG7AA==}
+  '@proappstore/sdk@file:../platform/packages/sdk':
+    resolution: {directory: ../platform/packages/sdk, type: directory}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      react:
+        optional: true
 
   '@rolldown/binding-android-arm64@1.0.1':
     resolution: {integrity: sha512-fJI3I0r3C3Oj/zdBCpaCmBRZYf07xpaq4yCfDDoSFm+beWNzbIl26puW8RraUdugoJw/95zerNOn6jasAhzSmg==}
@@ -2771,7 +2781,9 @@ snapshots:
       tslib: 2.8.1
     optional: true
 
-  '@freeappstore/sdk@0.5.1': {}
+  '@freeappstore/sdk@0.8.0(react@19.2.6)':
+    optionalDependencies:
+      react: 19.2.6
 
   '@isaacs/cliui@9.0.0': {}
 
@@ -2812,9 +2824,11 @@ snapshots:
     dependencies:
       playwright: 1.60.0
 
-  '@proappstore/sdk@0.2.1':
+  '@proappstore/sdk@file:../platform/packages/sdk(react@19.2.6)':
     dependencies:
-      '@freeappstore/sdk': 0.5.1
+      '@freeappstore/sdk': 0.8.0(react@19.2.6)
+    optionalDependencies:
+      react: 19.2.6
 
   '@rolldown/binding-android-arm64@1.0.1':
     optional: true

@@ -5,11 +5,12 @@ import { PublishView } from './PublishView'
 import { PayoutsView } from './PayoutsView'
 import { AppDetail } from './AppDetail'
 import { AdminView } from './AdminView'
+import { UILibraryView } from './UILibraryView'
 import { fetchOwnerSummary, formatNumber, type OwnerSummary } from './usage'
 
 const pro = initPro({ appId: 'console' })
 
-type View = 'dashboard' | 'app-detail' | 'publish' | 'payouts' | 'subscription' | 'admin' | 'settings'
+type View = 'dashboard' | 'app-detail' | 'publish' | 'payouts' | 'subscription' | 'admin' | 'settings' | 'ui-library'
 
 interface AppEntry {
   id: string
@@ -191,6 +192,7 @@ export default function App() {
         {view === 'subscription' && <SubscriptionView />}
         {view === 'admin' && isAdmin && <AdminView getToken={() => pro.auth.token} />}
         {view === 'settings' && <Settings />}
+        {view === 'ui-library' && <UILibraryView />}
       </main>
     </div>
   )
@@ -236,6 +238,7 @@ const TABS: { key: View; label: string }[] = [
   { key: 'payouts', label: 'Payouts' },
   { key: 'subscription', label: 'Subscription' },
   { key: 'settings', label: 'Settings' },
+  { key: 'ui-library', label: 'UI Library' },
 ]
 
 function Header({ user, view, onNavigate, isAdmin }: { user: User; view: View; onNavigate: (v: View) => void; isAdmin: boolean }) {
