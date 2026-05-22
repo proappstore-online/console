@@ -125,6 +125,7 @@ export function WebhooksManager({ appId, getToken }: Props) {
     setActionError(null)
     try {
       await deleteWebhook(token, appId, id)
+      if (newSecret?.id === id) setNewSecret(null)
       await reload()
     } catch (err) {
       setActionError((err as Error).message)
