@@ -158,7 +158,7 @@ export function UILibraryView() {
 
 function Section({ title, importPath, children }: { title: string; importPath: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] overflow-hidden">
+    <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
       <div className="px-5 py-4 border-b border-[var(--line)]">
         <h3 className="text-lg font-bold text-[var(--ink)]">{title}</h3>
         <code className="text-xs text-[var(--muted)] font-mono">{importPath}</code>

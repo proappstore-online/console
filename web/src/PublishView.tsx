@@ -222,8 +222,8 @@ export function PublishView({ getToken }: PublishViewProps) {
 
         {loading ? (
           <div className="space-y-3">
-            <div className="h-24 rounded-xl border border-[var(--line)] bg-[var(--glass)] animate-pulse" />
-            <div className="h-24 rounded-xl border border-[var(--line)] bg-[var(--glass)] animate-pulse" />
+            <div className="h-24 rounded-xl border border-[var(--line)] bg-[var(--panel)] animate-pulse" />
+            <div className="h-24 rounded-xl border border-[var(--line)] bg-[var(--panel)] animate-pulse" />
           </div>
         ) : loadError ? (
           <div className="rounded-xl border border-[var(--error)]/30 bg-[var(--error)]/10 p-4 text-sm text-[var(--error)]">
@@ -298,7 +298,7 @@ function SubmissionCard({
   }
 
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-[var(--glass-strong)] p-4 shadow-sm">
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -327,7 +327,7 @@ function SubmissionCard({
             type="button"
             onClick={handleCancel}
             disabled={busy}
-            className="rounded-lg border border-[var(--line-strong)] bg-[var(--glass)] px-3 py-1.5 text-xs font-medium text-[var(--ink)] hover:bg-[var(--glass-hover)] disabled:opacity-50"
+            className="rounded-lg border border-[var(--line-strong)] bg-[var(--panel)] px-3 py-1.5 text-xs font-medium text-[var(--ink)] hover:bg-[var(--panel-hover)] disabled:opacity-50"
           >
             {busy ? 'Cancelling...' : 'Cancel submission'}
           </button>
@@ -346,7 +346,7 @@ function SubmissionCard({
             href={`https://${submission.app_id}.proappstore.online`}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-lg border border-[var(--line-strong)] bg-[var(--glass)] px-3 py-1.5 text-xs font-medium text-[var(--ink)] hover:bg-[var(--glass-hover)]"
+            className="rounded-lg border border-[var(--line-strong)] bg-[var(--panel)] px-3 py-1.5 text-xs font-medium text-[var(--ink)] hover:bg-[var(--panel-hover)]"
           >
             Open {submission.app_id}.proappstore.online &rarr;
           </a>
@@ -540,7 +540,7 @@ function SubmissionForm({
   return (
     <form
       onSubmit={submit}
-      className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6 shadow-[var(--shadow-card)] space-y-5"
+      className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6 shadow-[var(--shadow-card)] space-y-5"
     >
       {initial && (
         <div className="flex items-center justify-between rounded-lg bg-[var(--accent-soft)] px-3 py-2 text-xs text-[var(--accent-deep)]">

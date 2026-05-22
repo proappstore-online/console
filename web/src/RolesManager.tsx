@@ -146,7 +146,7 @@ export function RolesManager({ appId, getToken }: Props) {
   }
 
   return (
-    <section className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
+    <section className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
       <h3 className="display-font text-lg font-bold text-[var(--ink)] mb-1">Team</h3>
       <p className="text-sm text-[var(--muted)] mb-4">
         Manage who has access to this app and what they can do.
@@ -161,7 +161,7 @@ export function RolesManager({ appId, getToken }: Props) {
           {DEFAULT_ROLES.map((r) => (
             <div
               key={r.name}
-              className="rounded-lg border border-[var(--line)] bg-[var(--glass)] px-3 py-2"
+              className="rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3 py-2"
             >
               <span className="text-sm font-semibold text-[var(--ink)] capitalize">{r.name}</span>
               <p className="text-xs text-[var(--muted)] mt-0.5">{r.description}</p>

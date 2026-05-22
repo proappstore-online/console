@@ -248,7 +248,7 @@ function Header({ user, view, onNavigate, isAdmin }: { user: User; view: View; o
   return (
     <header className="sticky top-0 z-30">
       {/* Top bar — store-wide navigation */}
-      <div className="border-b border-[var(--line)] bg-[var(--glass-strong)] backdrop-blur-xl">
+      <div className="border-b border-[var(--line)] bg-[var(--panel)] backdrop-blur-xl">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 flex h-12 items-center justify-between">
           <div className="flex items-center gap-4">
             <a href="https://proappstore.online" className="text-sm font-bold text-[var(--accent)] no-underline hover:opacity-80">
@@ -276,7 +276,7 @@ function Header({ user, view, onNavigate, isAdmin }: { user: User; view: View; o
         </div>
       </div>
       {/* Tab bar — console-specific navigation */}
-      <div className="border-b border-[var(--line)] bg-[var(--glass)]">
+      <div className="border-b border-[var(--line)] bg-[var(--panel)]">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 flex items-center justify-between">
           <button
             onClick={() => onNavigate('dashboard')}
@@ -344,7 +344,7 @@ function Dashboard({
   return (
     <div className="space-y-8">
       {/* Welcome card */}
-      <div className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6 shadow-[var(--shadow-card)]">
+      <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6 shadow-[var(--shadow-card)]">
         <div className="flex items-center gap-4">
           {user.avatarUrl && (
             <img src={user.avatarUrl} alt="" className="h-14 w-14 rounded-full ring-2 ring-[var(--line-strong)]" />
@@ -399,7 +399,7 @@ function Dashboard({
               <button
                 key={a.id}
                 onClick={() => onOpenApp(a.id)}
-                className="text-left rounded-xl border border-[var(--line)] bg-[var(--glass)] p-4 hover:bg-[var(--glass-hover)] shadow-sm"
+                className="text-left rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4 hover:bg-[var(--panel-hover)] shadow-sm"
               >
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-[var(--ink)]">{a.name}</span>
@@ -471,7 +471,7 @@ function SubscriptionView() {
       <h2 className="display-font text-2xl font-bold text-[var(--ink)]">Subscription</h2>
 
       {/* Current plan */}
-      <div className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6 shadow-[var(--shadow-card)]">
+      <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6 shadow-[var(--shadow-card)]">
         <div className="flex items-center gap-3 mb-4">
           <PlanBadge sub={sub} />
           <span className="text-sm text-[var(--muted)]">Current plan</span>
@@ -488,7 +488,7 @@ function SubscriptionView() {
             </p>
             <button
               onClick={() => pro.subscription.openPortal(window.location.href)}
-              className="rounded-lg border border-[var(--line-strong)] bg-[var(--glass)] px-4 py-2 text-sm font-medium text-[var(--ink)] hover:bg-[var(--glass-hover)]"
+              className="rounded-lg border border-[var(--line-strong)] bg-[var(--panel)] px-4 py-2 text-sm font-medium text-[var(--ink)] hover:bg-[var(--panel-hover)]"
             >
               Manage Billing
             </button>
@@ -521,7 +521,7 @@ function SubscriptionView() {
       {/* Where your $9 goes — pool model explainer (replaces the old feature
           comparison table, which described feature-gating that doesn't exist
           on PAS). */}
-      <div className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
+      <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
         <h3 className="display-font text-lg font-bold text-[var(--ink)] mb-2">Where your ${dollars} goes</h3>
         <p className="text-sm text-[var(--muted)] mb-4">
           ProAppStore is one subscription for every Pro app — no per-app prices, no in-app upgrades.
@@ -529,19 +529,19 @@ function SubscriptionView() {
           subscriber actually used their app.
         </p>
         <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-[var(--line)] bg-[var(--glass)] p-4">
+          <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4">
             <p className="text-2xl font-bold text-[var(--ink)]">90%</p>
             <p className="text-xs text-[var(--muted)] mt-1">
               Goes to creators of the apps you used this month, weighted by your usage of each.
             </p>
           </div>
-          <div className="rounded-xl border border-[var(--line)] bg-[var(--glass)] p-4">
+          <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4">
             <p className="text-2xl font-bold text-[var(--ink)]">10%</p>
             <p className="text-xs text-[var(--muted)] mt-1">
               Platform fee — covers hosting, databases, file storage, real-time, payments.
             </p>
           </div>
-          <div className="rounded-xl border border-[var(--line)] bg-[var(--glass)] p-4">
+          <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4">
             <p className="text-2xl font-bold text-[var(--ink)]">0</p>
             <p className="text-xs text-[var(--muted)] mt-1">
               Ads. Trackers. Data sold. Per-app paywalls. None of the above.
@@ -608,7 +608,7 @@ function Settings() {
       <h2 className="display-font text-2xl font-bold text-[var(--ink)]">Settings</h2>
 
       {/* Theme */}
-      <div className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
+      <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
         <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide mb-4">Theme</h3>
         <div className="flex gap-2">
           {(['system', 'light', 'dark'] as const).map((t) => (
@@ -655,7 +655,7 @@ function PlanBadge({ sub }: { sub: Subscription | null }) {
 
 function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-[var(--glass)] p-4">
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4">
       <p className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wide">{label}</p>
       <p className="mt-1 display-font text-2xl font-bold text-[var(--ink)]">{value}</p>
     </div>

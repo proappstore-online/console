@@ -143,7 +143,7 @@ export function PayoutsView({ getToken }: { getToken: () => string | null }) {
 
       {/* Status card */}
       {loading ? (
-        <div className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
+        <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
           <p className="text-sm text-[var(--muted)]">Loading payout status…</p>
         </div>
       ) : (
@@ -154,7 +154,7 @@ export function PayoutsView({ getToken }: { getToken: () => string | null }) {
       {!loading && preview && <EarningsPreview preview={preview} />}
 
       {/* How payouts work */}
-      <div className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
+      <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
         <h3 className="display-font text-lg font-bold text-[var(--ink)] mb-2">How payouts work</h3>
         <ol className="space-y-2 text-sm text-[var(--muted)] list-decimal list-inside">
           <li>Subscribers pay $9/mo for the whole catalogue. No per-app prices.</li>
@@ -184,7 +184,7 @@ function StatusCard({
 }) {
   if (!status || !status.connected) {
     return (
-      <div className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6 shadow-[var(--shadow-card)]">
+      <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6 shadow-[var(--shadow-card)]">
         <div className="flex items-center gap-3 mb-3">
           <StatusDot color="muted" />
           <h3 className="display-font text-lg font-bold text-[var(--ink)]">Not connected</h3>
@@ -207,7 +207,7 @@ function StatusCard({
 
   if (!status.detailsSubmitted) {
     return (
-      <div className="rounded-2xl border border-[var(--warning)]/30 bg-[var(--glass-strong)] p-6 shadow-[var(--shadow-card)]">
+      <div className="rounded-2xl border border-[var(--warning)]/30 bg-[var(--panel)] p-6 shadow-[var(--shadow-card)]">
         <div className="flex items-center gap-3 mb-3">
           <StatusDot color="warning" />
           <h3 className="display-font text-lg font-bold text-[var(--ink)]">Setup incomplete</h3>
@@ -229,7 +229,7 @@ function StatusCard({
           </button>
           <button
             onClick={onRefresh}
-            className="rounded-xl border border-[var(--line-strong)] bg-[var(--glass)] px-4 py-3 text-sm font-medium text-[var(--ink)] hover:bg-[var(--glass-hover)]"
+            className="rounded-xl border border-[var(--line-strong)] bg-[var(--panel)] px-4 py-3 text-sm font-medium text-[var(--ink)] hover:bg-[var(--panel-hover)]"
           >
             Refresh status
           </button>
@@ -241,7 +241,7 @@ function StatusCard({
 
   if (!status.payoutsEnabled) {
     return (
-      <div className="rounded-2xl border border-[var(--warning)]/30 bg-[var(--glass-strong)] p-6 shadow-[var(--shadow-card)]">
+      <div className="rounded-2xl border border-[var(--warning)]/30 bg-[var(--panel)] p-6 shadow-[var(--shadow-card)]">
         <div className="flex items-center gap-3 mb-3">
           <StatusDot color="warning" />
           <h3 className="display-font text-lg font-bold text-[var(--ink)]">Verification pending</h3>
@@ -255,7 +255,7 @@ function StatusCard({
         </p>
         <button
           onClick={onRefresh}
-          className="rounded-xl border border-[var(--line-strong)] bg-[var(--glass)] px-4 py-3 text-sm font-medium text-[var(--ink)] hover:bg-[var(--glass-hover)]"
+          className="rounded-xl border border-[var(--line-strong)] bg-[var(--panel)] px-4 py-3 text-sm font-medium text-[var(--ink)] hover:bg-[var(--panel-hover)]"
         >
           Refresh status
         </button>
@@ -265,7 +265,7 @@ function StatusCard({
 
   // All green.
   return (
-    <div className="rounded-2xl border border-[var(--success)]/30 bg-[var(--glass-strong)] p-6 shadow-[var(--shadow-card)]">
+    <div className="rounded-2xl border border-[var(--success)]/30 bg-[var(--panel)] p-6 shadow-[var(--shadow-card)]">
       <div className="flex items-center gap-3 mb-3">
         <StatusDot color="success" />
         <h3 className="display-font text-lg font-bold text-[var(--ink)]">Active</h3>
@@ -283,13 +283,13 @@ function StatusCard({
           href="https://dashboard.stripe.com/express"
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded-xl border border-[var(--line-strong)] bg-[var(--glass)] px-4 py-3 text-sm font-medium text-[var(--ink)] hover:bg-[var(--glass-hover)]"
+          className="rounded-xl border border-[var(--line-strong)] bg-[var(--panel)] px-4 py-3 text-sm font-medium text-[var(--ink)] hover:bg-[var(--panel-hover)]"
         >
           Open Stripe Express
         </a>
         <button
           onClick={onRefresh}
-          className="rounded-xl border border-[var(--line-strong)] bg-[var(--glass)] px-4 py-3 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
+          className="rounded-xl border border-[var(--line-strong)] bg-[var(--panel)] px-4 py-3 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
         >
           Refresh
         </button>
@@ -314,7 +314,7 @@ function EarningsPreview({ preview }: { preview: PreviewResponse }) {
   if (!current) return null
 
   return (
-    <section className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
+    <section className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
       <div className="flex items-baseline justify-between mb-4">
         <h3 className="display-font text-lg font-bold text-[var(--ink)]">Estimated earnings</h3>
         <span className="text-xs text-[var(--muted)]">Preview · not final</span>
@@ -341,7 +341,7 @@ function EarningsPreview({ preview }: { preview: PreviewResponse }) {
             {current.perApp.slice(0, 5).map((row) => (
               <li
                 key={row.appId}
-                className="flex items-center justify-between rounded-lg border border-[var(--line)] bg-[var(--glass)] px-3 py-2 text-sm"
+                className="flex items-center justify-between rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3 py-2 text-sm"
               >
                 <span className="font-mono text-[var(--ink)]">{row.appId}</span>
                 <span className="font-semibold text-[var(--ink)]">{formatDollars(row.estimatedCents)}</span>
@@ -378,7 +378,7 @@ function PreviewMonth({
       className={`rounded-xl border p-4 ${
         highlight
           ? 'border-[var(--accent)]/40 bg-[var(--accent-soft)]/30'
-          : 'border-[var(--line)] bg-[var(--glass)]'
+          : 'border-[var(--line)] bg-[var(--panel)]'
       }`}
     >
       <p className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wide">{label}</p>

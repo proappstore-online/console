@@ -120,7 +120,7 @@ export function AppDetail({ appId, appName, getToken, onBack, onDelete }: Props)
           <LegalSection appId={appId} listing={listing} update={update} getToken={getToken} />
           <RolesManager appId={appId} getToken={getToken} />
 
-          <div className="rounded-2xl border border-[var(--error)]/30 bg-[var(--glass-strong)] p-6">
+          <div className="rounded-2xl border border-[var(--error)]/30 bg-[var(--panel)] p-6">
             <h3 className="text-sm font-semibold text-[var(--error)] uppercase tracking-wide mb-3">Danger Zone</h3>
             {!showDeleteConfirm ? (
               <button
@@ -196,7 +196,7 @@ function Section({
     typeof state === 'object' ? 'text-[var(--error)]' :
     'text-[var(--muted)]'
   return (
-    <section className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
+    <section className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
       <div className="flex items-baseline justify-between mb-1">
         <h3 className="display-font text-lg font-bold text-[var(--ink)]">{title}</h3>
         {stateLabel && <span className={`text-xs ${stateColor}`}>{stateLabel}</span>}
@@ -295,7 +295,7 @@ function BrandingSection({ appId, listing, update, getToken }: SectionProps) {
             <button
               onClick={() => fileRef.current?.click()}
               disabled={uploading}
-              className="rounded-lg border border-[var(--line-strong)] bg-[var(--glass)] px-3 py-1.5 text-sm font-medium text-[var(--ink)] hover:bg-[var(--glass-hover)] disabled:opacity-50"
+              className="rounded-lg border border-[var(--line-strong)] bg-[var(--panel)] px-3 py-1.5 text-sm font-medium text-[var(--ink)] hover:bg-[var(--panel-hover)] disabled:opacity-50"
             >
               {uploading ? 'Uploading…' : draft.iconUrl ? 'Replace icon' : 'Upload icon'}
             </button>
@@ -422,7 +422,7 @@ function ScreenshotsSection({ appId, listing, update, getToken }: SectionProps) 
           <button
             onClick={() => fileRef.current?.click()}
             disabled={uploading}
-            className="aspect-[9/16] rounded-lg border-2 border-dashed border-[var(--line-strong)] text-3xl text-[var(--muted)] hover:bg-[var(--glass-hover)] disabled:opacity-50"
+            className="aspect-[9/16] rounded-lg border-2 border-dashed border-[var(--line-strong)] text-3xl text-[var(--muted)] hover:bg-[var(--panel-hover)] disabled:opacity-50"
           >
             {uploading ? '…' : '+'}
           </button>
@@ -719,7 +719,7 @@ function UsageSection({ appId, getToken }: { appId: string; getToken: () => stri
   }, [appId, getToken])
 
   return (
-    <section className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
+    <section className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
       <div className="flex items-baseline justify-between mb-1">
         <h3 className="display-font text-lg font-bold text-[var(--ink)]">Usage</h3>
         <span className="text-xs text-[var(--muted)]">Last 30 days</span>
@@ -782,7 +782,7 @@ function UsageBody({ data }: { data: UsageResponse }) {
 
 function Kpi({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-[var(--glass)] p-4">
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4">
       <p className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wide">
         {label}
       </p>
@@ -813,7 +813,7 @@ function SessionMinutesChart({ series }: { series: UsageResponse['series'] }) {
   const barW = Math.max(1, slot - gap)
 
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-[var(--glass)] p-3">
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-3">
       <svg
         viewBox={`0 0 ${W} ${H}`}
         preserveAspectRatio="none"
@@ -862,7 +862,7 @@ function WeekStrip({ series }: { series: UsageResponse['series'] }) {
       {last7.map((d) => (
         <div
           key={d.day}
-          className="rounded-lg border border-[var(--line)] bg-[var(--glass)] py-2 text-center"
+          className="rounded-lg border border-[var(--line)] bg-[var(--panel)] py-2 text-center"
           title={`${d.day}: ${formatNumber(d.users)} active users`}
         >
           <div className="text-[10px] font-semibold text-[var(--muted)] uppercase tracking-wide">
@@ -882,16 +882,16 @@ function UsageSkeleton() {
     <div className="space-y-5 animate-pulse">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="rounded-xl border border-[var(--line)] bg-[var(--glass)] p-4">
+          <div key={i} className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4">
             <div className="h-3 w-20 rounded bg-[var(--line)]" />
             <div className="mt-2 h-6 w-24 rounded bg-[var(--line)]" />
           </div>
         ))}
       </div>
-      <div className="h-32 rounded-xl border border-[var(--line)] bg-[var(--glass)]" />
+      <div className="h-32 rounded-xl border border-[var(--line)] bg-[var(--panel)]" />
       <div className="grid grid-cols-7 gap-2">
         {Array.from({ length: 7 }).map((_, i) => (
-          <div key={i} className="h-14 rounded-lg border border-[var(--line)] bg-[var(--glass)]" />
+          <div key={i} className="h-14 rounded-lg border border-[var(--line)] bg-[var(--panel)]" />
         ))}
       </div>
     </div>
@@ -939,7 +939,7 @@ function PrefixedInput({
 }: { prefix: string; value: string; onChange: (v: string) => void; placeholder: string }) {
   return (
     <div className="flex rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] overflow-hidden">
-      <span className="px-3 py-2 text-sm text-[var(--muted)] bg-[var(--glass)] border-r border-[var(--line-strong)]">{prefix}</span>
+      <span className="px-3 py-2 text-sm text-[var(--muted)] bg-[var(--panel)] border-r border-[var(--line-strong)]">{prefix}</span>
       <input
         type="text"
         value={value}
@@ -955,7 +955,7 @@ function Preview({ iconUrl, splashColor }: { iconUrl: string | null; splashColor
   return (
     <div
       className="w-16 h-16 rounded-2xl flex items-center justify-center overflow-hidden border border-[var(--line-strong)]"
-      style={{ background: splashColor ?? 'var(--glass)' }}
+      style={{ background: splashColor ?? 'var(--panel)' }}
     >
       {iconUrl ? (
         <img src={iconUrl} alt="" className="w-full h-full object-cover" />
@@ -1023,7 +1023,7 @@ function AnalyticsSection({ appId, getToken }: { appId: string; getToken: () => 
   const isPathFiltered = path !== ''
 
   return (
-    <section className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
+    <section className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
       <div className="flex items-baseline justify-between mb-1">
         <h3 className="display-font text-lg font-bold text-[var(--ink)]">
           {isPathFiltered ? (
@@ -1131,7 +1131,7 @@ function CustomEventsPanel({
       {events.length === 0 ? (
         <p className="text-xs text-[var(--muted)]">
           No custom events fired in the last {days} days. Fire one from your app code:
-          <code className="block mt-1 px-2 py-1 bg-[var(--glass)] rounded text-[10px] font-mono">
+          <code className="block mt-1 px-2 py-1 bg-[var(--panel)] rounded text-[10px] font-mono">
             window.pasAnalytics.event('purchase', {`{ amount: 999 }`})
           </code>
         </p>
@@ -1141,7 +1141,7 @@ function CustomEventsPanel({
             <li key={e.kind}>
               <button
                 onClick={() => onPickKind(e.kind)}
-                className="w-full text-left rounded px-2 py-1.5 hover:bg-[var(--glass)] transition-colors flex items-baseline justify-between"
+                className="w-full text-left rounded px-2 py-1.5 hover:bg-[var(--panel)] transition-colors flex items-baseline justify-between"
               >
                 <span className="font-mono text-sm text-[var(--ink)]">{e.kind}</span>
                 <span className="text-xs text-[var(--muted)] tabular-nums">{formatViewCount(e.count)}</span>
@@ -1312,7 +1312,7 @@ function DiagnosticsHint({
 
   return (
     <div className="py-4 space-y-3">
-      <div className="rounded-xl border border-[var(--line)] bg-[var(--glass)] p-4">
+      <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4">
         <h4 className="text-sm font-semibold text-[var(--ink)] mb-2">
           No {noun} {windowLabel}. Here's why:
         </h4>
@@ -1380,7 +1380,7 @@ function DiagnosticsBody({ diag }: { diag: DiagnosticsResponse }) {
           </Step>
         </ul>
         <p className="text-xs text-[var(--muted)]">Paste this into <code className="font-mono">web/index.html</code> &lt;head&gt;:</p>
-        <pre className="text-xs font-mono bg-[var(--glass-strong)] p-2 rounded overflow-x-auto">
+        <pre className="text-xs font-mono bg-[var(--panel)] p-2 rounded overflow-x-auto">
 {`<script src="${diag.loader_url}" defer></script>`}
         </pre>
       </div>
@@ -1440,7 +1440,7 @@ function LiveView({ appId, getToken }: { appId: string; getToken: () => string |
   if (!data) return null
 
   return (
-    <div className="mt-5 flex items-center gap-3 rounded-xl bg-[var(--glass)] border border-[var(--line)] px-4 py-2">
+    <div className="mt-5 flex items-center gap-3 rounded-xl bg-[var(--panel)] border border-[var(--line)] px-4 py-2">
       <span className="relative inline-flex h-2.5 w-2.5">
         <span
           className={`absolute inline-flex h-full w-full rounded-full bg-[var(--success)] ${data.views > 0 ? 'animate-ping opacity-60' : 'opacity-30'}`}
@@ -1503,7 +1503,7 @@ function DailyViewsChart({
   const barW = Math.max(1, slot - gap)
 
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-[var(--glass)] p-3">
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-3">
       <svg
         viewBox={`0 0 ${W} ${H}`}
         preserveAspectRatio="none"
@@ -1567,7 +1567,7 @@ function RankedList({
         {onPick ? (
           <button
             onClick={() => onPick(r.label)}
-            className="w-full text-left rounded px-1.5 py-1 -mx-1.5 hover:bg-[var(--glass-strong)] transition-colors"
+            className="w-full text-left rounded px-1.5 py-1 -mx-1.5 hover:bg-[var(--panel)] transition-colors"
             title={`Drill into ${r.label}`}
           >
             {inner}
@@ -1579,7 +1579,7 @@ function RankedList({
     )
   }
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-[var(--glass)] p-3">
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-3">
       <h4 className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wide mb-2">
         {title}
       </h4>
@@ -1650,7 +1650,7 @@ function AnalyticsConfigForm({
           placeholder="G-XXXXXXXXXX"
           value={ga4}
           onChange={(e) => setGa4(e.target.value)}
-          className="mt-1 w-full px-3 py-2 text-sm rounded-lg border border-[var(--line)] bg-[var(--glass)] text-[var(--ink)] placeholder-[var(--muted)]"
+          className="mt-1 w-full px-3 py-2 text-sm rounded-lg border border-[var(--line)] bg-[var(--panel)] text-[var(--ink)] placeholder-[var(--muted)]"
         />
       </label>
       <label className="block">
@@ -1660,7 +1660,7 @@ function AnalyticsConfigForm({
           placeholder="mysite.com"
           value={plausible}
           onChange={(e) => setPlausible(e.target.value)}
-          className="mt-1 w-full px-3 py-2 text-sm rounded-lg border border-[var(--line)] bg-[var(--glass)] text-[var(--ink)] placeholder-[var(--muted)]"
+          className="mt-1 w-full px-3 py-2 text-sm rounded-lg border border-[var(--line)] bg-[var(--panel)] text-[var(--ink)] placeholder-[var(--muted)]"
         />
       </label>
       <label className="block">
@@ -1670,7 +1670,7 @@ function AnalyticsConfigForm({
           placeholder='<meta name="custom" content="..." />'
           value={customHead}
           onChange={(e) => setCustomHead(e.target.value)}
-          className="mt-1 w-full px-3 py-2 font-mono text-xs rounded-lg border border-[var(--line)] bg-[var(--glass)] text-[var(--ink)] placeholder-[var(--muted)]"
+          className="mt-1 w-full px-3 py-2 font-mono text-xs rounded-lg border border-[var(--line)] bg-[var(--panel)] text-[var(--ink)] placeholder-[var(--muted)]"
         />
       </label>
       <div className="flex items-center gap-3">
@@ -1696,7 +1696,7 @@ function StorefrontTile({
   return (
     <div
       className="rounded-2xl border border-[var(--line)] p-4 shadow-sm overflow-hidden"
-      style={{ background: listing.splashColor ?? 'var(--glass-strong)' }}
+      style={{ background: listing.splashColor ?? 'var(--panel)' }}
     >
       <div className="flex items-center gap-3 mb-3">
         <Preview iconUrl={listing.iconUrl} splashColor={null} />
@@ -1772,7 +1772,7 @@ function DomainsSection({
   }
 
   return (
-    <section className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
+    <section className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
       <h3 className="display-font text-lg font-bold text-[var(--ink)] mb-1">Custom domains</h3>
       <p className="text-sm text-[var(--muted)] mb-4">
         Bring a domain you already own. Cloudflare provisions the SSL cert automatically

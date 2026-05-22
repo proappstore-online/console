@@ -215,8 +215,8 @@ export function AdminView({ getToken }: AdminViewProps) {
       {/* List */}
       {loading ? (
         <div className="space-y-3">
-          <div className="h-32 rounded-2xl border border-[var(--line)] bg-[var(--glass)] animate-pulse" />
-          <div className="h-32 rounded-2xl border border-[var(--line)] bg-[var(--glass)] animate-pulse" />
+          <div className="h-32 rounded-2xl border border-[var(--line)] bg-[var(--panel)] animate-pulse" />
+          <div className="h-32 rounded-2xl border border-[var(--line)] bg-[var(--panel)] animate-pulse" />
         </div>
       ) : loadError ? (
         <div className="rounded-xl border border-[var(--error)]/30 bg-[var(--error)]/10 p-4 text-sm text-[var(--error)]">
@@ -336,7 +336,7 @@ function ProvisionStepRow({ step }: { step: ProvisionStep }) {
   const icon = err ? '❌' : warn ? '⚠️' : ok ? '✅' : '•'
 
   return (
-    <li className="flex items-start gap-2 rounded-lg bg-[var(--glass)] px-3 py-1.5 text-xs">
+    <li className="flex items-start gap-2 rounded-lg bg-[var(--panel)] px-3 py-1.5 text-xs">
       <span className="leading-5">{icon}</span>
       <span className="flex-1 min-w-0">
         <span className="font-semibold text-[var(--ink)]">{name}</span>
@@ -390,7 +390,7 @@ function AdminSubmissionCard({
   }
 
   return (
-    <div className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-4 shadow-[var(--shadow-card)]">
+    <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4 shadow-[var(--shadow-card)]">
       <div className="flex items-start gap-3">
         {/* Icon preview */}
         <div
@@ -447,7 +447,7 @@ function AdminSubmissionCard({
 
           {/* Non-pending: read-only review trail */}
           {submission.status !== 'pending' && (
-            <div className="mt-3 rounded-lg border border-[var(--line)] bg-[var(--glass)] p-3 text-xs">
+            <div className="mt-3 rounded-lg border border-[var(--line)] bg-[var(--panel)] p-3 text-xs">
               <p className="text-[var(--muted)]">
                 Reviewed by{' '}
                 <span className="font-mono text-[var(--ink)]">
@@ -590,7 +590,7 @@ function RejectModal({
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="rounded-lg border border-[var(--line-strong)] bg-[var(--glass)] px-3 py-1.5 text-sm font-medium text-[var(--ink)] hover:bg-[var(--glass-hover)] disabled:opacity-50"
+            className="rounded-lg border border-[var(--line-strong)] bg-[var(--panel)] px-3 py-1.5 text-sm font-medium text-[var(--ink)] hover:bg-[var(--panel-hover)] disabled:opacity-50"
           >
             Cancel
           </button>
@@ -639,7 +639,7 @@ function PlatformAnalyticsPanel({ getToken }: { getToken: () => string | null })
   if (error && !data) return null
 
   return (
-    <section className="rounded-2xl border border-[var(--line)] bg-[var(--glass-strong)] p-6">
+    <section className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
       <div className="flex items-baseline justify-between mb-3">
         <div>
           <h2 className="display-font text-xl font-bold text-[var(--ink)]">Platform totals</h2>
@@ -662,9 +662,9 @@ function PlatformAnalyticsPanel({ getToken }: { getToken: () => string | null })
 
       {loading && !data && (
         <div className="grid grid-cols-3 gap-3">
-          <div className="h-20 rounded-xl border border-[var(--line)] bg-[var(--glass)] animate-pulse" />
-          <div className="h-20 rounded-xl border border-[var(--line)] bg-[var(--glass)] animate-pulse" />
-          <div className="h-20 rounded-xl border border-[var(--line)] bg-[var(--glass)] animate-pulse" />
+          <div className="h-20 rounded-xl border border-[var(--line)] bg-[var(--panel)] animate-pulse" />
+          <div className="h-20 rounded-xl border border-[var(--line)] bg-[var(--panel)] animate-pulse" />
+          <div className="h-20 rounded-xl border border-[var(--line)] bg-[var(--panel)] animate-pulse" />
         </div>
       )}
 
@@ -697,7 +697,7 @@ function PlatformAnalyticsPanel({ getToken }: { getToken: () => string | null })
 
 function PlatformKpi({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-[var(--glass)] p-3">
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-3">
       <p className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wide">{label}</p>
       <p className="mt-1 display-font text-2xl font-bold text-[var(--ink)]">{value}</p>
     </div>
@@ -727,7 +727,7 @@ function PlatformSeriesChart({
   const labelFor = (t: string) =>
     bucket === 'hour' ? t.slice(11, 16) || t : t.slice(5, 10) || t
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-[var(--glass)] p-3">
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-3">
       <svg
         viewBox={`0 0 ${W} ${H}`}
         preserveAspectRatio="none"
@@ -773,7 +773,7 @@ function PlatformRankedList({
 }) {
   const max = Math.max(1, ...rows.map((r) => r.value))
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-[var(--glass)] p-3">
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-3">
       <h4 className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wide mb-2">
         {title}
       </h4>
