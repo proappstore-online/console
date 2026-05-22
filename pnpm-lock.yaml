@@ -11,8 +11,8 @@ importers:
   web:
     dependencies:
       '@proappstore/sdk':
-        specifier: ^1.12.0
-        version: 1.12.0(react@19.2.6)
+        specifier: ^1.15.0
+        version: 1.15.0(react@19.2.6)
       react:
         specifier: ^19.2.5
         version: 19.2.6
@@ -611,8 +611,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  '@proappstore/sdk@1.12.0':
-    resolution: {integrity: sha512-cidv45Oo74BSO2dtbJYwD1sB1wr4DpED2F0xJO6OMtX66+5uo+VW4CfmVJmiNMTWGfyJeqzyoAF4GOvibqiM7g==}
+  '@proappstore/sdk@1.15.0':
+    resolution: {integrity: sha512-xKRjjBXD3b4h2Y/EyFj+QB/hQz+BhwFgNsOT7XIuNnRvKCt3vBvZyrESrKK28irg0bkWZoMjSrAysNY5hqv08A==}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
     peerDependenciesMeta:
@@ -2824,7 +2824,7 @@ snapshots:
     dependencies:
       playwright: 1.60.0
 
-  '@proappstore/sdk@1.12.0(react@19.2.6)':
+  '@proappstore/sdk@1.15.0(react@19.2.6)':
     dependencies:
       '@freeappstore/sdk': 0.8.0(react@19.2.6)
     optionalDependencies:

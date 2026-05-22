@@ -4,6 +4,7 @@ import {
   Avatar,
   SignInButton,
   ThemeToggle,
+  TextSizeToggle,
   ProBadge,
   ProfileMenu,
   SubscriptionStatus,
@@ -69,6 +70,14 @@ export function UILibraryView() {
         <Row label="Interactive">
           <ThemeToggle />
           <span className="text-xs text-[var(--muted)]">Click to cycle: system, light, dark</span>
+        </Row>
+      </Section>
+
+      {/* TextSizeToggle */}
+      <Section title="TextSizeToggle" importPath="import { TextSizeToggle } from '@proappstore/sdk/ui'">
+        <Row label="Interactive">
+          <TextSizeToggle />
+          <span className="text-xs text-[var(--muted)]">Click to cycle: default, large, small</span>
         </Row>
       </Section>
 
