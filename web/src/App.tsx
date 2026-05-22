@@ -242,30 +242,30 @@ const TABS: { key: View; label: string }[] = [
 ]
 
 function Header({ user, view, onNavigate, isAdmin }: { user: User; view: View; onNavigate: (v: View) => void; isAdmin: boolean }) {
-  // Admin tab is inserted before Settings only when the backend confirms
-  // the signed-in user is in ADMIN_GITHUB_IDS. Non-admins never see it.
   const tabs: { key: View; label: string }[] = isAdmin
     ? [...TABS.slice(0, -1), { key: 'admin', label: 'Admin' }, TABS[TABS.length - 1]!]
     : TABS
   return (
-    <header className="border-b border-[var(--line)] bg-[var(--glass-strong)] backdrop-blur-xl sticky top-0 z-30">
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-14 items-center justify-between">
-          <button
-            onClick={() => onNavigate('dashboard')}
-            className="display-font text-lg font-bold text-[var(--ink)] tracking-tight"
-          >
-            Creator Console
-          </button>
+    <header className="sticky top-0 z-30">
+      {/* Top bar — store-wide navigation */}
+      <div className="border-b border-[var(--line)] bg-[var(--glass-strong)] backdrop-blur-xl">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 flex h-12 items-center justify-between">
+          <div className="flex items-center gap-4">
+            <a href="https://proappstore.online" className="text-sm font-bold text-[var(--accent)] no-underline hover:opacity-80">
+              Pro
+            </a>
+            <nav className="flex items-center gap-3 text-xs font-medium text-[var(--muted)]">
+              <a href="https://proappstore.online" className="hover:text-[var(--ink)] no-underline">Apps</a>
+              <a href="https://proappstore.online/docs" className="hover:text-[var(--ink)] no-underline">Docs</a>
+              <a href="https://proappstore.online/pricing" className="hover:text-[var(--ink)] no-underline">Pricing</a>
+              <a href="https://dashboard.proappstore.online" className="hover:text-[var(--ink)] no-underline">Account</a>
+            </nav>
+          </div>
           <div className="flex items-center gap-3">
             {user.avatarUrl && (
-              <img
-                src={user.avatarUrl}
-                alt={user.login}
-                className="h-7 w-7 rounded-full ring-1 ring-[var(--line-strong)]"
-              />
+              <img src={user.avatarUrl} alt={user.login} className="h-6 w-6 rounded-full ring-1 ring-[var(--line-strong)]" />
             )}
-            <span className="hidden sm:inline text-sm font-medium text-[var(--muted)]">{user.login}</span>
+            <span className="hidden sm:inline text-xs font-medium text-[var(--muted)]">{user.login}</span>
             <button
               onClick={() => pro.auth.signOut()}
               className="text-xs font-medium text-[var(--muted)] hover:text-[var(--ink)] underline"
@@ -274,21 +274,32 @@ function Header({ user, view, onNavigate, isAdmin }: { user: User; view: View; o
             </button>
           </div>
         </div>
-        <nav className="flex gap-1 -mb-px">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => onNavigate(tab.key)}
-              className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-                (view === tab.key || (view === 'app-detail' && tab.key === 'dashboard'))
-                  ? 'border-[var(--accent)] text-[var(--ink)]'
-                  : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
+      </div>
+      {/* Tab bar — console-specific navigation */}
+      <div className="border-b border-[var(--line)] bg-[var(--glass)]">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+          <button
+            onClick={() => onNavigate('dashboard')}
+            className="display-font text-base font-bold text-[var(--ink)] tracking-tight py-2 mr-4"
+          >
+            Creator Console
+          </button>
+          <nav className="flex gap-0.5 -mb-px overflow-x-auto">
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => onNavigate(tab.key)}
+                className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  (view === tab.key || (view === 'app-detail' && tab.key === 'dashboard'))
+                    ? 'border-[var(--accent)] text-[var(--ink)]'
+                    : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        </div>
       </div>
     </header>
   )
