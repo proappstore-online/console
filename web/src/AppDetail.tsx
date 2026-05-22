@@ -35,6 +35,7 @@ import {
   cnameTarget,
   type Domain,
 } from './domains'
+import { RolesManager } from './RolesManager'
 
 interface Props {
   appId: string
@@ -117,6 +118,7 @@ export function AppDetail({ appId, appName, getToken, onBack, onDelete }: Props)
           <DeveloperSection appId={appId} listing={listing} update={update} getToken={getToken} />
           <SocialSection appId={appId} listing={listing} update={update} getToken={getToken} />
           <LegalSection appId={appId} listing={listing} update={update} getToken={getToken} />
+          <RolesManager appId={appId} getToken={getToken} />
 
           <div className="rounded-2xl border border-[var(--error)]/30 bg-[var(--glass-strong)] p-6">
             <h3 className="text-sm font-semibold text-[var(--error)] uppercase tracking-wide mb-3">Danger Zone</h3>
