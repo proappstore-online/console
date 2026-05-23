@@ -76,7 +76,7 @@ export function AppDetail({ appId, appName, getToken, onBack, onDelete }: Props)
   if (loadError || !listing) {
     return (
       <div className="space-y-4">
-        <button onClick={onBack} className="text-sm font-medium text-[var(--accent)] hover:underline">
+        <button type="button" onClick={onBack} className="text-sm font-medium text-[var(--accent)] hover:underline">
           &larr; Back
         </button>
         <p className="text-[var(--error)]">{loadError ?? 'No listing data.'}</p>
@@ -89,7 +89,7 @@ export function AppDetail({ appId, appName, getToken, onBack, onDelete }: Props)
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <button onClick={onBack} className="text-sm font-medium text-[var(--accent)] hover:underline">
+        <button type="button" onClick={onBack} className="text-sm font-medium text-[var(--accent)] hover:underline">
           &larr; Back to Dashboard
         </button>
         <a
@@ -129,7 +129,7 @@ export function AppDetail({ appId, appName, getToken, onBack, onDelete }: Props)
           <div className="rounded-2xl border border-[var(--error)]/30 bg-[var(--panel)] p-6">
             <h3 className="text-sm font-semibold text-[var(--error)] uppercase tracking-wide mb-3">Danger Zone</h3>
             {!showDeleteConfirm ? (
-              <button
+              <button type="button"
                 onClick={() => setShowDeleteConfirm(true)}
                 className="rounded-lg border border-[var(--error)]/40 px-4 py-2 text-sm font-semibold text-[var(--error)] hover:bg-[var(--error)]/10"
               >
@@ -142,14 +142,14 @@ export function AppDetail({ appId, appName, getToken, onBack, onDelete }: Props)
                   The deployed app, repo, and DNS stay live.
                 </p>
                 <div className="flex gap-2">
-                  <button
+                  <button type="button"
                     onClick={async () => { setDeleting(true); try { await onDelete() } finally { setDeleting(false) } }}
                     disabled={deleting}
                     className="rounded-lg bg-[var(--error)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
                   >
                     {deleting ? 'Removing…' : 'Yes, remove'}
                   </button>
-                  <button
+                  <button type="button"
                     onClick={() => setShowDeleteConfirm(false)}
                     className="rounded-lg border border-[var(--line-strong)] px-4 py-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
                   >
@@ -210,7 +210,7 @@ function Section({
       {hint && <p className="text-sm text-[var(--muted)] mb-4">{hint}</p>}
       <div className="space-y-4">{children}</div>
       <div className="mt-5 flex justify-end">
-        <button
+        <button type="button"
           onClick={() => onSave()}
           disabled={state === 'saving'}
           className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
@@ -298,7 +298,7 @@ function BrandingSection({ appId, listing, update, getToken }: SectionProps) {
               onChange={(e) => { const f = e.target.files?.[0]; if (f) handleIconFile(f) }}
               className="hidden"
             />
-            <button
+            <button type="button"
               onClick={() => fileRef.current?.click()}
               disabled={uploading}
               className="rounded-lg border border-[var(--line-strong)] bg-[var(--panel)] px-3 py-1.5 text-sm font-medium text-[var(--ink)] hover:bg-[var(--panel-hover)] disabled:opacity-50"
@@ -306,7 +306,7 @@ function BrandingSection({ appId, listing, update, getToken }: SectionProps) {
               {uploading ? 'Uploading…' : draft.iconUrl ? 'Replace icon' : 'Upload icon'}
             </button>
             {draft.iconUrl && (
-              <button
+              <button type="button"
                 onClick={() => set('iconUrl', null)}
                 className="text-xs text-[var(--muted)] hover:text-[var(--error)] text-left"
               >
@@ -413,11 +413,11 @@ function ScreenshotsSection({ appId, listing, update, getToken }: SectionProps) 
           <div key={url} className="relative aspect-[9/16] rounded-lg overflow-hidden border border-[var(--line-strong)] bg-[var(--paper)] group">
             <img src={url} alt="" className="w-full h-full object-cover" />
             <div className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-xs flex items-center justify-between px-2 py-1 opacity-0 group-hover:opacity-100 transition">
-              <button onClick={() => move(idx, -1)} disabled={idx === 0} className="disabled:opacity-30">&larr;</button>
+              <button type="button" onClick={() => move(idx, -1)} disabled={idx === 0} className="disabled:opacity-30">&larr;</button>
               <span>{idx + 1}</span>
-              <button onClick={() => move(idx, 1)} disabled={idx === current.length - 1} className="disabled:opacity-30">&rarr;</button>
+              <button type="button" onClick={() => move(idx, 1)} disabled={idx === current.length - 1} className="disabled:opacity-30">&rarr;</button>
             </div>
-            <button
+            <button type="button"
               onClick={() => remove(idx)}
               className="absolute top-1 right-1 bg-black/70 text-white rounded-full w-6 h-6 text-xs leading-none"
               aria-label="Remove"
@@ -425,7 +425,7 @@ function ScreenshotsSection({ appId, listing, update, getToken }: SectionProps) 
           </div>
         ))}
         {current.length < 8 && (
-          <button
+          <button type="button"
             onClick={() => fileRef.current?.click()}
             disabled={uploading}
             className="aspect-[9/16] rounded-lg border-2 border-dashed border-[var(--line-strong)] text-3xl text-[var(--muted)] hover:bg-[var(--panel-hover)] disabled:opacity-50"
@@ -599,16 +599,14 @@ function LegalSection({ appId, listing, update, getToken }: SectionProps) {
             onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadMd('privacy-policy', f) }}
           />
           <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
-            <button
-              type="button"
+            <button type="button"
               onClick={() => useRepoFile('privacy')}
               className="hover:text-[var(--ink)] underline"
             >
               Use privacy.md from my app
             </button>
             <span>·</span>
-            <button
-              type="button"
+            <button type="button"
               onClick={() => set('privacyPolicyUrl', PLATFORM_PRIVACY)}
               className="hover:text-[var(--ink)] underline"
             >
@@ -619,8 +617,7 @@ function LegalSection({ appId, listing, update, getToken }: SectionProps) {
               Copy the template
             </a>
             <span>·</span>
-            <button
-              type="button"
+            <button type="button"
               onClick={() => privacyRef.current?.click()}
               disabled={busy === 'privacy'}
               className="hover:text-[var(--ink)] underline"
@@ -657,24 +654,21 @@ function LegalSection({ appId, listing, update, getToken }: SectionProps) {
             onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadMd('terms', f) }}
           />
           <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
-            <button
-              type="button"
+            <button type="button"
               onClick={() => useRepoFile('terms')}
               className="hover:text-[var(--ink)] underline"
             >
               Use terms.md from my app
             </button>
             <span>·</span>
-            <button
-              type="button"
+            <button type="button"
               onClick={() => set('termsUrl', PLATFORM_TERMS)}
               className="hover:text-[var(--ink)] underline"
             >
               Use the platform terms
             </button>
             <span>·</span>
-            <button
-              type="button"
+            <button type="button"
               onClick={() => termsRef.current?.click()}
               disabled={busy === 'terms'}
               className="hover:text-[var(--ink)] underline"
@@ -1036,7 +1030,7 @@ function AnalyticsSection({ appId, getToken }: { appId: string; getToken: () => 
             <>
               Path:{' '}
               <span className="font-mono text-base">{path}</span>{' '}
-              <button
+              <button type="button"
                 onClick={() => setPath('')}
                 className="text-xs font-normal text-[var(--muted)] hover:text-[var(--ink)] underline ml-1"
               >
@@ -1047,7 +1041,7 @@ function AnalyticsSection({ appId, getToken }: { appId: string; getToken: () => 
             <>
               Event:{' '}
               <span className="font-mono text-base">{kind}</span>{' '}
-              <button
+              <button type="button"
                 onClick={() => setKind('pageview')}
                 className="text-xs font-normal text-[var(--muted)] hover:text-[var(--ink)] underline ml-1"
               >
@@ -1060,7 +1054,7 @@ function AnalyticsSection({ appId, getToken }: { appId: string; getToken: () => 
         </h3>
         <div className="flex gap-1 text-xs">
           {[1, 7, 30, 90].map((d) => (
-            <button
+            <button type="button"
               key={d}
               onClick={() => setDays(d as 1 | 7 | 30 | 90)}
               className={`px-2 py-1 rounded ${days === d ? 'bg-[var(--ink)] text-[var(--paper)]' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}
@@ -1145,7 +1139,7 @@ function CustomEventsPanel({
         <ul className="space-y-1">
           {events.map((e) => (
             <li key={e.kind}>
-              <button
+              <button type="button"
                 onClick={() => onPickKind(e.kind)}
                 className="w-full text-left rounded px-2 py-1.5 hover:bg-[var(--panel)] transition-colors flex items-baseline justify-between"
               >
@@ -1571,7 +1565,7 @@ function RankedList({
     return (
       <li key={i} className="text-xs">
         {onPick ? (
-          <button
+          <button type="button"
             onClick={() => onPick(r.label)}
             className="w-full text-left rounded px-1.5 py-1 -mx-1.5 hover:bg-[var(--panel)] transition-colors"
             title={`Drill into ${r.label}`}
@@ -1680,8 +1674,7 @@ function AnalyticsConfigForm({
         />
       </label>
       <div className="flex items-center gap-3">
-        <button
-          type="submit"
+        <button type="submit"
           disabled={state === 'saving'}
           className="px-4 py-2 text-sm font-medium rounded-lg bg-[var(--accent)] text-[var(--paper)] disabled:opacity-50"
         >
@@ -1822,8 +1815,7 @@ function DomainsSection({
           disabled={attachState === 'attaching'}
           className="flex-1 rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm font-mono text-[var(--ink)] placeholder:text-[var(--muted)]/60 focus:outline-none focus:border-[var(--ink)] disabled:opacity-50"
         />
-        <button
-          type="submit"
+        <button type="submit"
           disabled={!input.trim() || attachState === 'attaching'}
           className="rounded-lg bg-[var(--ink)] px-4 py-2 text-sm font-semibold text-[var(--paper)] hover:opacity-90 disabled:opacity-50"
         >
@@ -1912,7 +1904,7 @@ function DomainRow({
         </div>
         <div className="flex gap-1 shrink-0">
           {d.status !== 'active' && (
-            <button
+            <button type="button"
               onClick={onVerify}
               disabled={verifyState === 'verifying'}
               className="rounded-lg border border-[var(--line-strong)] px-3 py-1.5 text-xs font-semibold text-[var(--ink)] hover:bg-[var(--ink)]/5 disabled:opacity-50"
@@ -1920,7 +1912,7 @@ function DomainRow({
               {verifyState === 'verifying' ? 'Checking…' : 'Verify'}
             </button>
           )}
-          <button
+          <button type="button"
             onClick={() => setRemoveState('confirm')}
             disabled={removeState === 'confirm' || removeState === 'removing'}
             className="rounded-lg border border-[var(--error)]/40 px-3 py-1.5 text-xs font-semibold text-[var(--error)] hover:bg-[var(--error)]/10 disabled:opacity-50"
@@ -1946,14 +1938,14 @@ function DomainRow({
             That DNS lives on your account — we can't touch it.
           </p>
           <div className="flex gap-2 pt-1">
-            <button
+            <button type="button"
               onClick={onRemove}
               disabled={removeState !== 'confirm'}
               className="rounded-lg bg-[var(--error)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
             >
               Yes, detach
             </button>
-            <button
+            <button type="button"
               onClick={() => setRemoveState('idle')}
               className="rounded-lg border border-[var(--line-strong)] px-3 py-1.5 text-xs font-medium text-[var(--muted)] hover:text-[var(--ink)]"
             >
