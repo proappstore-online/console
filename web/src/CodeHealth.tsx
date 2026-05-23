@@ -1,17 +1,16 @@
 import { useState, useEffect } from 'react'
 
-interface QualityCheck {
+interface VcqaCheck {
   name: string
   score: number
   grade: string
-  issues: { severity: string; message: string }[]
 }
 
-interface QualityReport {
+interface VcqaReport {
   score: number
   grade: string
   totalIssues: number
-  checks: QualityCheck[]
+  checks: VcqaCheck[]
   timestamp: string
 }
 
@@ -19,103 +18,95 @@ interface Props {
   appId: string
 }
 
-const GRADE_COLORS: Record<string, string> = {
-  A: 'text-[var(--success)] border-[var(--success)]/30 bg-[var(--success)]/10',
-  B: 'text-[var(--accent)] border-[var(--accent)]/30 bg-[var(--accent-soft)]',
-  C: 'text-[var(--warning)] border-[var(--warning)]/30 bg-[var(--warning)]/10',
-  D: 'text-[var(--error)] border-[var(--error)]/30 bg-[var(--error)]/10',
-  F: 'text-[var(--error)] border-[var(--error)]/30 bg-[var(--error)]/10',
+const gradeColor = (g: string) => {
+  if (g === 'A') return 'var(--success, #16a34a)'
+  if (g === 'B') return 'var(--success, #16a34a)'
+  if (g === 'C') return 'var(--warning, #ca8a04)'
+  return 'var(--error, #dc2626)'
 }
 
 export function CodeHealth({ appId }: Props) {
-  const [report, setReport] = useState<QualityReport | null>(null)
+  const [report, setReport] = useState<VcqaReport | null>(null)
   const [loading, setLoading] = useState(true)
-  const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
-    let cancelled = false
     fetch(`https://${appId}.proappstore.online/.vcqa/report.json`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { if (!cancelled) setReport(data) })
+      .then((data) => setReport(data as VcqaReport | null))
       .catch(() => {})
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
+      .finally(() => setLoading(false))
   }, [appId])
 
-  if (loading) {
-    return (
-      <section className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
-        <h3 className="display-font text-lg font-bold text-[var(--ink)] mb-1">Code Health</h3>
-        <p className="text-sm text-[var(--muted)]">Loading...</p>
-      </section>
-    )
-  }
-
+  if (loading) return null
   if (!report) {
     return (
-      <section className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
-        <h3 className="display-font text-lg font-bold text-[var(--ink)] mb-1">Code Health</h3>
-        <p className="text-sm text-[var(--muted)] italic">
-          No quality report yet. Deploy the app to generate one.
-        </p>
-      </section>
+      <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-5">
+        <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide mb-2">Code Health</h3>
+        <p className="text-sm text-[var(--muted)]">No scan data yet. Code health runs automatically on each deploy.</p>
+      </div>
     )
   }
 
-  const activeChecks = report.checks.filter(
-    (c) => c.score !== null && c.score !== undefined && c.grade !== undefined,
-  )
+  const activeChecks = report.checks?.filter((c) => c.score !== undefined && c.grade !== 'skip') ?? []
 
   return (
-    <section className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
-      <div className="flex items-center justify-between mb-4">
+    <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide">Code Health</h3>
+        <span className="text-xs text-[var(--muted)]">
+          via <a href="https://vibecodeqa.online" target="_blank" rel="noopener noreferrer" className="text-[var(--accent)]">vcqa</a>
+          {report.timestamp && ` · ${new Date(report.timestamp).toLocaleDateString()}`}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-4 mb-4">
+        <div
+          className="display-font text-4xl font-bold"
+          style={{ color: gradeColor(report.grade) }}
+        >
+          {report.grade}
+        </div>
         <div>
-          <h3 className="display-font text-lg font-bold text-[var(--ink)] mb-0.5">Code Health</h3>
-          <p className="text-sm text-[var(--muted)]">
-            Powered by <a href="https://vibecodeqa.online" target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">vcqa</a>
-          </p>
+          <div className="text-2xl font-bold text-[var(--ink)]">{report.score}/100</div>
+          <div className="text-xs text-[var(--muted)]">{activeChecks.length} checks passed</div>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-2xl font-bold text-[var(--ink)]">{report.score}/100</span>
-          <span className={`inline-flex items-center justify-center w-10 h-10 rounded-full border-2 text-lg font-bold ${GRADE_COLORS[report.grade] ?? ''}`}>
-            {report.grade}
-          </span>
+        <div className="ml-auto">
+          <img
+            src={`https://${appId}.proappstore.online/.vcqa/badge.svg`}
+            alt={`vcqa ${report.grade} ${report.score}`}
+            className="h-5"
+          />
         </div>
       </div>
 
-      <div className="flex items-center gap-4 text-sm text-[var(--muted)] mb-4">
-        <span>{report.totalIssues} issues</span>
-        <span>{activeChecks.length} checks</span>
-        {report.timestamp && (
-          <span>Scanned {new Date(report.timestamp).toLocaleDateString()}</span>
-        )}
-      </div>
-
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="text-sm font-semibold text-[var(--accent)] hover:underline"
-      >
-        {expanded ? 'Hide details' : 'Show details'}
-      </button>
-
-      {expanded && (
-        <div className="mt-4 space-y-1.5">
-          {activeChecks.map((c) => (
-            <div
-              key={c.name}
-              className="flex items-center justify-between rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2"
-            >
-              <span className="text-sm text-[var(--ink)] capitalize">{c.name.replace(/-/g, ' ')}</span>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-[var(--muted)]">{c.score}/100</span>
-                <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${GRADE_COLORS[c.grade] ?? 'text-[var(--muted)]'}`}>
-                  {c.grade}
-                </span>
+      {activeChecks.length > 0 && (
+        <div className="grid gap-1.5">
+          {activeChecks.map((check) => (
+            <div key={check.name} className="flex items-center gap-2 py-1">
+              <span
+                className="inline-block w-6 text-center text-xs font-bold rounded"
+                style={{
+                  color: gradeColor(check.grade),
+                  background: `color-mix(in srgb, ${gradeColor(check.grade)} 15%, transparent)`,
+                }}
+              >
+                {check.grade}
+              </span>
+              <span className="text-sm text-[var(--ink)] flex-1">{check.name}</span>
+              <span className="text-xs text-[var(--muted)] font-mono">{check.score}</span>
+              <div className="w-16 h-1.5 rounded bg-[var(--line)] overflow-hidden">
+                <div
+                  className="h-full rounded"
+                  style={{
+                    width: `${check.score}%`,
+                    background: gradeColor(check.grade),
+                  }}
+                />
               </div>
             </div>
           ))}
         </div>
       )}
-    </section>
+    </div>
   )
 }
