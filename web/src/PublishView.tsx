@@ -52,7 +52,7 @@ const CATEGORIES = [
   'other',
 ] as const
 
-const DEFAULT_ICON = '&#128203;'
+const DEFAULT_ICON = '\u{1F4CB}'
 const DEFAULT_ICON_BG = '#ede9fe'
 
 // ---------------------------------------------------------------------------
@@ -506,8 +506,7 @@ function SubmissionForm({
       category: form.category,
       description: form.description.trim(),
     }
-    if (form.icon && form.icon !== DEFAULT_ICON) body.icon = form.icon
-    else if (form.icon) body.icon = form.icon
+    if (form.icon) body.icon = form.icon
     if (form.iconBg) body.iconBg = form.iconBg
     if (form.proFeatures.length > 0) body.proFeatures = form.proFeatures
     if (form.repoUrl.trim()) body.repoUrl = form.repoUrl.trim()
@@ -714,7 +713,7 @@ function SubmissionForm({
           <div
             className="flex h-[42px] w-12 items-center justify-center rounded-lg text-xl"
             style={{ background: form.iconBg }}
-            dangerouslySetInnerHTML={{ __html: form.icon || DEFAULT_ICON }}
+            children={form.icon || DEFAULT_ICON}
           />
         </div>
       </div>
