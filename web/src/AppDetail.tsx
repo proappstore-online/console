@@ -38,6 +38,7 @@ import {
 import { RolesManager } from './RolesManager'
 import { DbBrowser } from './DbBrowser'
 import { WebhooksManager } from './WebhooksManager'
+import { CodeHealth } from './CodeHealth'
 
 interface Props {
   appId: string
@@ -122,6 +123,7 @@ export function AppDetail({ appId, appName, getToken, onBack, onDelete }: Props)
           <LegalSection appId={appId} listing={listing} update={update} getToken={getToken} />
           <RolesManager appId={appId} getToken={getToken} />
           <WebhooksManager appId={appId} getToken={getToken} />
+          <CodeHealth appId={appId} />
           <DbBrowser appId={appId} getToken={getToken} />
 
           <div className="rounded-2xl border border-[var(--error)]/30 bg-[var(--panel)] p-6">
