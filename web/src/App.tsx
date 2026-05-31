@@ -254,7 +254,7 @@ function Header({ user, view, onNavigate, isAdmin }: { user: User; view: View; o
             <a href="https://proappstore.online" className="text-sm font-bold text-[var(--accent)] no-underline hover:opacity-80">
               Pro
             </a>
-            <nav className="flex items-center gap-3 text-xs font-medium text-[var(--muted)]">
+            <nav className="hidden sm:flex items-center gap-3 text-xs font-medium text-[var(--muted)]">
               <a href="https://proappstore.online" className="hover:text-[var(--ink)] no-underline">Apps</a>
               <a href="https://proappstore.online/docs" className="hover:text-[var(--ink)] no-underline">Docs</a>
               <a href="https://proappstore.online/pricing" className="hover:text-[var(--ink)] no-underline">Pricing</a>
@@ -268,7 +268,7 @@ function Header({ user, view, onNavigate, isAdmin }: { user: User; view: View; o
             <span className="hidden sm:inline text-xs font-medium text-[var(--muted)]">{user.login}</span>
             <button
               onClick={() => pro.auth.signOut()}
-              className="text-xs font-medium text-[var(--muted)] hover:text-[var(--ink)] underline"
+              className="text-xs font-medium text-[var(--muted)] hover:text-[var(--ink)] underline py-2"
             >
               Sign out
             </button>
@@ -361,7 +361,7 @@ function Dashboard({
       </div>
 
       {/* Quick stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard label="Total Apps" value={apps.length} />
         <StatCard
           label="Active 30d"
