@@ -6,11 +6,12 @@ import { PayoutsView } from './PayoutsView'
 import { AppDetail } from './AppDetail'
 import { AdminView } from './AdminView'
 import { UILibraryView } from './UILibraryView'
+import { AgentTeamsView } from './AgentTeamsView'
 import { fetchOwnerSummary, formatNumber, type OwnerSummary } from './usage'
 
 const pro = initPro({ appId: 'console' })
 
-type View = 'dashboard' | 'app-detail' | 'publish' | 'payouts' | 'subscription' | 'admin' | 'settings' | 'ui-library'
+type View = 'dashboard' | 'app-detail' | 'publish' | 'agents' | 'payouts' | 'subscription' | 'admin' | 'settings' | 'ui-library'
 
 interface AppEntry {
   id: string
@@ -187,6 +188,7 @@ export default function App() {
             onDelete={deleteSelectedApp}
           />
         )}
+        {view === 'agents' && <AgentTeamsView getToken={() => pro.auth.token} />}
         {view === 'publish' && <PublishView getToken={() => pro.auth.token} />}
         {view === 'payouts' && <PayoutsView getToken={() => pro.auth.token} />}
         {view === 'subscription' && <SubscriptionView />}
@@ -234,6 +236,7 @@ function Landing() {
 
 const TABS: { key: View; label: string }[] = [
   { key: 'dashboard', label: 'Dashboard' },
+  { key: 'agents', label: 'Agents' },
   { key: 'publish', label: 'Publish' },
   { key: 'payouts', label: 'Payouts' },
   { key: 'subscription', label: 'Subscription' },
