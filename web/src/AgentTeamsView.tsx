@@ -69,6 +69,25 @@ const ROLE_COLOR: Record<string, string> = {
   po: '#6366f1', BA: '#f59e0b', Dev: '#3b82f6', QA: '#8b5cf6', system: '#94a3b8', user: 'var(--ink)',
 }
 
+// ── Copy helper ─────────────────────────────────────────────
+
+function CopyBtn({ getData, label }: { getData: () => string; label: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      onClick={() => {
+        navigator.clipboard.writeText(getData())
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1500)
+      }}
+      className="text-[10px] text-[var(--muted)] hover:text-[var(--ink)] px-1.5 py-0.5 rounded border border-[var(--line)] hover:border-[var(--accent)] transition-colors"
+      title={`Copy ${label} as JSON`}
+    >
+      {copied ? 'Copied!' : label}
+    </button>
+  )
+}
+
 // ── Component ───────────────────────────────────────────────
 
 export function AgentTeamsView({ getToken }: { getToken: () => string | null }) {
@@ -239,8 +258,12 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
             <h3 className="text-sm font-bold text-[var(--ink)]">{project?.name ?? 'Chat'}</h3>
             <p className="text-xs text-[var(--muted)]">Talk to your agents</p>
           </div>
-          <button onClick={() => { localStorage.removeItem('pas-agent-project-slug'); setSetupMode(true) }}
-            className="text-xs text-[var(--muted)] hover:text-[var(--ink)] py-1">Switch</button>
+          <div className="flex items-center gap-1">
+            <CopyBtn label="ID" getData={() => JSON.stringify({ projectId: project?.id, slug, name: project?.name })} />
+            <CopyBtn label="Chat" getData={() => JSON.stringify(chat.map(m => ({ role: m.role, text: m.text, time: new Date(m.timestamp).toISOString(), ...(m.toolCall ? { tool: m.toolCall } : {}) })), null, 2)} />
+            <button onClick={() => { localStorage.removeItem('pas-agent-project-slug'); setSetupMode(true) }}
+              className="text-[10px] text-[var(--muted)] hover:text-[var(--ink)] px-1.5 py-0.5 rounded border border-[var(--line)] hover:border-[var(--accent)]">Switch</button>
+          </div>
         </div>
 
         {/* Messages */}
@@ -341,11 +364,14 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
                 </button>
               )}
             </div>
-            {project && (
-              <span className="text-xs text-[var(--muted)]">
-                ${(project.costSpentMonthlyUsd ?? 0).toFixed(2)} / ${(project.costCapMonthlyUsd ?? 50).toFixed(2)}
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              <CopyBtn label="Board" getData={() => JSON.stringify({ slug, status: project?.status, cost: { spent: project?.costSpentMonthlyUsd, cap: project?.costCapMonthlyUsd }, tickets: tickets.map(t => ({ id: t.id, title: t.title, status: t.status, assignee: t.assigneeRole, iterations: t.iterations, cost: t.costSpentUsd })) }, null, 2)} />
+              {project && (
+                <span className="text-xs text-[var(--muted)]">
+                  ${(project.costSpentMonthlyUsd ?? 0).toFixed(2)} / ${(project.costCapMonthlyUsd ?? 50).toFixed(2)}
+                </span>
+              )}
+            </div>
           </div>
           <div className="grid grid-cols-6 gap-2">
             {COLUMNS.map(col => {
@@ -382,7 +408,10 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
 
         {/* Activity log */}
         <div className="flex-1 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4 flex flex-col min-h-[200px]">
-          <h3 className="text-sm font-bold text-[var(--ink)] mb-2">Activity</h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold text-[var(--ink)]">Activity</h3>
+            <CopyBtn label="Log" getData={() => JSON.stringify(activity.map(a => ({ type: a.type, detail: a.detail, time: new Date(a.timestamp).toISOString() })), null, 2)} />
+          </div>
           <div className="flex-1 overflow-y-auto space-y-1 text-xs font-mono min-h-0" style={{ maxHeight: 'calc(100dvh - 500px)' }}>
             {activity.length === 0 && (
               <p className="text-[var(--muted)] py-4 text-center font-sans text-xs">
