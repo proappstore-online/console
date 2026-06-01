@@ -6,7 +6,7 @@ const AGENT_API = 'https://agents.proappstore.online/v1'
 
 type TicketStatus =
   | 'inbox' | 'ba-refining' | 'awaiting-approval' | 'ready'
-  | 'dev-active' | 'qa-active' | 'qa-failed' | 'done' | 'failed' | 'cancelled'
+  | 'dev-active' | 'qa-active' | 'qa-failed' | 'needs-input' | 'done' | 'failed' | 'cancelled'
 
 interface Ticket {
   id: string
@@ -61,6 +61,7 @@ const COLUMNS: { keys: TicketStatus[]; label: string; color: string }[] = [
   { keys: ['ba-refining', 'awaiting-approval'], label: 'BA', color: '#f59e0b' },
   { keys: ['ready', 'dev-active'], label: 'Dev', color: '#3b82f6' },
   { keys: ['qa-active', 'qa-failed'], label: 'QA', color: '#8b5cf6' },
+  { keys: ['needs-input'], label: 'Blocked', color: '#ef4444' },
   { keys: ['done'], label: 'Done', color: '#22c55e' },
 ]
 
@@ -338,7 +339,7 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
               </span>
             )}
           </div>
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-6 gap-2">
             {COLUMNS.map(col => {
               const colTickets = tickets.filter(t => (col.keys as string[]).includes(t.status))
               return (
