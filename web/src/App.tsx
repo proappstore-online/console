@@ -109,13 +109,48 @@ const DEFAULT_PREFS: Prefs = {
 // App
 // ---------------------------------------------------------------------------
 
+/** Parse hash route into view + optional param */
+function parseHash(): { view: View; param: string | null } {
+  const hash = location.hash.replace(/^#\/?/, '')
+  if (!hash || hash === 'dashboard') return { view: 'dashboard', param: null }
+  if (hash.startsWith('apps/')) return { view: 'app-detail', param: hash.slice(5) }
+  const valid: View[] = ['dashboard', 'app-detail', 'publish', 'agents', 'payouts', 'subscription', 'admin', 'settings', 'ui-library']
+  if (valid.includes(hash as View)) return { view: hash as View, param: null }
+  return { view: 'dashboard', param: null }
+}
+
+/** Update hash without triggering hashchange */
+function setHash(view: View, param?: string | null) {
+  const path = view === 'app-detail' && param ? `apps/${param}` : view === 'dashboard' ? '' : view
+  const target = path ? `#/${path}` : '#/'
+  if (location.hash !== target) history.pushState(null, '', target)
+}
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null)
   const [ready, setReady] = useState(false)
-  const [view, setView] = useState<View>('dashboard')
-  const [selectedAppId, setSelectedAppId] = useState<string | null>(null)
+  const initial = parseHash()
+  const [view, setViewState] = useState<View>(initial.view)
+  const [selectedAppId, setSelectedAppId] = useState<string | null>(initial.param)
   const [apps, setApps] = useState<AppEntry[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
+
+  // Sync view to hash
+  const setView = useCallback((v: View) => {
+    setViewState(v)
+    if (v !== 'app-detail') setHash(v)
+  }, [])
+
+  // Listen for back/forward navigation
+  useEffect(() => {
+    const onHashChange = () => {
+      const { view: v, param } = parseHash()
+      setViewState(v)
+      if (v === 'app-detail' && param) setSelectedAppId(param)
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
 
   useEffect(() => {
     pro.auth.init().then(() => setReady(true))
@@ -141,7 +176,8 @@ export default function App() {
 
   const openAppDetail = useCallback((id: string) => {
     setSelectedAppId(id)
-    setView('app-detail')
+    setViewState('app-detail')
+    setHash('app-detail', id)
   }, [])
 
   const deleteSelectedApp = useCallback(async () => {
@@ -151,7 +187,8 @@ export default function App() {
       await pro.kv.delete(`app-config:${selectedAppId}`).catch(() => {})
       setApps((prev) => prev.filter((a) => a.id !== selectedAppId))
       setSelectedAppId(null)
-      setView('dashboard')
+      setViewState('dashboard')
+      setHash('dashboard')
     }
   }, [selectedAppId])
 
