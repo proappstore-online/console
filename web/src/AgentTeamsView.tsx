@@ -24,6 +24,7 @@ interface Project {
   slug: string
   costCapMonthlyUsd: number
   costSpentMonthlyUsd: number
+  status: 'running' | 'paused'
 }
 
 interface ChatMessage {
@@ -303,7 +304,34 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
         {/* Kanban board */}
         <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-bold text-[var(--ink)]">Board</h3>
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-bold text-[var(--ink)]">Board</h3>
+              {project && (
+                <button
+                  onClick={async () => {
+                    if (!token || !slug) return
+                    const action = project.status === 'running' ? 'pause' : 'play'
+                    try {
+                      await api(`/projects/${slug}/${action}`, token, { method: 'POST' })
+                      logActivity('control', action === 'play' ? 'Agents STARTED' : 'Agents PAUSED')
+                      setProject(prev => prev ? { ...prev, status: action === 'play' ? 'running' : 'paused' } : prev)
+                      if (action === 'play') loadProject()
+                    } catch (err) { setError((err as Error).message) }
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                    project.status === 'running'
+                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 hover:bg-amber-200'
+                      : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200'
+                  }`}
+                >
+                  {project.status === 'running' ? (
+                    <><span>&#9646;&#9646;</span> Pause</>
+                  ) : (
+                    <><span>&#9654;</span> Play</>
+                  )}
+                </button>
+              )}
+            </div>
             {project && (
               <span className="text-xs text-[var(--muted)]">
                 ${(project.costSpentMonthlyUsd ?? 0).toFixed(2)} / ${(project.costCapMonthlyUsd ?? 50).toFixed(2)}
