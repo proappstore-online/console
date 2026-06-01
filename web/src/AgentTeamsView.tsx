@@ -317,7 +317,15 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
                       logActivity('control', action === 'play' ? 'Agents STARTED' : 'Agents PAUSED')
                       setProject(prev => prev ? { ...prev, status: action === 'play' ? 'running' : 'paused' } : prev)
                       if (action === 'play') loadProject()
-                    } catch (err) { setError((err as Error).message) }
+                    } catch (err) {
+                      const msg = (err as Error).message
+                      if (msg.includes('404')) {
+                        setProject(null)
+                        setSetupMode(true)
+                        localStorage.removeItem('pas-agent-project-slug')
+                      }
+                      setError(msg)
+                    }
                   }}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
                     project.status === 'running'
