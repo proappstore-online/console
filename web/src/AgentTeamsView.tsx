@@ -11,31 +11,31 @@ type TicketStatus =
 interface Ticket {
   id: string
   title: string
-  rawIdea: string
+  raw_idea: string
   status: TicketStatus
-  assigneeRole: string | null
+  assignee_role: string | null
   iterations: number
-  costSpentUsd: number
-  createdAt: number
-  updatedAt: number
-  stuckReason: string | null
+  cost_spent_usd: number
+  created_at: number
+  updated_at: number
+  stuck_reason: string | null
 }
 
 interface Project {
   id: string
   name: string
   slug: string
-  costCapMonthlyUsd: number
-  costSpentMonthlyUsd: number
+  cost_cap_monthly_usd: number
+  cost_spent_monthly_usd: number
 }
 
 interface Message {
   id: string
-  ticketId: string
+  ticket_id: string
   author: string
   body: string
-  createdAt: number
-  costUsd: number
+  created_at: number
+  cost_usd: number
 }
 
 interface CostSummary {
@@ -73,12 +73,25 @@ const COLUMNS: { key: TicketStatus[]; label: string; color: string }[] = [
   { key: ['failed', 'cancelled'], label: 'Closed', color: 'var(--error, #ef4444)' },
 ]
 
+const STATUS_LABELS: Record<string, string> = {
+  'inbox': 'Inbox',
+  'ba-refining': 'BA Refining',
+  'awaiting-approval': 'Awaiting Approval',
+  'ready': 'Ready',
+  'dev-active': 'Dev Active',
+  'qa-active': 'QA Active',
+  'qa-failed': 'QA Failed',
+  'done': 'Done',
+  'failed': 'Failed',
+  'cancelled': 'Cancelled',
+}
+
 // ── Main component ──────────────────────────────────────────
 
 export function AgentTeamsView({ getToken }: { getToken: () => string | null }) {
   const [project, setProject] = useState<Project | null>(null)
   const [tickets, setTickets] = useState<Ticket[]>([])
-  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [cost, setCost] = useState<CostSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -90,17 +103,19 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
   const [slug, setSlug] = useState('')
   const [projectName, setProjectName] = useState('')
   const [setupMode, setSetupMode] = useState(false)
-  const wsRef = useRef<WebSocket | null>(null)
+  const selectedTicketIdRef = useRef<string | null>(null)
 
   const token = getToken()
+
+  // Keep ref in sync for WebSocket closure
+  useEffect(() => { selectedTicketIdRef.current = selectedTicketId }, [selectedTicketId])
 
   // Load project
   const loadProject = useCallback(async () => {
     if (!token) return
     setLoading(true)
+    setError(null)
     try {
-      // Try to find existing projects — for now use a hardcoded slug
-      // TODO: list projects endpoint
       const stored = localStorage.getItem('pas-agent-project-slug')
       if (!stored) {
         setSetupMode(true)
@@ -117,10 +132,12 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
       const costData = await api(`/projects/${stored}/cost`, token) as CostSummary
       setCost(costData)
     } catch (err) {
-      if ((err as Error).message.includes('404')) {
+      const msg = (err as Error).message
+      if (msg.includes('404') || msg.includes('not_found')) {
+        localStorage.removeItem('pas-agent-project-slug')
         setSetupMode(true)
       } else {
-        setError((err as Error).message)
+        setError(msg)
       }
     }
     setLoading(false)
@@ -128,40 +145,19 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
 
   useEffect(() => { loadProject() }, [loadProject])
 
-  // WebSocket for real-time updates
-  useEffect(() => {
-    if (!token || !slug) return
-    const ws = new WebSocket(`wss://agents.proappstore.online/v1/projects/${slug}/ws`)
-    wsRef.current = ws
-
-    ws.onmessage = (e) => {
-      try {
-        const event = JSON.parse(e.data) as { type: string; ticketId?: string }
-        if (event.type === 'ticket-created' || event.type === 'ticket-transition' || event.type === 'ticket-updated') {
-          loadProject()
-        }
-        if (event.type === 'message' && event.ticketId === selectedTicket?.id) {
-          loadMessages(event.ticketId)
-        }
-        if (event.type === 'cost-cap-reached') {
-          loadProject()
-        }
-      } catch { /* ignore parse errors */ }
-    }
-
-    return () => { ws.close(); wsRef.current = null }
-  }, [token, slug, selectedTicket?.id])
-
   // Load messages for a ticket
   const loadMessages = useCallback(async (ticketId: string) => {
     if (!token || !slug) return
-    const data = await api(`/projects/${slug}/tickets/${ticketId}/messages`, token) as { messages: Message[] }
-    setMessages(data.messages)
+    try {
+      const data = await api(`/projects/${slug}/tickets/${ticketId}/messages`, token) as { messages: Message[] }
+      setMessages(data.messages)
+    } catch { /* non-fatal */ }
   }, [token, slug])
 
   // Create project
   const createProject = async () => {
     if (!token || !projectName || !slug) return
+    setError(null)
     try {
       await api('/projects', token, { method: 'POST', body: { name: projectName, slug } })
       localStorage.setItem('pas-agent-project-slug', slug)
@@ -176,6 +172,7 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
   const createTicket = async () => {
     if (!token || !slug || !newTitle || !newIdea) return
     setCreating(true)
+    setError(null)
     try {
       await api(`/projects/${slug}/tickets`, token, {
         method: 'POST',
@@ -193,12 +190,14 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
   // Transition ticket
   const transition = async (ticketId: string, to: TicketStatus, trigger: string) => {
     if (!token || !slug) return
+    setError(null)
     try {
       await api(`/projects/${slug}/tickets/${ticketId}/transition`, token, {
         method: 'POST',
         body: { to, trigger },
       })
       loadProject()
+      if (selectedTicketId === ticketId) loadMessages(ticketId)
     } catch (err) {
       setError((err as Error).message)
     }
@@ -207,8 +206,11 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
   // Run agent on ticket
   const runAgent = async (ticketId: string) => {
     if (!token || !slug) return
+    setError(null)
     try {
-      await api(`/projects/${slug}/tickets/${ticketId}/run`, token, { method: 'POST', body: {} })
+      const result = await api(`/projects/${slug}/tickets/${ticketId}/run`, token, { method: 'POST', body: {} })
+      const data = result as { status?: string; note?: string }
+      if (data.note) setError(data.note)
       loadProject()
     } catch (err) {
       setError((err as Error).message)
@@ -217,7 +219,7 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
 
   // Open ticket detail
   const openTicket = (ticket: Ticket) => {
-    setSelectedTicket(ticket)
+    setSelectedTicketId(ticket.id)
     setView('detail')
     loadMessages(ticket.id)
   }
@@ -253,13 +255,13 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
           </div>
           <button
             onClick={createProject}
-            disabled={!projectName || !slug}
+            disabled={!projectName || !slug || slug.length < 2}
             className="w-full rounded-xl bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
           >
             Create Project
           </button>
         </div>
-        {error && <p className="mt-4 text-sm text-[var(--error)]">{error}</p>}
+        {error && <p className="mt-4 text-sm text-[var(--error)] rounded-lg bg-red-50 dark:bg-red-950/30 p-3">{error}</p>}
       </div>
     )
   }
@@ -280,10 +282,16 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
             {cost && (
               <p className="text-xs text-[var(--muted)] mt-1">
                 Cost: ${cost.spent.toFixed(2)} / ${cost.cap.toFixed(2)} this month
-                {cost.byRole.map((r) => ` | ${r.role}: $${r.total.toFixed(2)}`)}
+                {cost.byRole.map((r) => ` | ${r.role}: $${(r.total as number).toFixed(2)}`)}
               </p>
             )}
           </div>
+          <button
+            onClick={() => { localStorage.removeItem('pas-agent-project-slug'); setSetupMode(true) }}
+            className="text-xs text-[var(--muted)] hover:text-[var(--ink)]"
+          >
+            Switch project
+          </button>
         </div>
 
         {/* New ticket form */}
@@ -294,19 +302,21 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               placeholder="Title (e.g. 'Add game rooms with chess clock')"
-              className="block w-full rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3 py-2 text-sm text-[var(--ink)]"
+              className="block w-full rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3 py-2.5 text-sm text-[var(--ink)]"
+              maxLength={200}
             />
             <textarea
               value={newIdea}
               onChange={(e) => setNewIdea(e.target.value)}
               placeholder="Describe what you want built..."
               rows={3}
-              className="block w-full rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3 py-2 text-sm text-[var(--ink)] resize-none"
+              className="block w-full rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3 py-2.5 text-sm text-[var(--ink)] resize-none"
+              maxLength={65536}
             />
             <button
               onClick={createTicket}
               disabled={creating || !newTitle || !newIdea}
-              className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+              className="rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
             >
               {creating ? 'Creating...' : 'Create Ticket'}
             </button>
@@ -320,10 +330,7 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
             return (
               <div key={col.label} className="min-h-[120px]">
                 <div className="flex items-center gap-2 mb-2">
-                  <span
-                    className="w-2 h-2 rounded-full"
-                    style={{ background: col.color }}
-                  />
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: col.color }} />
                   <span className="text-xs font-semibold text-[var(--ink)]">{col.label}</span>
                   <span className="text-xs text-[var(--muted)]">{colTickets.length}</span>
                 </div>
@@ -335,19 +342,19 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
                       className="w-full text-left rounded-xl border border-[var(--line)] bg-[var(--panel)] p-3 hover:border-[var(--accent)] transition-colors"
                     >
                       <p className="text-sm font-medium text-[var(--ink)] line-clamp-2">{ticket.title}</p>
-                      <div className="flex items-center gap-2 mt-2">
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--panel-hover)] text-[var(--muted)]">
-                          {ticket.status}
+                          {STATUS_LABELS[ticket.status] ?? ticket.status}
                         </span>
-                        {ticket.assigneeRole && (
-                          <span className="text-xs text-[var(--muted)]">{ticket.assigneeRole}</span>
+                        {ticket.assignee_role && (
+                          <span className="text-xs text-[var(--accent)] font-medium">{ticket.assignee_role}</span>
                         )}
                         {ticket.iterations > 0 && (
                           <span className="text-xs text-[var(--muted)]">iter:{ticket.iterations}</span>
                         )}
                       </div>
-                      {ticket.costSpentUsd > 0 && (
-                        <p className="text-xs text-[var(--muted)] mt-1">${ticket.costSpentUsd.toFixed(2)}</p>
+                      {ticket.cost_spent_usd > 0 && (
+                        <p className="text-xs text-[var(--muted)] mt-1">${ticket.cost_spent_usd.toFixed(2)}</p>
                       )}
                     </button>
                   ))}
@@ -360,20 +367,21 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
           })}
         </div>
 
-        {error && <p className="mt-4 text-sm text-[var(--error)]">{error}</p>}
+        {error && <p className="mt-4 text-sm text-[var(--error)] rounded-lg bg-red-50 dark:bg-red-950/30 p-3">{error}</p>}
       </div>
     )
   }
 
   // ── Ticket detail view ────────────────────────────────────
 
-  if (view === 'detail' && selectedTicket) {
-    const ticket = tickets.find((t) => t.id === selectedTicket.id) ?? selectedTicket
+  const ticket = tickets.find((t) => t.id === selectedTicketId)
+
+  if (view === 'detail' && ticket) {
     return (
       <div>
         <button
-          onClick={() => { setView('board'); setSelectedTicket(null) }}
-          className="text-sm text-[var(--muted)] hover:text-[var(--ink)] mb-4"
+          onClick={() => { setView('board'); setSelectedTicketId(null) }}
+          className="text-sm text-[var(--muted)] hover:text-[var(--ink)] mb-4 py-2"
         >
           &larr; Back to board
         </button>
@@ -383,25 +391,25 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
           <h2 className="text-lg font-bold text-[var(--ink)]">{ticket.title}</h2>
           <div className="flex flex-wrap items-center gap-2 mt-2">
             <span className="text-xs px-2 py-1 rounded-lg bg-[var(--accent-soft)] text-[var(--accent)] font-medium">
-              {ticket.status}
+              {STATUS_LABELS[ticket.status] ?? ticket.status}
             </span>
-            {ticket.assigneeRole && (
+            {ticket.assignee_role && (
               <span className="text-xs px-2 py-1 rounded-lg bg-[var(--panel-hover)] text-[var(--muted)]">
-                {ticket.assigneeRole}
+                {ticket.assignee_role}
               </span>
             )}
             <span className="text-xs text-[var(--muted)]">
-              iter: {ticket.iterations}/5 | cost: ${ticket.costSpentUsd.toFixed(2)}
+              iter: {ticket.iterations}/5 | cost: ${ticket.cost_spent_usd.toFixed(2)}
             </span>
           </div>
-          {ticket.stuckReason && (
-            <p className="mt-2 text-xs text-[var(--error)]">{ticket.stuckReason}</p>
+          {ticket.stuck_reason && (
+            <p className="mt-2 text-xs text-[var(--error)] bg-red-50 dark:bg-red-950/30 rounded-lg p-2">{ticket.stuck_reason}</p>
           )}
 
           {/* Raw idea */}
           <div className="mt-4 p-3 rounded-lg bg-[var(--panel-hover)]">
             <p className="text-xs font-medium text-[var(--muted)] mb-1">Raw idea</p>
-            <p className="text-sm text-[var(--ink)] whitespace-pre-wrap">{ticket.rawIdea}</p>
+            <p className="text-sm text-[var(--ink)] whitespace-pre-wrap">{ticket.raw_idea}</p>
           </div>
 
           {/* Actions */}
@@ -409,7 +417,7 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
             {ticket.status === 'inbox' && (
               <button
                 onClick={() => transition(ticket.id, 'ba-refining', 'BA')}
-                className="rounded-lg bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-white"
+                className="rounded-lg bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-white hover:opacity-90"
               >
                 Start BA Refinement
               </button>
@@ -418,13 +426,13 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
               <>
                 <button
                   onClick={() => transition(ticket.id, 'ready', 'po')}
-                  className="rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white"
+                  className="rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:opacity-90"
                 >
                   Approve Spec
                 </button>
                 <button
                   onClick={() => transition(ticket.id, 'ba-refining', 'po')}
-                  className="rounded-lg border border-[var(--line)] px-3 py-2 text-xs font-semibold text-[var(--ink)]"
+                  className="rounded-lg border border-[var(--line)] px-3 py-2 text-xs font-semibold text-[var(--ink)] hover:bg-[var(--panel-hover)]"
                 >
                   Reject (Back to BA)
                 </button>
@@ -433,21 +441,30 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
             {(ticket.status === 'ready' || ticket.status === 'qa-failed') && (
               <button
                 onClick={() => runAgent(ticket.id)}
-                className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white"
+                className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:opacity-90"
               >
                 Run Dev Agent
               </button>
             )}
             {ticket.status === 'dev-active' && (
-              <span className="text-xs text-[var(--muted)] py-2">Dev agent running...</span>
+              <span className="text-xs text-blue-500 py-2 flex items-center gap-1">
+                <span className="animate-pulse">●</span> Dev agent running...
+              </span>
             )}
             {ticket.status === 'qa-active' && (
-              <span className="text-xs text-[var(--muted)] py-2">QA agent running...</span>
+              <span className="text-xs text-purple-500 py-2 flex items-center gap-1">
+                <span className="animate-pulse">●</span> QA agent running...
+              </span>
+            )}
+            {ticket.status === 'ba-refining' && (
+              <span className="text-xs text-amber-500 py-2 flex items-center gap-1">
+                <span className="animate-pulse">●</span> BA refining spec...
+              </span>
             )}
             {!['done', 'failed', 'cancelled'].includes(ticket.status) && (
               <button
                 onClick={() => transition(ticket.id, 'cancelled', 'po')}
-                className="rounded-lg border border-[var(--error)] px-3 py-2 text-xs font-semibold text-[var(--error)]"
+                className="rounded-lg border border-[var(--error)] px-3 py-2 text-xs font-semibold text-[var(--error)] hover:bg-red-50 dark:hover:bg-red-950/30"
               >
                 Cancel
               </button>
@@ -457,9 +474,17 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
 
         {/* Message log */}
         <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
-          <h3 className="text-sm font-semibold text-[var(--ink)] mb-3">Activity</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-[var(--ink)]">Activity</h3>
+            <button
+              onClick={() => loadMessages(ticket.id)}
+              className="text-xs text-[var(--muted)] hover:text-[var(--ink)]"
+            >
+              Refresh
+            </button>
+          </div>
           {messages.length === 0 ? (
-            <p className="text-xs text-[var(--muted)] py-4 text-center">No messages yet</p>
+            <p className="text-xs text-[var(--muted)] py-8 text-center">No agent activity yet. Start a refinement or run to see output here.</p>
           ) : (
             <div className="space-y-3 max-h-[60vh] overflow-y-auto">
               {messages.map((msg) => (
@@ -472,22 +497,40 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-semibold text-[var(--accent)]">{msg.author}</span>
-                    <span className="text-xs text-[var(--muted)]">
-                      {new Date(msg.createdAt).toLocaleTimeString()}
+                    <span className={`text-xs font-semibold ${
+                      msg.author === 'BA' ? 'text-amber-500'
+                        : msg.author === 'Dev' ? 'text-blue-500'
+                        : msg.author === 'QA' ? 'text-purple-500'
+                        : 'text-[var(--muted)]'
+                    }`}>
+                      {msg.author}
                     </span>
-                    {msg.costUsd > 0 && (
-                      <span className="text-xs text-[var(--muted)]">${msg.costUsd.toFixed(3)}</span>
+                    <span className="text-xs text-[var(--muted)]">
+                      {new Date(msg.created_at).toLocaleTimeString()}
+                    </span>
+                    {msg.cost_usd > 0 && (
+                      <span className="text-xs text-[var(--muted)]">${msg.cost_usd.toFixed(3)}</span>
                     )}
                   </div>
-                  <p className="text-sm text-[var(--ink)] whitespace-pre-wrap">{msg.body}</p>
+                  <p className="text-sm text-[var(--ink)] whitespace-pre-wrap break-words">{msg.body}</p>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {error && <p className="mt-4 text-sm text-[var(--error)]">{error}</p>}
+        {error && <p className="mt-4 text-sm text-[var(--error)] rounded-lg bg-red-50 dark:bg-red-950/30 p-3">{error}</p>}
+      </div>
+    )
+  }
+
+  if (view === 'detail' && !ticket) {
+    return (
+      <div>
+        <button onClick={() => setView('board')} className="text-sm text-[var(--muted)] hover:text-[var(--ink)] py-2">
+          &larr; Back to board
+        </button>
+        <p className="py-8 text-center text-[var(--muted)]">Ticket not found</p>
       </div>
     )
   }
