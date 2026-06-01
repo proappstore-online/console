@@ -111,6 +111,18 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
       setSlug(stored)
       const t = await api(`/projects/${stored}/tickets`, token) as { tickets: Ticket[] }
       setTickets(t.tickets)
+
+      // Load chat history
+      try {
+        const h = await api(`/projects/${stored}/chat/history`, token) as { messages: { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }[] }
+        setChat(h.messages.map(m => ({
+          id: m.id,
+          role: m.role as ChatMessage['role'],
+          text: m.body,
+          timestamp: m.createdAt,
+          toolCall: m.toolCall,
+        })))
+      } catch { /* first load, no history yet */ }
     } catch (err) {
       const msg = (err as Error).message
       if (msg.includes('404')) { localStorage.removeItem('pas-agent-project-slug'); setSetupMode(true) }
@@ -135,35 +147,40 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
     } catch (err) { setError((err as Error).message) }
   }
 
-  // Send chat message
+  // Send chat message — calls the PO agent
   const sendMessage = async () => {
     if (!token || !slug || !input.trim()) return
     const text = input.trim()
     setInput('')
     setSending(true)
 
+    // Show user message immediately (optimistic)
     const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', text, timestamp: Date.now() }
     setChat(prev => [...prev, userMsg])
     logActivity('chat', `You: ${text.slice(0, 80)}${text.length > 80 ? '...' : ''}`)
 
     try {
-      // Send to agent-teams as a PO message on the project
-      // For now, create a ticket from the message (PO agent will triage later)
-      // The PO agent reads all messages and decides what to do
-      await api(`/projects/${slug}/tickets`, token, {
+      // Call PO agent — it decides whether to create a ticket, answer, or route
+      const result = await api(`/projects/${slug}/chat`, token, {
         method: 'POST',
-        body: { title: text.slice(0, 100), rawIdea: text },
-      })
+        body: { message: text },
+      }) as { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }
 
       const poReply: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: 'po',
-        text: `Got it. I created a ticket: "${text.slice(0, 80)}". It's in the inbox -- BA will refine it into a spec.`,
-        timestamp: Date.now(),
-        toolCall: { name: 'create_ticket', args: text.slice(0, 60) },
+        id: result.id,
+        role: result.role as ChatMessage['role'],
+        text: result.body,
+        timestamp: result.createdAt,
+        toolCall: result.toolCall,
       }
       setChat(prev => [...prev, poReply])
-      logActivity('ticket', `PO created ticket: "${text.slice(0, 60)}"`)
+
+      if (result.toolCall) {
+        logActivity('tool', `${result.role}: ${result.toolCall.name}(${result.toolCall.args ?? ''})`)
+      }
+      logActivity('chat', `PO: ${result.body.slice(0, 80)}`)
+
+      // Reload tickets in case PO created one
       loadProject()
     } catch (err) {
       const errMsg: ChatMessage = {
@@ -173,6 +190,7 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
         timestamp: Date.now(),
       }
       setChat(prev => [...prev, errMsg])
+      logActivity('error', (err as Error).message)
     }
     setSending(false)
   }
