@@ -11,31 +11,31 @@ type TicketStatus =
 interface Ticket {
   id: string
   title: string
-  raw_idea: string
+  rawIdea: string
   status: TicketStatus
-  assignee_role: string | null
+  assigneeRole: string | null
   iterations: number
-  cost_spent_usd: number
-  created_at: number
-  updated_at: number
-  stuck_reason: string | null
+  costSpentUsd: number
+  createdAt: number
+  updatedAt: number
+  stuckReason: string | null
 }
 
 interface Project {
   id: string
   name: string
   slug: string
-  cost_cap_monthly_usd: number
-  cost_spent_monthly_usd: number
+  costCapMonthlyUsd: number
+  costSpentMonthlyUsd: number
 }
 
 interface Message {
   id: string
-  ticket_id: string
+  ticketId: string
   author: string
   body: string
-  created_at: number
-  cost_usd: number
+  createdAt: number
+  costUsd: number
 }
 
 interface CostSummary {
@@ -346,15 +346,15 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
                         <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--panel-hover)] text-[var(--muted)]">
                           {STATUS_LABELS[ticket.status] ?? ticket.status}
                         </span>
-                        {ticket.assignee_role && (
-                          <span className="text-xs text-[var(--accent)] font-medium">{ticket.assignee_role}</span>
+                        {ticket.assigneeRole && (
+                          <span className="text-xs text-[var(--accent)] font-medium">{ticket.assigneeRole}</span>
                         )}
                         {ticket.iterations > 0 && (
                           <span className="text-xs text-[var(--muted)]">iter:{ticket.iterations}</span>
                         )}
                       </div>
-                      {ticket.cost_spent_usd > 0 && (
-                        <p className="text-xs text-[var(--muted)] mt-1">${ticket.cost_spent_usd.toFixed(2)}</p>
+                      {ticket.costSpentUsd > 0 && (
+                        <p className="text-xs text-[var(--muted)] mt-1">${ticket.costSpentUsd.toFixed(2)}</p>
                       )}
                     </button>
                   ))}
@@ -393,23 +393,23 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
             <span className="text-xs px-2 py-1 rounded-lg bg-[var(--accent-soft)] text-[var(--accent)] font-medium">
               {STATUS_LABELS[ticket.status] ?? ticket.status}
             </span>
-            {ticket.assignee_role && (
+            {ticket.assigneeRole && (
               <span className="text-xs px-2 py-1 rounded-lg bg-[var(--panel-hover)] text-[var(--muted)]">
-                {ticket.assignee_role}
+                {ticket.assigneeRole}
               </span>
             )}
             <span className="text-xs text-[var(--muted)]">
-              iter: {ticket.iterations}/5 | cost: ${ticket.cost_spent_usd.toFixed(2)}
+              iter: {ticket.iterations}/5 | cost: ${ticket.costSpentUsd.toFixed(2)}
             </span>
           </div>
-          {ticket.stuck_reason && (
-            <p className="mt-2 text-xs text-[var(--error)] bg-red-50 dark:bg-red-950/30 rounded-lg p-2">{ticket.stuck_reason}</p>
+          {ticket.stuckReason && (
+            <p className="mt-2 text-xs text-[var(--error)] bg-red-50 dark:bg-red-950/30 rounded-lg p-2">{ticket.stuckReason}</p>
           )}
 
           {/* Raw idea */}
           <div className="mt-4 p-3 rounded-lg bg-[var(--panel-hover)]">
             <p className="text-xs font-medium text-[var(--muted)] mb-1">Raw idea</p>
-            <p className="text-sm text-[var(--ink)] whitespace-pre-wrap">{ticket.raw_idea}</p>
+            <p className="text-sm text-[var(--ink)] whitespace-pre-wrap">{ticket.rawIdea}</p>
           </div>
 
           {/* Actions */}
@@ -506,10 +506,10 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
                       {msg.author}
                     </span>
                     <span className="text-xs text-[var(--muted)]">
-                      {new Date(msg.created_at).toLocaleTimeString()}
+                      {new Date(msg.createdAt).toLocaleTimeString()}
                     </span>
-                    {msg.cost_usd > 0 && (
-                      <span className="text-xs text-[var(--muted)]">${msg.cost_usd.toFixed(3)}</span>
+                    {msg.costUsd > 0 && (
+                      <span className="text-xs text-[var(--muted)]">${msg.costUsd.toFixed(3)}</span>
                     )}
                   </div>
                   <p className="text-sm text-[var(--ink)] whitespace-pre-wrap break-words">{msg.body}</p>
