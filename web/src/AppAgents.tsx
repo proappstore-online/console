@@ -200,6 +200,108 @@ function AgentsInfoModal({ onClose }: { onClose: () => void }) {
   )
 }
 
+// Per-app agent configuration: model, runtime, and output token cap for each
+// role (BA/Dev/QA). Backed by GET/PUT /projects/:slug/roles. Settings are
+// per-project (each app's team can use different models) — not account-wide.
+interface RoleCfg {
+  role: string
+  runtime: 'cf-native' | 'openai-responses'
+  model: string
+  maxTokens?: number
+  spineTools: string[]
+  vendorTools: string[]
+  systemPromptOverride?: string
+}
+
+const MODEL_SUGGESTIONS: Record<string, string[]> = {
+  'cf-native': ['claude-sonnet-4-6', 'claude-opus-4-6', 'claude-haiku-4-5'],
+  'openai-responses': ['gpt-4o', 'gpt-4o-mini', 'o3-mini'],
+}
+
+function AgentSettingsModal({ appId, token, onClose }: { appId: string; token: string; onClose: () => void }) {
+  const [roles, setRoles] = useState<RoleCfg[] | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    api(`/projects/${appId}/roles`, token)
+      .then((r: { roles: RoleCfg[] }) => setRoles(r.roles))
+      .catch((e: Error) => setError(e.message))
+  }, [appId, token])
+
+  const patch = (role: string, change: Partial<RoleCfg>) =>
+    setRoles(prev => prev?.map(r => r.role === role ? { ...r, ...change } : r) ?? prev)
+
+  const save = async () => {
+    if (!roles) return
+    setSaving(true); setError(null)
+    try {
+      await api(`/projects/${appId}/roles`, token, { method: 'PUT', body: { roles } })
+      setSaved(true); setTimeout(() => setSaved(false), 1500)
+    } catch (e) { setError((e as Error).message) }
+    setSaving(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
+      <div className="w-full max-w-xl max-h-[85vh] overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--panel-solid)] shadow-[var(--shadow-card)]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--line)] sticky top-0 bg-[var(--panel-solid)]">
+          <div>
+            <h3 className="text-base font-bold text-[var(--ink)]">Agent settings</h3>
+            <p className="text-xs text-[var(--muted)]">Model &amp; token limit per role, for this app.</p>
+          </div>
+          <button type="button" onClick={onClose} className="text-[var(--muted)] hover:text-[var(--ink)] text-xl leading-none">&times;</button>
+        </div>
+        <div className="px-5 py-4 space-y-4">
+          {!roles && !error && <p className="text-sm text-[var(--muted)]">Loading…</p>}
+          {roles?.map(r => (
+            <div key={r.role} className="rounded-xl border border-[var(--line)] p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-2 h-2 rounded-full" style={{ background: ROLE_COLOR[r.role] ?? 'var(--muted)' }} />
+                <span className="text-sm font-bold" style={{ color: ROLE_COLOR[r.role] ?? 'var(--ink)' }}>{r.role}</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <label className="text-xs text-[var(--muted)]">
+                  Provider
+                  <select value={r.runtime} onChange={e => patch(r.role, { runtime: e.target.value as RoleCfg['runtime'] })}
+                    className="mt-1 w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-2 py-1.5 text-sm text-[var(--ink)]">
+                    <option value="cf-native">Anthropic</option>
+                    <option value="openai-responses">OpenAI</option>
+                  </select>
+                </label>
+                <label className="text-xs text-[var(--muted)]">
+                  Model
+                  <input list={`models-${r.role}`} value={r.model} onChange={e => patch(r.role, { model: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-2 py-1.5 text-sm text-[var(--ink)]" />
+                  <datalist id={`models-${r.role}`}>
+                    {(MODEL_SUGGESTIONS[r.runtime] ?? []).map(m => <option key={m} value={m} />)}
+                  </datalist>
+                </label>
+                <label className="text-xs text-[var(--muted)]">
+                  Max tokens
+                  <input type="number" min={1024} max={64000} step={1024} value={r.maxTokens ?? 16384}
+                    onChange={e => patch(r.role, { maxTokens: Number(e.target.value) || undefined })}
+                    className="mt-1 w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-2 py-1.5 text-sm text-[var(--ink)]" />
+                </label>
+              </div>
+            </div>
+          ))}
+          {error && <p className="text-sm text-[var(--error)]">{error}</p>}
+        </div>
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-[var(--line)] sticky bottom-0 bg-[var(--panel-solid)]">
+          {saved && <span className="text-xs text-[var(--success)]">Saved</span>}
+          <button type="button" onClick={onClose} className="rounded-lg border border-[var(--line-strong)] px-4 py-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]">Close</button>
+          <button type="button" onClick={save} disabled={saving || !roles}
+            className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Component ───────────────────────────────────────────────
 // The agent team for ONE app. The agent-teams project slug IS the app id, so
 // this is scoped by appId — no localStorage, no separate project picker.
@@ -219,6 +321,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
   const [selTicket, setSelTicket] = useState<Ticket | null>(null)
   const [selMsgs, setSelMsgs] = useState<{ id: string; author: string; body: string; createdAt: number }[]>([])
   const [showInfo, setShowInfo] = useState(false)
+  const [showAgentCfg, setShowAgentCfg] = useState(false)
   // File preview (right inspector). Takes priority over the ticket panel.
   const [filePreview, setFilePreview] = useState<{ path: string; content: string; loading: boolean; truncated?: boolean } | null>(null)
   const [fileList, setFileList] = useState<{ path: string; size: number }[] | null>(null)
@@ -646,6 +749,12 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
               )}
             </div>
             <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setShowAgentCfg(true)}
+                className="flex items-center gap-1.5 rounded-lg border border-[var(--line-strong)] px-2.5 py-1 text-[11px] font-semibold text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--accent)] transition-colors"
+                title="Configure the agents' model and token limits">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                Agents
+              </button>
               <ScreenCopyBtn getData={screenSnapshot} />
               <CopyBtn label="Board" getData={() => JSON.stringify({ slug: appId, status: project?.status, cost: { spent: project?.costSpentMonthlyUsd, cap: project?.costCapMonthlyUsd }, tickets: tickets.map(t => ({ id: t.id, title: t.title, status: t.status, assignee: t.assigneeRole, iterations: t.iterations, cost: t.costSpentUsd })) }, null, 2)} />
               {project && (
@@ -874,6 +983,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
       )}
 
       {showInfo && <AgentsInfoModal onClose={() => setShowInfo(false)} />}
+      {showAgentCfg && token && <AgentSettingsModal appId={appId} token={token} onClose={() => setShowAgentCfg(false)} />}
 
       {error && (
         <div className="fixed bottom-4 right-4 bg-red-600 text-white text-sm px-4 py-2 rounded-lg shadow-lg z-50">
