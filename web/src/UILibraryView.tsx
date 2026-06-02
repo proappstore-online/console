@@ -16,10 +16,15 @@ import {
 
 const demo = initPro({ appId: 'console' })
 
+// Generated inline-SVG sample avatar (never a real person, never a broken URL).
+const sampleAvatar = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="32" fill="#7c3aed"/><circle cx="32" cy="25" r="12" fill="#ffffff"/><path d="M12 58c0-12 9-19 20-19s20 7 20 19z" fill="#ffffff"/></svg>',
+)}`
+
 const mockUser = {
   id: 'demo-1',
-  login: 'serge-ivo',
-  avatarUrl: 'https://github.com/serge-ivo.png',
+  login: 'sample-user',
+  avatarUrl: sampleAvatar,
   dateOfBirth: null,
 }
 

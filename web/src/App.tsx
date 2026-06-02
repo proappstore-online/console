@@ -166,7 +166,7 @@ export default function App() {
   const initial = parseHash()
   const [view, setViewState] = useState<View>(initial.view)
   const [selectedAppId, setSelectedAppId] = useState<string | null>(initial.param)
-  const [appInitialTab, setAppInitialTab] = useState<'overview' | 'agents'>('overview')
+  const [appInitialTab, setAppInitialTab] = useState<'overview' | 'agents'>('agents')
   const [apps, setApps] = useState<AppEntry[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [showNewApp, setShowNewApp] = useState(false)
@@ -216,7 +216,7 @@ export default function App() {
     return () => { cancelled = true }
   }, [user])
 
-  const openAppDetail = useCallback((id: string, tab: 'overview' | 'agents' = 'overview') => {
+  const openAppDetail = useCallback((id: string, tab: 'overview' | 'agents' = 'agents') => {
     setAppInitialTab(tab)
     setSelectedAppId(id)
     setViewState('app-detail')
@@ -548,7 +548,7 @@ function Dashboard({
             {apps.map((a) => (
               <button
                 key={a.id}
-                onClick={() => onOpenApp(a.id, a.published === false ? 'agents' : 'overview')}
+                onClick={() => onOpenApp(a.id, 'agents')}
                 className="text-left rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4 hover:bg-[var(--panel-hover)] shadow-sm"
               >
                 <div className="flex items-center justify-between gap-2">

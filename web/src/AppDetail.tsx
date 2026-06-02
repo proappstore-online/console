@@ -8,7 +8,7 @@ import { AppAgents } from './AppAgents'
 import {
   BrandingSection, ListingCopySection, ScreenshotsSection, DeveloperSection,
   SocialSection, LegalSection, UsageSection, AnalyticsSection, DomainsSection,
-  Preview, StorefrontTile,
+  StorefrontTile,
 } from './AppDetailSections'
 
 interface Props {
@@ -26,7 +26,7 @@ export function AppDetail({ appId, appName, getToken, onBack, onDelete, initialT
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [tab, setTab] = useState<'overview' | 'agents'>(initialTab ?? 'overview')
+  const [tab, setTab] = useState<'overview' | 'agents'>(initialTab ?? 'agents')
 
   useEffect(() => {
     let cancelled = false
@@ -44,32 +44,27 @@ export function AppDetail({ appId, appName, getToken, onBack, onDelete, initialT
   const subdomain = `${appId}.proappstore.online`
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <button type="button" onClick={onBack} className="text-sm font-medium text-[var(--accent)] hover:underline">
-          &larr; Back to Dashboard
-        </button>
+    <div className="space-y-4">
+      {/* Compact breadcrumb (Apps / name) + live link — no bulky icon/header */}
+      <div className="flex items-center justify-between gap-3">
+        <nav className="flex items-center gap-2 text-sm min-w-0">
+          <button type="button" onClick={onBack} className="font-medium text-[var(--accent)] hover:underline">Apps</button>
+          <span className="text-[var(--muted)]">/</span>
+          <span className="font-semibold text-[var(--ink)] truncate">{appName ?? appId}</span>
+        </nav>
         <a
           href={`https://${subdomain}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
+          className="text-xs font-medium text-[var(--muted)] hover:text-[var(--ink)] flex-shrink-0 whitespace-nowrap"
         >
           {subdomain} &rarr;
         </a>
       </div>
 
-      <header className="flex items-center gap-4">
-        <Preview iconUrl={listing?.iconUrl ?? null} splashColor={listing?.splashColor ?? null} />
-        <div>
-          <h2 className="display-font text-3xl font-bold text-[var(--ink)]">{appName ?? appId}</h2>
-          <p className="text-sm text-[var(--muted)] font-mono">{appId}</p>
-        </div>
-      </header>
-
-      {/* Tabs: Overview (listing/settings) | Agents (the build/maintenance team) */}
+      {/* Tabs: Agents (the build/maintenance team) | Overview (listing/settings) */}
       <div className="flex gap-1 border-b border-[var(--line)]">
-        {(['overview', 'agents'] as const).map((t) => (
+        {(['agents', 'overview'] as const).map((t) => (
           <button
             key={t}
             type="button"
