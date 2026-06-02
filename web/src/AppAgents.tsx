@@ -17,6 +17,7 @@ interface Ticket {
   assigneeRole: string | null
   iterations: number
   costSpentUsd: number
+  updatedAt: number
 }
 
 interface Project {
@@ -332,18 +333,23 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     },
   }, null, 2), [appId, appName, project, tickets, chat, activity, selTicket, selMsgs])
 
+  // Fetch a ticket's messages (no flicker — used both on open and on live refresh).
+  const loadMsgs = useCallback(async (ticketId: string) => {
+    if (!token) return
+    try {
+      const r = await api(`/projects/${appId}/tickets/${ticketId}/messages`, token) as { messages: { id: string; author: string; body: string; createdAt: number }[] }
+      setSelMsgs(r.messages ?? [])
+    } catch { /* ignore */ }
+  }, [token, appId])
+
   // Open a ticket's detail panel (right of the board): full ticket + its messages.
   const openTicket = useCallback(async (t: Ticket) => {
     setFilePreview(null) // ticket takes the inspector
     setSelTicket(t)
     setSelMsgs([])
     setMsgLimit(20)
-    if (!token) return
-    try {
-      const r = await api(`/projects/${appId}/tickets/${t.id}/messages`, token) as { messages: { id: string; author: string; body: string; createdAt: number }[] }
-      setSelMsgs(r.messages ?? [])
-    } catch { /* ignore */ }
-  }, [token, appId])
+    await loadMsgs(t.id)
+  }, [loadMsgs])
 
   // Preview one of the agents' working-tree files in the right inspector.
   const openFile = useCallback(async (path: string) => {
@@ -406,6 +412,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
           case 'ticket-created':
           case 'ticket-updated':
           case 'ticket-failed':
+          case 'message': // agent posted a message → ticket updatedAt bumped
             refreshTickets()
             break
           case 'cost-cap-reached':
@@ -430,13 +437,17 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     }
   }, [token, appId, notStarted, syncLive])
 
-  // Polling fallback: while the team is running, refresh every 3.5s so the board,
-  // chat, and activity stay live even if the WebSocket push drops a message or
-  // the socket silently dies. WS is the fast path; this guarantees freshness.
+  // Polling safety net so the page is always interactive even if the WebSocket
+  // silently drops. WS is the instant path; this guarantees freshness. It's cheap
+  // (a few GETs) and respectful: paused while the tab is hidden, fast (2.5s) while
+  // the team is running, slow (8s) when idle, and it refreshes on tab focus.
   useEffect(() => {
-    if (notStarted || project?.status !== 'running') return
-    const id = setInterval(syncLive, 3500)
-    return () => clearInterval(id)
+    if (notStarted) return
+    const cadence = project?.status === 'running' ? 2500 : 8000
+    const id = setInterval(() => { if (!document.hidden) syncLive() }, cadence)
+    const onVisible = () => { if (!document.hidden) syncLive() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible) }
   }, [notStarted, project?.status, syncLive])
 
   // Keep the open ticket panel live: when tickets refresh (WS), pull the fresh
@@ -445,12 +456,13 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     if (!selTicket) return
     const fresh = tickets.find(t => t.id === selTicket.id)
     if (!fresh) return
-    if (fresh.iterations !== selTicket.iterations) {
-      openTicket(fresh) // new agent turn → reload ticket + its messages
-    } else if (fresh.status !== selTicket.status) {
-      setSelTicket(fresh) // status-only change → just update the header
+    // updatedAt is the change signature — bumped on status, iteration, cost, AND
+    // every new message — so the panel reloads on any update, not just transitions.
+    if (fresh.updatedAt !== selTicket.updatedAt) {
+      setSelTicket(fresh)
+      loadMsgs(fresh.id)
     }
-  }, [tickets, selTicket, openTicket])
+  }, [tickets, selTicket, loadMsgs])
 
   // Start the agent team for this app (creates the project, slug = appId)
   const startTeam = async () => {
@@ -590,10 +602,11 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
               </div>
             ))}
           </div>
-          {chatScroll.unseen > 0 && (
+          {!chatScroll.stuck && (
             <button type="button" onClick={chatScroll.jumpToBottom}
+              title="Scroll to latest"
               className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full bg-[var(--accent)] text-white text-xs font-semibold px-3 py-1.5 shadow-lg hover:opacity-90">
-              ↓ {chatScroll.unseen} new
+              ↓ {chatScroll.unseen > 0 ? `${chatScroll.unseen} new` : 'Latest'}
             </button>
           )}
         </div>
@@ -733,10 +746,11 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
                 )
               })}
             </div>
-            {actScroll.unseen > 0 && (
+            {!actScroll.stuck && (
               <button type="button" onClick={actScroll.jumpToBottom}
+                title="Scroll to latest"
                 className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full bg-[var(--accent)] text-white text-xs font-semibold px-3 py-1.5 shadow-lg hover:opacity-90 font-sans">
-                ↓ {actScroll.unseen} new
+                ↓ {actScroll.unseen > 0 ? `${actScroll.unseen} new` : 'Latest'}
               </button>
             )}
           </div>
