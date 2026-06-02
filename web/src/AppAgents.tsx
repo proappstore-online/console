@@ -99,6 +99,21 @@ function CopyBtn({ getData, label }: { getData: () => string; label: string }) {
   )
 }
 
+// Tiny icon copy button for a single message/detail. Inherits currentColor so it
+// works on both the accent (user) bubble and the muted agent bubbles.
+function InlineCopy({ text, title = 'Copy' }: { text: string; title?: string }) {
+  const [done, setDone] = useState(false)
+  return (
+    <button type="button" title={title}
+      onClick={() => { navigator.clipboard.writeText(text); setDone(true); setTimeout(() => setDone(false), 1200) }}
+      className="inline-flex items-center opacity-50 hover:opacity-100 transition-opacity">
+      {done
+        ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>}
+    </button>
+  )
+}
+
 // Prominent "copy the whole screen as JSON" button (vs the subtle per-tile ones).
 function ScreenCopyBtn({ getData }: { getData: () => string }) {
   const [copied, setCopied] = useState(false)
@@ -135,9 +150,9 @@ function AgentsInfoModal({ onClose }: { onClose: () => void }) {
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
-      <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow-card)]" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--line)] sticky top-0 bg-[var(--panel)]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
+      <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--panel-solid)] shadow-[var(--shadow-card)]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--line)] sticky top-0 bg-[var(--panel-solid)]">
           <h3 className="text-base font-bold text-[var(--ink)]">How your agent team works</h3>
           <button type="button" onClick={onClose} className="text-[var(--muted)] hover:text-[var(--ink)] text-xl leading-none">&times;</button>
         </div>
@@ -260,6 +275,16 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
       setTickets(t.tickets)
     } catch { /* ignore */ }
   }, [token, appId])
+
+  // Turn a chat message into a backlog ticket with one click (PO short-circuit).
+  const convertToTicket = useCallback(async (text: string) => {
+    if (!token || !text.trim()) return
+    const title = text.trim().replace(/\s+/g, ' ').slice(0, 80)
+    try {
+      await api(`/projects/${appId}/tickets`, token, { method: 'POST', body: { title, rawIdea: text.trim() } })
+      await refreshTickets()
+    } catch (err) { setError((err as Error).message) }
+  }, [token, appId, refreshTickets])
 
   // Reload chat history, but only swap state when it actually grew/changed — keeps
   // polling from re-rendering (and re-scrolling) the chat on every tick.
@@ -547,9 +572,18 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
                       {msg.toolCall.name}({msg.toolCall.args ?? ''})
                     </div>
                   )}
-                  <span className="text-[10px] opacity-50 block mt-1">
-                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
+                  <div className="flex items-center gap-2 mt-1 text-[10px]">
+                    <span className="opacity-50">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    {msg.role !== 'system' && <InlineCopy text={msg.text} title="Copy message" />}
+                    {msg.role !== 'system' && (
+                      <button type="button" onClick={() => convertToTicket(msg.text)}
+                        title="Create a ticket from this message"
+                        className="inline-flex items-center gap-0.5 opacity-50 hover:opacity-100 transition-opacity font-semibold">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Ticket
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -794,7 +828,10 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
                     <div key={m.id} className="rounded-lg border border-[var(--line)] p-2">
                       <div className="flex items-center justify-between mb-0.5">
                         <span className="text-[11px] font-bold" style={{ color: ROLE_COLOR[m.author] ?? 'var(--muted)' }}>{m.author}</span>
-                        <span className="text-[10px] text-[var(--muted)] tabular-nums">{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        <div className="flex items-center gap-1.5 text-[var(--muted)]">
+                          <span className="text-[10px] tabular-nums">{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <InlineCopy text={m.body} title="Copy message" />
+                        </div>
                       </div>
                       <Markdown compact>{m.body}</Markdown>
                     </div>

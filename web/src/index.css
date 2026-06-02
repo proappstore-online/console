@@ -24,6 +24,9 @@
   --panel-quiet: rgba(255, 255, 255, 0.6);
   --dock: #f7f7f7;
   --panel-hover: rgba(255, 255, 255, 0.85);
+  /* Opaque panel for popovers/modals/dropdowns — the translucent --panel lets
+     the dimmed page bleed through, which reads as a "half-transparent" popup. */
+  --panel-solid: #ffffff;
   --accent: #7c3aed;
   --accent-soft: #ede9fe;
   --accent-deep: #4c1d95;
@@ -66,6 +69,7 @@
   --panel-quiet: rgba(22, 22, 22, 0.8);
   --dock: #0a0a0a;
   --panel-hover: rgba(38, 38, 38, 0.9);
+  --panel-solid: #161616;
   --accent: #a78bfa;
   --accent-soft: #2e1065;
   --accent-deep: #e9d5ff;
@@ -139,8 +143,10 @@ html[data-text="xl"] { font-size: 20px; }
 
 body {
   min-height: 100dvh;
-  -webkit-user-select: none;
-  user-select: none;
+  /* Allow text selection — chat, activity, agent output and file previews must
+     be selectable/copyable. (Interactive chrome opts out via .select-none.) */
+  -webkit-user-select: text;
+  user-select: text;
   background:
     radial-gradient(circle at top left, var(--bg-blob-1), transparent 32%),
     radial-gradient(circle at top right, var(--bg-blob-2), transparent 30%),

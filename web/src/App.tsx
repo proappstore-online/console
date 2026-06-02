@@ -490,7 +490,7 @@ function ProjectSwitcher({
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--muted)] flex-shrink-0"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       {open && (
-        <div className="absolute left-0 top-full mt-1 w-64 max-h-[70vh] overflow-y-auto rounded-xl border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow-card)] py-1 z-40">
+        <div className="absolute left-0 top-full mt-1 w-64 max-h-[70vh] overflow-y-auto rounded-xl border border-[var(--line)] bg-[var(--panel-solid)] shadow-[var(--shadow-card)] py-1 z-40">
           <button
             type="button"
             onClick={() => { setOpen(false); onAllApps() }}
