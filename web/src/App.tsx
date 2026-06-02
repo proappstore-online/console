@@ -270,7 +270,9 @@ export default function App() {
   return (
     <div className="min-h-[100dvh] flex flex-col">
       <Header user={user} view={view} onNavigate={setView} isAdmin={isAdmin} />
-      <main className="flex-1 mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
+      <main className={view === 'app-detail'
+        ? 'flex-1 w-full px-3 py-3 sm:px-4'
+        : 'flex-1 mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8'}>
         {view === 'dashboard' && (
           <Dashboard
             user={user}

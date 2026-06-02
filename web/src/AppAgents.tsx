@@ -103,6 +103,8 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
   const [notStarted, setNotStarted] = useState(false)
   const [idea, setIdea] = useState('')
   const [starting, setStarting] = useState(false)
+  const [selTicket, setSelTicket] = useState<Ticket | null>(null)
+  const [selMsgs, setSelMsgs] = useState<{ id: string; author: string; body: string; createdAt: number }[]>([])
   const chatEndRef = useRef<HTMLDivElement>(null)
   const activityEndRef = useRef<HTMLDivElement>(null)
   const token = getToken()
@@ -148,6 +150,17 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     try {
       const t = await api(`/projects/${appId}/tickets`, token) as { tickets: Ticket[] }
       setTickets(t.tickets)
+    } catch { /* ignore */ }
+  }, [token, appId])
+
+  // Open a ticket's detail panel (right of the board): full ticket + its messages.
+  const openTicket = useCallback(async (t: Ticket) => {
+    setSelTicket(t)
+    setSelMsgs([])
+    if (!token) return
+    try {
+      const r = await api(`/projects/${appId}/tickets/${t.id}/messages`, token) as { messages: { id: string; author: string; body: string; createdAt: number }[] }
+      setSelMsgs(r.messages ?? [])
     } catch { /* ignore */ }
   }, [token, appId])
 
@@ -212,6 +225,19 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
       try { ws?.close() } catch { /* noop */ }
     }
   }, [token, appId, notStarted, refreshTickets])
+
+  // Keep the open ticket panel live: when tickets refresh (WS), pull the fresh
+  // row in, and re-fetch its messages whenever the agent has done another turn.
+  useEffect(() => {
+    if (!selTicket) return
+    const fresh = tickets.find(t => t.id === selTicket.id)
+    if (!fresh) return
+    if (fresh.iterations !== selTicket.iterations) {
+      openTicket(fresh) // new agent turn → reload ticket + its messages
+    } else if (fresh.status !== selTicket.status) {
+      setSelTicket(fresh) // status-only change → just update the header
+    }
+  }, [tickets, selTicket, openTicket])
 
   // Start the agent team for this app (creates the project, slug = appId)
   const startTeam = async () => {
@@ -287,9 +313,9 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
   // ── Workspace: Chat | Kanban + Activity ─────────────────────
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 min-h-[calc(100dvh-220px)]">
+    <div className="flex flex-col lg:flex-row gap-3 h-[calc(100dvh-120px)]">
       {/* LEFT: Chat */}
-      <div className="flex flex-col lg:w-[400px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
+      <div className="flex flex-col lg:w-[360px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
         <div className="px-4 py-3 border-b border-[var(--line)] flex items-center justify-between">
           <div>
             <h3 className="text-sm font-bold text-[var(--ink)]">Talk to your agents</h3>
@@ -300,7 +326,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
             <CopyBtn label="Chat" getData={() => JSON.stringify(chat.map(m => ({ role: m.role, text: m.text, time: new Date(m.timestamp).toISOString(), ...(m.toolCall ? { tool: m.toolCall } : {}) })), null, 2)} />
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0" style={{ maxHeight: 'calc(100dvh - 360px)' }}>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
           {chat.length === 0 && (
             <p className="text-xs text-[var(--muted)] text-center py-8">
               Start typing. Describe what you want built, ask questions, give feedback.
@@ -349,7 +375,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
       </div>
 
       {/* RIGHT: Kanban + Activity */}
-      <div className="flex-1 flex flex-col gap-4 min-w-0">
+      <div className="flex-1 flex flex-col gap-3 min-w-0">
         <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
@@ -386,7 +412,10 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
                   </div>
                   <div className="space-y-1.5 min-h-[60px]">
                     {colTickets.map(ticket => (
-                      <div key={ticket.id} className="rounded-lg border border-[var(--line)] p-2 text-xs hover:border-[var(--accent)] transition-colors cursor-default" title={ticket.rawIdea}>
+                      <button key={ticket.id} type="button" onClick={() => openTicket(ticket)}
+                        className={`w-full text-left rounded-lg border p-2 text-xs transition-colors cursor-pointer ${
+                          selTicket?.id === ticket.id ? 'border-[var(--accent)] bg-[var(--accent)]/5' : 'border-[var(--line)] hover:border-[var(--accent)]'
+                        }`} title={ticket.rawIdea}>
                         <p className="font-medium text-[var(--ink)] line-clamp-2 leading-tight">{ticket.title}</p>
                         <div className="flex items-center gap-1 mt-1">
                           {ticket.assigneeRole && (
@@ -394,7 +423,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
                           )}
                           {ticket.iterations > 0 && <span className="text-[var(--muted)]" style={{ fontSize: '10px' }}>i:{ticket.iterations}</span>}
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -415,7 +444,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
               <CopyBtn label="Log" getData={() => JSON.stringify(activity.map(a => ({ type: a.type, detail: a.detail, time: new Date(a.timestamp).toISOString() })), null, 2)} />
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto space-y-1 text-xs font-mono min-h-0" style={{ maxHeight: 'calc(100dvh - 560px)' }}>
+          <div className="flex-1 overflow-y-auto space-y-1 text-xs font-mono min-h-0">
             {activity.length === 0 && (
               <p className="text-[var(--muted)] py-4 text-center font-sans text-xs">Agent activity, tool calls, and ticket transitions appear here.</p>
             )}
@@ -432,6 +461,60 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
           </div>
         </div>
       </div>
+
+      {/* DETAIL: ticket panel (right of the board) */}
+      {selTicket && (
+        <div className="flex flex-col lg:w-[380px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
+          <div className="px-4 py-3 border-b border-[var(--line)] flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-[var(--ink)] break-words leading-tight">{selTicket.title}</h3>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <span className="text-[11px] px-1.5 py-0.5 rounded font-semibold" style={{
+                  background: 'var(--panel-hover)', color: 'var(--muted)',
+                }}>{selTicket.status}</span>
+                {selTicket.assigneeRole && (
+                  <span className="text-[11px] font-bold" style={{ color: ROLE_COLOR[selTicket.assigneeRole] ?? 'var(--muted)' }}>{selTicket.assigneeRole}</span>
+                )}
+                {selTicket.iterations > 0 && <span className="text-[11px] text-[var(--muted)]">iter {selTicket.iterations}</span>}
+                <span className="text-[11px] text-[var(--muted)]">${(selTicket.costSpentUsd ?? 0).toFixed(3)}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <CopyBtn label="JSON" getData={() => JSON.stringify({ ...selTicket, messages: selMsgs }, null, 2)} />
+              <button type="button" onClick={() => setSelTicket(null)}
+                className="text-[var(--muted)] hover:text-[var(--ink)] text-lg leading-none px-1" title="Close">&times;</button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+            {selTicket.rawIdea && (
+              <div>
+                <p className="text-[11px] font-semibold text-[var(--muted)] uppercase tracking-wide mb-1">Idea</p>
+                <p className="text-sm text-[var(--ink)] whitespace-pre-wrap break-words">{selTicket.rawIdea}</p>
+              </div>
+            )}
+            <div>
+              <p className="text-[11px] font-semibold text-[var(--muted)] uppercase tracking-wide mb-1">
+                Conversation {selMsgs.length > 0 && <span className="opacity-60">({selMsgs.length})</span>}
+              </p>
+              {selMsgs.length === 0 ? (
+                <p className="text-xs text-[var(--muted)] py-2">No agent messages on this ticket yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {selMsgs.map(m => (
+                    <div key={m.id} className="rounded-lg border border-[var(--line)] p-2">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-[11px] font-bold" style={{ color: ROLE_COLOR[m.author] ?? 'var(--muted)' }}>{m.author}</span>
+                        <span className="text-[10px] text-[var(--muted)] tabular-nums">{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                      <p className="text-xs text-[var(--ink)] whitespace-pre-wrap break-words leading-snug">{m.body}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="fixed bottom-4 right-4 bg-red-600 text-white text-sm px-4 py-2 rounded-lg shadow-lg z-50">

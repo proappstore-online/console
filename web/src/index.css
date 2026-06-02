@@ -100,6 +100,12 @@ html {
   touch-action: manipulation;
 }
 
+/* Text-size accessibility setting (Profile → Text size).
+   Tailwind sizing is rem-based, so scaling the root font scales the whole UI. */
+html[data-text="sm"] { font-size: 14px; }
+html[data-text="lg"] { font-size: 18px; }
+html[data-text="xl"] { font-size: 20px; }
+
 body {
   min-height: 100dvh;
   -webkit-user-select: none;

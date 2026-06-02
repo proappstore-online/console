@@ -31,8 +31,53 @@ export function ProfileView({ user }: { user: User }) {
 
       <ApiKeysSection />
       <ThemeSection />
+      <TextSizeSection />
       <AccountSection />
     </div>
+  )
+}
+
+// ── Text size (accessibility — scales the whole UI) ──────────
+
+type TextSize = 'sm' | 'md' | 'lg' | 'xl'
+const TEXT_KEY = 'console-text'
+
+export function applyTextSize(s: TextSize) {
+  if (s === 'md') delete document.documentElement.dataset.text
+  else document.documentElement.dataset.text = s
+}
+
+function TextSizeSection() {
+  const [size, setSize] = useState<TextSize>(() => (localStorage.getItem(TEXT_KEY) as TextSize) || 'md')
+
+  const choose = (s: TextSize) => {
+    setSize(s)
+    applyTextSize(s)
+    try { localStorage.setItem(TEXT_KEY, s) } catch { /* ignore */ }
+  }
+
+  const OPTIONS: { value: TextSize; label: string }[] = [
+    { value: 'sm', label: 'Small' },
+    { value: 'md', label: 'Default' },
+    { value: 'lg', label: 'Large' },
+    { value: 'xl', label: 'Larger' },
+  ]
+
+  return (
+    <section className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
+      <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide mb-1">Text size</h3>
+      <p className="text-sm text-[var(--muted)] mb-4">Scales the entire console. Useful for dense screens like the agents board.</p>
+      <div className="flex gap-2">
+        {OPTIONS.map((o) => (
+          <button key={o.value} type="button" onClick={() => choose(o.value)}
+            className={`rounded-lg px-4 py-2 text-sm font-medium ${
+              size === o.value ? 'bg-[var(--accent)] text-white' : 'border border-[var(--line-strong)] text-[var(--muted)] hover:text-[var(--ink)]'
+            }`}>
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </section>
   )
 }
 
