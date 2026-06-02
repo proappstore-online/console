@@ -87,6 +87,26 @@ function CopyBtn({ getData, label }: { getData: () => string; label: string }) {
   )
 }
 
+// Prominent "copy the whole screen as JSON" button (vs the subtle per-tile ones).
+function ScreenCopyBtn({ getData }: { getData: () => string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        navigator.clipboard.writeText(getData())
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1500)
+      }}
+      className="flex items-center gap-1.5 rounded-lg border border-[var(--line-strong)] px-2.5 py-1 text-[11px] font-semibold text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--accent)] transition-colors"
+      title="Copy the entire screen state (all tiles) as JSON"
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      {copied ? 'Copied screen!' : 'Copy screen'}
+    </button>
+  )
+}
+
 // ── Component ───────────────────────────────────────────────
 // The agent team for ONE app. The agent-teams project slug IS the app id, so
 // this is scoped by appId — no localStorage, no separate project picker.
@@ -152,6 +172,31 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
       setTickets(t.tickets)
     } catch { /* ignore */ }
   }, [token, appId])
+
+  // Full-screen state snapshot — everything visible across every tile, as JSON,
+  // so it can be pasted into a chat/issue and someone sees exactly what you see.
+  const screenSnapshot = useCallback(() => JSON.stringify({
+    capturedAt: new Date().toISOString(),
+    app: { slug: appId, name: appName },
+    project: project && {
+      id: project.id, name: project.name, status: project.status,
+      cost: { spentMonthlyUsd: project.costSpentMonthlyUsd, capMonthlyUsd: project.costCapMonthlyUsd },
+    },
+    board: {
+      columns: COLUMNS.map(c => ({
+        label: c.label,
+        tickets: tickets.filter(t => (c.keys as string[]).includes(t.status))
+          .map(t => ({ id: t.id, title: t.title, status: t.status, assignee: t.assigneeRole, iterations: t.iterations, costUsd: t.costSpentUsd })),
+      })),
+    },
+    chat: chat.map(m => ({ role: m.role, text: m.text, time: new Date(m.timestamp).toISOString(), ...(m.toolCall ? { tool: m.toolCall } : {}) })),
+    activity: activity.map(a => ({ type: a.type, detail: a.detail, time: new Date(a.timestamp).toISOString() })),
+    selectedTicket: selTicket && {
+      id: selTicket.id, title: selTicket.title, status: selTicket.status, assignee: selTicket.assigneeRole,
+      iterations: selTicket.iterations, costUsd: selTicket.costSpentUsd, idea: selTicket.rawIdea,
+      messages: selMsgs.map(m => ({ author: m.author, body: m.body, time: new Date(m.createdAt).toISOString() })),
+    },
+  }, null, 2), [appId, appName, project, tickets, chat, activity, selTicket, selMsgs])
 
   // Open a ticket's detail panel (right of the board): full ticket + its messages.
   const openTicket = useCallback(async (t: Ticket) => {
@@ -392,6 +437,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
               )}
             </div>
             <div className="flex items-center gap-2">
+              <ScreenCopyBtn getData={screenSnapshot} />
               <CopyBtn label="Board" getData={() => JSON.stringify({ slug: appId, status: project?.status, cost: { spent: project?.costSpentMonthlyUsd, cap: project?.costCapMonthlyUsd }, tickets: tickets.map(t => ({ id: t.id, title: t.title, status: t.status, assignee: t.assigneeRole, iterations: t.iterations, cost: t.costSpentUsd })) }, null, 2)} />
               {project && (
                 <span className="text-xs text-[var(--muted)]">
