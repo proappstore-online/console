@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Markdown } from './Markdown'
 import { CodeView } from './CodeView'
 import { useStickToBottom } from './useStickToBottom'
@@ -214,6 +214,7 @@ interface RoleCfg {
   runtime: 'cf-native' | 'openai-responses'
   model: string
   maxTokens?: number
+  persona?: string
   spineTools: string[]
   vendorTools: string[]
   systemPromptOverride?: string
@@ -292,6 +293,13 @@ function AgentSettingsModal({ appId, token, onClose }: { appId: string; token: s
                     className="mt-1 w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-2 py-1.5 text-sm text-[var(--ink)]" />
                 </label>
               </div>
+              <label className="text-xs text-[var(--muted)] block mt-2">
+                Persona (soul) — identity, principles, tone
+                <textarea value={r.persona ?? ''} rows={3}
+                  onChange={e => patch(r.role, { persona: e.target.value })}
+                  placeholder="e.g. You are the Developer. Directive: ship working code. Vibe: pragmatic, fast."
+                  className="mt-1 w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)]" />
+              </label>
             </div>
           ))}
           {error && <p className="text-sm text-[var(--error)]">{error}</p>}
@@ -303,6 +311,56 @@ function AgentSettingsModal({ appId, token, onClose }: { appId: string; token: s
             className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
             {saving ? 'Saving…' : 'Save'}
           </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// The team's durable memory — decisions/facts every agent treats as ground truth.
+function MemoryPanel({ entries, onAdd, onDelete, onClose }: {
+  entries: { id: string; category: string; key: string; value: string }[]
+  onAdd: (key: string, value: string) => void
+  onDelete: (id: string) => void
+  onClose: () => void
+}) {
+  const [k, setK] = useState('')
+  const [v, setV] = useState('')
+  const submit = () => { if (k.trim() && v.trim()) { onAdd(k.trim(), v.trim()); setK(''); setV('') } }
+  return (
+    <div className="flex flex-col lg:w-[340px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
+      <div className="px-4 py-2.5 border-b border-[var(--line)] flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-bold text-[var(--ink)]">Memory {entries.length > 0 && <span className="text-[var(--muted)] font-normal">({entries.length})</span>}</h3>
+          <p className="text-[10px] text-[var(--muted)]">Decisions &amp; facts the whole team uses</p>
+        </div>
+        <button type="button" onClick={onClose} className="text-[var(--muted)] hover:text-[var(--ink)] text-lg leading-none px-1" title="Close">&times;</button>
+      </div>
+      <div className="flex-1 overflow-y-auto min-h-0 p-3 space-y-2">
+        {entries.length === 0 && <p className="text-xs text-[var(--muted)] py-2">No memory yet. The PO records decisions here as you make them — or add one below.</p>}
+        {entries.map(e => (
+          <div key={e.id} className="group rounded-lg border border-[var(--line)] p-2">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-[var(--ink)] break-words">{e.key}</p>
+                <p className="text-xs text-[var(--muted)] break-words">{e.value}</p>
+              </div>
+              <button type="button" onClick={() => onDelete(e.id)} title="Forget"
+                className="text-[var(--muted)] hover:text-[var(--error)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="p-3 border-t border-[var(--line)] space-y-2">
+        <input value={k} onChange={e => setK(e.target.value)} placeholder="key (e.g. auth)"
+          className="w-full rounded-lg border border-[var(--line)] bg-[var(--panel)] px-2 py-1.5 text-xs text-[var(--ink)]" />
+        <div className="flex gap-2">
+          <input value={v} onChange={e => setV(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submit() }} placeholder="value (e.g. GitHub OAuth)"
+            className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-2 py-1.5 text-xs text-[var(--ink)]" />
+          <button type="button" onClick={submit} disabled={!k.trim() || !v.trim()}
+            className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50">Add</button>
         </div>
       </div>
     </div>
@@ -332,6 +390,9 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
   // File preview (right inspector). Takes priority over the ticket panel.
   const [filePreview, setFilePreview] = useState<{ path: string; content: string; loading: boolean; truncated?: boolean } | null>(null)
   const [fileList, setFileList] = useState<{ path: string; size: number }[] | null>(null)
+  // Project memory (decisions/facts the team treats as ground truth).
+  const [memory, setMemory] = useState<{ id: string; category: string; key: string; value: string }[] | null>(null)
+  const memOpenRef = useRef(false)
   // Windowed rendering — these lists can grow without bound, so render the tail
   // and let the user pull in older items with a "load previous" button.
   const [chatLimit, setChatLimit] = useState(20)
@@ -511,6 +572,33 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     } catch { setFileList([]) }
   }, [token, appId, fileList])
 
+  const loadMemory = useCallback(async () => {
+    if (!token) return
+    try {
+      const r = await api(`/projects/${appId}/memory`, token) as { memory: { id: string; category: string; key: string; value: string }[] }
+      setMemory(r.memory)
+    } catch { setMemory([]) }
+  }, [token, appId])
+
+  const toggleMemory = useCallback(() => {
+    if (memory) { setMemory(null); memOpenRef.current = false; return }
+    memOpenRef.current = true; setMemory([]); loadMemory()
+  }, [memory, loadMemory])
+
+  const addMemory = useCallback(async (key: string, value: string) => {
+    if (!token || !key.trim() || !value.trim()) return
+    try {
+      const r = await api(`/projects/${appId}/memory`, token, { method: 'POST', body: { key, value } }) as { memory: { id: string; category: string; key: string; value: string }[] }
+      setMemory(r.memory)
+    } catch (err) { setError((err as Error).message) }
+  }, [token, appId])
+
+  const deleteMemory = useCallback(async (id: string) => {
+    if (!token) return
+    try { await api(`/projects/${appId}/memory/${id}`, token, { method: 'DELETE' }); setMemory(prev => prev?.filter(m => m.id !== id) ?? prev) }
+    catch (err) { setError((err as Error).message) }
+  }, [token, appId])
+
   useEffect(() => { loadProject() }, [loadProject])
 
   // ── Live updates over WebSocket ───────────────────────────
@@ -558,6 +646,9 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
               setSelTicket(prev => prev?.id === d.ticketId ? null : prev)
             }
             break
+          case 'memory-updated':
+            if (memOpenRef.current) loadMemory()
+            break
           case 'chat-cleared':
             setChat([])
             break
@@ -584,7 +675,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
       if (reconnectTimer) clearTimeout(reconnectTimer)
       try { ws?.close() } catch { /* noop */ }
     }
-  }, [token, appId, notStarted, syncLive])
+  }, [token, appId, notStarted, syncLive, loadMemory])
 
   // Polling safety net so the page is always interactive even if the WebSocket
   // silently drops. WS is the instant path; this guarantees freshness. It's cheap
@@ -851,6 +942,13 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-bold text-[var(--ink)]">Activity</h3>
             <div className="flex items-center gap-1">
+              <button type="button" onClick={toggleMemory}
+                className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+                  memory ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--accent)]'
+                }`}
+                title="The team's memory — durable decisions & facts">
+                Memory
+              </button>
               <button type="button" onClick={toggleFileList}
                 className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
                   fileList ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--accent)]'
@@ -919,7 +1017,11 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
         </div>
       </div>
 
-      {/* INSPECTOR (right): file preview → file browser → ticket detail, in priority order */}
+      {/* INSPECTOR (right): memory → file preview → file browser → ticket detail */}
+      {memory !== null && !filePreview && (
+        <MemoryPanel entries={memory} onAdd={addMemory} onDelete={deleteMemory} onClose={() => { setMemory(null); memOpenRef.current = false }} />
+      )}
+
       {filePreview && (
         <div className="flex flex-col lg:w-[460px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
           <div className="px-4 py-2.5 border-b border-[var(--line)] flex items-center justify-between gap-2">
