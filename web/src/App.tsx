@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { initPro } from '@proappstore/sdk'
 import type { User, Subscription } from '@proappstore/sdk'
-import { ProfileMenu } from '@proappstore/sdk/ui'
+import { pro } from './sdk'
+import { ProfileView } from './ProfileView'
 import { PublishView } from './PublishView'
 import { PayoutsView } from './PayoutsView'
 import { AppDetail } from './AppDetail'
@@ -9,9 +9,7 @@ import { AdminView } from './AdminView'
 import { UILibraryView } from './UILibraryView'
 import { fetchOwnerSummary, formatNumber, type OwnerSummary } from './usage'
 
-const pro = initPro({ appId: 'console' })
-
-type View = 'dashboard' | 'app-detail' | 'publish' | 'payouts' | 'subscription' | 'admin' | 'settings' | 'ui-library'
+type View = 'dashboard' | 'app-detail' | 'publish' | 'payouts' | 'subscription' | 'admin' | 'profile' | 'ui-library'
 
 interface AppEntry {
   id: string
@@ -141,16 +139,6 @@ async function fetchIsAdmin(token: string | null): Promise<boolean> {
   }
 }
 
-type Theme = 'system' | 'light' | 'dark'
-
-interface Prefs {
-  theme: Theme
-}
-
-const DEFAULT_PREFS: Prefs = {
-  theme: 'system',
-}
-
 // ---------------------------------------------------------------------------
 // App
 // ---------------------------------------------------------------------------
@@ -160,7 +148,7 @@ function parseHash(): { view: View; param: string | null } {
   const hash = location.hash.replace(/^#\/?/, '')
   if (!hash || hash === 'dashboard') return { view: 'dashboard', param: null }
   if (hash.startsWith('apps/')) return { view: 'app-detail', param: hash.slice(5) }
-  const valid: View[] = ['dashboard', 'app-detail', 'publish', 'payouts', 'subscription', 'admin', 'settings', 'ui-library']
+  const valid: View[] = ['dashboard', 'app-detail', 'publish', 'payouts', 'subscription', 'admin', 'profile', 'ui-library']
   if (valid.includes(hash as View)) return { view: hash as View, param: null }
   return { view: 'dashboard', param: null }
 }
@@ -281,7 +269,7 @@ export default function App() {
 
   return (
     <div className="min-h-[100dvh] flex flex-col">
-      <Header view={view} onNavigate={setView} isAdmin={isAdmin} />
+      <Header user={user} view={view} onNavigate={setView} isAdmin={isAdmin} />
       <main className="flex-1 mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
         {view === 'dashboard' && (
           <Dashboard
@@ -307,7 +295,7 @@ export default function App() {
         {view === 'payouts' && <PayoutsView getToken={() => pro.auth.token} />}
         {view === 'subscription' && <SubscriptionView />}
         {view === 'admin' && isAdmin && <AdminView getToken={() => pro.auth.token} />}
-        {view === 'settings' && <Settings />}
+        {view === 'profile' && <ProfileView user={user} />}
         {view === 'ui-library' && <UILibraryView />}
       </main>
       {showNewApp && <NewAppModal onClose={() => setShowNewApp(false)} onCreate={createApp} />}
@@ -409,11 +397,10 @@ const TABS: { key: View; label: string }[] = [
   { key: 'publish', label: 'Publish' },
   { key: 'payouts', label: 'Payouts' },
   { key: 'subscription', label: 'Subscription' },
-  { key: 'settings', label: 'Settings' },
   { key: 'ui-library', label: 'UI Library' },
 ]
 
-function Header({ view, onNavigate, isAdmin }: { view: View; onNavigate: (v: View) => void; isAdmin: boolean }) {
+function Header({ user, view, onNavigate, isAdmin }: { user: User; view: View; onNavigate: (v: View) => void; isAdmin: boolean }) {
   const tabs: { key: View; label: string }[] = isAdmin
     ? [...TABS.slice(0, -1), { key: 'admin', label: 'Admin' }, TABS[TABS.length - 1]!]
     : TABS
@@ -443,10 +430,16 @@ function Header({ view, onNavigate, isAdmin }: { view: View; onNavigate: (v: Vie
             </button>
           ))}
         </nav>
-        <div className="flex items-center flex-shrink-0">
-          {/* Avatar → dropdown: profile, billing, theme, sign out (SDK component) */}
-          <ProfileMenu app={pro} />
-        </div>
+        <button
+          type="button"
+          onClick={() => onNavigate('profile')}
+          title="Profile, API keys & settings"
+          className={`flex-shrink-0 rounded-full ring-2 transition-colors ${view === 'profile' ? 'ring-[var(--accent)]' : 'ring-[var(--line-strong)] hover:ring-[var(--accent)]'}`}
+        >
+          {user.avatarUrl
+            ? <img src={user.avatarUrl} alt="Profile" className="h-7 w-7 rounded-full block" />
+            : <span className="h-7 w-7 rounded-full bg-[var(--accent)] text-white flex items-center justify-center text-xs font-bold">{user.login.charAt(0).toUpperCase()}</span>}
+        </button>
       </div>
     </header>
   )
@@ -720,81 +713,6 @@ function SubscriptionView() {
           </a>
         </p>
       </div>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Settings
-// ---------------------------------------------------------------------------
-
-function Settings() {
-  const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    pro.kv.get<Prefs>('prefs')
-      .then((p) => { if (!cancelled && p) setPrefs(p) })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [])
-
-  const save = async (updated: Prefs) => {
-    setPrefs(updated)
-    setSaving(true)
-    try {
-      await pro.kv.set('prefs', updated)
-      // Apply theme
-      if (updated.theme === 'dark') {
-        document.documentElement.dataset.theme = 'dark'
-      } else if (updated.theme === 'light') {
-        delete document.documentElement.dataset.theme
-      } else {
-        if (matchMedia('(prefers-color-scheme: dark)').matches) {
-          document.documentElement.dataset.theme = 'dark'
-        } else {
-          delete document.documentElement.dataset.theme
-        }
-      }
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  if (loading) {
-    return <p className="text-[var(--muted)] py-12 text-center">Loading settings...</p>
-  }
-
-  return (
-    <div className="space-y-8">
-      <h2 className="display-font text-2xl font-bold text-[var(--ink)]">Settings</h2>
-
-      {/* Theme */}
-      <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
-        <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide mb-4">Theme</h3>
-        <div className="flex gap-2">
-          {(['system', 'light', 'dark'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => save({ ...prefs, theme: t })}
-              className={`rounded-lg px-4 py-2 text-sm font-medium capitalize ${
-                prefs.theme === t
-                  ? 'bg-[var(--accent)] text-white'
-                  : 'border border-[var(--line-strong)] text-[var(--muted)] hover:text-[var(--ink)]'
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {saving && (
-        <p className="text-xs text-[var(--muted)] text-center">Saving...</p>
-      )}
     </div>
   )
 }

@@ -8,6 +8,15 @@
   --paper-deep: #f7f7f7;
   --ink: #111111;
   --muted: #666666;
+  /* Aliases for @proappstore/sdk/ui components (they use --surface/--border/
+     --radius/--ink-strong). Map to the console theme so SDK components — e.g.
+     ProfileMenu — aren't white in dark mode. These resolve per-theme because
+     --panel/--line/--ink are redefined in the dark block. */
+  --surface: var(--panel);
+  --border: var(--line);
+  --ink-strong: var(--ink);
+  --radius: 0.75rem;
+  --radius-sm: 0.5rem;
   --line: rgba(0, 0, 0, 0.08);
   --line-strong: rgba(0, 0, 0, 0.14);
   --panel: rgba(255, 255, 255, 0.72);
