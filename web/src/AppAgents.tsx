@@ -12,6 +12,7 @@ type TicketStatus =
 
 interface Ticket {
   id: string
+  seq: number
   title: string
   rawIdea: string
   status: TicketStatus
@@ -97,7 +98,7 @@ function CopyButton({ getData, title }: { getData: () => string; title: string }
   const [done, setDone] = useState(false)
   return (
     <button type="button" title={title}
-      onClick={() => { navigator.clipboard.writeText(getData()); setDone(true); setTimeout(() => setDone(false), 1200) }}
+      onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(getData()); setDone(true); setTimeout(() => setDone(false), 1200) }}
       className="inline-flex items-center opacity-50 hover:opacity-100 transition-opacity">
       {done
         ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -935,10 +936,15 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
                   </div>
                   <div className="space-y-1.5 min-h-[60px]">
                     {colTickets.map(ticket => (
-                      <button key={ticket.id} type="button" onClick={() => openTicket(ticket)}
+                      <div key={ticket.id} role="button" tabIndex={0} onClick={() => openTicket(ticket)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTicket(ticket) } }}
                         className={`w-full text-left rounded-lg border p-2 text-xs transition-colors cursor-pointer ${
                           selTicket?.id === ticket.id ? 'border-[var(--accent)] bg-[var(--accent)]/5' : 'border-[var(--line)] hover:border-[var(--accent)]'
                         }`} title={ticket.rawIdea}>
+                        <div className="flex items-center gap-1 mb-0.5">
+                          <span className="font-mono font-bold text-[var(--accent)]" style={{ fontSize: '10px' }}>#{ticket.seq}</span>
+                          <InlineCopy text={`#${ticket.seq}`} title={`Copy ticket #${ticket.seq} to quote in chat`} />
+                        </div>
                         <p className="font-medium text-[var(--ink)] line-clamp-2 leading-tight">{ticket.title}</p>
                         <div className="flex items-center gap-1 mt-1">
                           {ticket.assigneeRole && (
@@ -946,7 +952,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
                           )}
                           {ticket.iterations > 0 && <span className="text-[var(--muted)]" style={{ fontSize: '10px' }}>i:{ticket.iterations}</span>}
                         </div>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -1110,6 +1116,10 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
         <div className="flex flex-col lg:w-[380px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
           <div className="px-4 py-3 border-b border-[var(--line)] flex items-start justify-between gap-2">
             <div className="min-w-0">
+              <div className="flex items-center gap-1 mb-0.5">
+                <span className="font-mono font-bold text-[var(--accent)] text-[11px]">#{selTicket.seq}</span>
+                <InlineCopy text={`#${selTicket.seq}`} title={`Copy ticket #${selTicket.seq} to quote in chat`} />
+              </div>
               <h3 className="text-sm font-bold text-[var(--ink)] break-words leading-tight">{selTicket.title}</h3>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className="text-[11px] px-1.5 py-0.5 rounded font-semibold" style={{
