@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { initPro } from '@proappstore/sdk'
 import type { User, Subscription } from '@proappstore/sdk'
+import { ProfileMenu } from '@proappstore/sdk/ui'
 import { PublishView } from './PublishView'
 import { PayoutsView } from './PayoutsView'
 import { AppDetail } from './AppDetail'
@@ -280,7 +281,7 @@ export default function App() {
 
   return (
     <div className="min-h-[100dvh] flex flex-col">
-      <Header user={user} view={view} onNavigate={setView} isAdmin={isAdmin} />
+      <Header view={view} onNavigate={setView} isAdmin={isAdmin} />
       <main className="flex-1 mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
         {view === 'dashboard' && (
           <Dashboard
@@ -412,7 +413,7 @@ const TABS: { key: View; label: string }[] = [
   { key: 'ui-library', label: 'UI Library' },
 ]
 
-function Header({ user, view, onNavigate, isAdmin }: { user: User; view: View; onNavigate: (v: View) => void; isAdmin: boolean }) {
+function Header({ view, onNavigate, isAdmin }: { view: View; onNavigate: (v: View) => void; isAdmin: boolean }) {
   const tabs: { key: View; label: string }[] = isAdmin
     ? [...TABS.slice(0, -1), { key: 'admin', label: 'Admin' }, TABS[TABS.length - 1]!]
     : TABS
@@ -442,18 +443,9 @@ function Header({ user, view, onNavigate, isAdmin }: { user: User; view: View; o
             </button>
           ))}
         </nav>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {user.avatarUrl && (
-            <img src={user.avatarUrl} alt={user.login} className="h-6 w-6 rounded-full ring-1 ring-[var(--line-strong)]" />
-          )}
-          <span className="hidden sm:inline text-xs font-medium text-[var(--muted)]">{user.login}</span>
-          <button
-            type="button"
-            onClick={() => pro.auth.signOut()}
-            className="text-xs font-medium text-[var(--muted)] hover:text-[var(--ink)] underline py-2"
-          >
-            Sign out
-          </button>
+        <div className="flex items-center flex-shrink-0">
+          {/* Avatar → dropdown: profile, billing, theme, sign out (SDK component) */}
+          <ProfileMenu app={pro} />
         </div>
       </div>
     </header>
