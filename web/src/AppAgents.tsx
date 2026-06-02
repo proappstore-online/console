@@ -29,6 +29,8 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
   const [showAgentCfg, setShowAgentCfg] = useState(false)
   // File preview (right inspector). Takes priority over the ticket panel.
   const [filePreview, setFilePreview] = useState<{ path: string; content: string; loading: boolean; truncated?: boolean } | null>(null)
+  // Preview view mode: 'pretty' (rendered Markdown / pretty JSON / highlighted) or 'raw' source.
+  const [previewRaw, setPreviewRaw] = useState(false)
   const [fileList, setFileList] = useState<{ path: string; size: number }[] | null>(null)
   const fileListOpenRef = useRef(false)
   // Project memory (decisions/facts the team treats as ground truth).
@@ -203,15 +205,28 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
   }, [token, appId])
 
   // Show a tool call's captured output (args + returned result) in the inspector.
+  // For file-writing tools we render each file's content with REAL newlines —
+  // dumping the raw args JSON keeps content strings escaped (\n), so a 200-line
+  // file shows as one unreadable line.
   const openToolResult = useCallback((entry: ActivityEntry) => {
     if (!entry.meta) return
     let content = entry.meta
     try {
       const m = JSON.parse(entry.meta) as { args?: unknown; ok?: boolean; result?: string }
+      const a = (m.args ?? {}) as { path?: string; content?: string; message?: string; files?: { path?: string; content?: string }[] }
       const parts: string[] = []
-      if (m.args !== undefined && Object.keys(m.args as object).length) parts.push(`// args\n${JSON.stringify(m.args, null, 2)}`)
+      if (Array.isArray(a.files)) {
+        // batch_write_files: render each file as `// path` + real content
+        if (a.message) parts.push(`// commit: ${a.message}`)
+        for (const f of a.files) parts.push(`// ${f.path ?? '(file)'}\n${f.content ?? ''}`)
+      } else if (typeof a.content === 'string') {
+        // write_file
+        parts.push(`// ${a.path ?? '(file)'}${a.message ? ` — ${a.message}` : ''}\n${a.content}`)
+      } else if (m.args !== undefined && Object.keys(m.args as object).length) {
+        parts.push(`// args\n${JSON.stringify(m.args, null, 2)}`)
+      }
       if (m.ok === false) parts.push('// ⚠ tool reported an error')
-      parts.push(`// output\n${m.result ?? '(no output)'}`)
+      if (m.result !== undefined) parts.push(`// output\n${m.result || '(no output)'}`)
       content = parts.join('\n\n')
     } catch { /* show raw meta */ }
     setFilePreview({ path: entry.detail, content, loading: false })
@@ -722,7 +737,16 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
               <h3 className="text-xs font-mono font-semibold text-[var(--ink)] truncate" title={filePreview.path}>{filePreview.path}</h3>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
-              <CopyBtn label="Copy" getData={() => prettyForDisplay(filePreview.path, filePreview.content)} />
+              {/* Pretty (rendered markdown / pretty JSON / highlighted) vs Raw source */}
+              <div className="flex rounded-md border border-[var(--line)] overflow-hidden text-[10px] font-medium">
+                {(['pretty', 'raw'] as const).map((mode) => (
+                  <button key={mode} type="button" onClick={() => setPreviewRaw(mode === 'raw')}
+                    className={`px-2 py-0.5 transition-colors ${(mode === 'raw') === previewRaw ? 'bg-[var(--accent)] text-white' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}>
+                    {mode === 'pretty' ? 'Pretty' : 'Raw'}
+                  </button>
+                ))}
+              </div>
+              <CopyBtn label="Copy" getData={() => previewRaw ? filePreview.content : prettyForDisplay(filePreview.path, filePreview.content)} />
               <button type="button" onClick={() => setFilePreview(null)}
                 className="text-[var(--muted)] hover:text-[var(--ink)] text-lg leading-none px-1" title="Close">&times;</button>
             </div>
@@ -730,7 +754,9 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
           <div className="flex-1 overflow-auto min-h-0">
             {filePreview.loading
               ? <p className="text-xs text-[var(--muted)] p-4">Loading…</p>
-              : <CodeView code={prettyForDisplay(filePreview.path, filePreview.content)} path={filePreview.path} />}
+              : (!previewRaw && /\.(md|markdown)$/i.test(filePreview.path))
+                ? <div className="p-4 text-sm"><Markdown>{filePreview.content}</Markdown></div>
+                : <CodeView code={previewRaw ? filePreview.content : prettyForDisplay(filePreview.path, filePreview.content)} path={filePreview.path} />}
           </div>
           {filePreview.truncated && (
             <div className="px-4 py-1.5 border-t border-[var(--line)] text-[10px] text-[var(--muted)]">Truncated at 200 KB.</div>
