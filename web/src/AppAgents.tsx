@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Markdown } from './Markdown'
+import { useStickToBottom } from './useStickToBottom'
 
 const AGENT_API = 'https://agents.proappstore.online/v1'
 
@@ -68,6 +69,16 @@ const COLUMNS: { keys: TicketStatus[]; label: string; color: string }[] = [
 
 const ROLE_COLOR: Record<string, string> = {
   po: '#6366f1', BA: '#f59e0b', Dev: '#3b82f6', QA: '#8b5cf6', system: '#94a3b8', user: 'var(--ink)',
+}
+
+// Extract previewable file paths from an enriched tool-activity detail line, e.g.
+// "Dev: read_file src/index.ts" or "Dev: batch_write_files (3): a.ts, b.ts, c.ts".
+function fileRefsFromActivity(detail: string): string[] {
+  const single = detail.match(/(?:read_file|write_file)\s+(\S+)/)
+  if (single) return [single[1]!]
+  const batch = detail.match(/batch_write_files\s*\(\d+\):\s*(.+)$/)
+  if (batch) return batch[1]!.split(',').map(s => s.trim()).filter(p => p && p !== '…' && p !== '...')
+  return []
 }
 
 function CopyBtn({ getData, label }: { getData: () => string; label: string }) {
@@ -193,12 +204,19 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
   const [selTicket, setSelTicket] = useState<Ticket | null>(null)
   const [selMsgs, setSelMsgs] = useState<{ id: string; author: string; body: string; createdAt: number }[]>([])
   const [showInfo, setShowInfo] = useState(false)
-  const chatEndRef = useRef<HTMLDivElement>(null)
-  const activityEndRef = useRef<HTMLDivElement>(null)
+  // File preview (right inspector). Takes priority over the ticket panel.
+  const [filePreview, setFilePreview] = useState<{ path: string; content: string; loading: boolean; truncated?: boolean } | null>(null)
+  const [fileList, setFileList] = useState<{ path: string; size: number }[] | null>(null)
+  // Windowed rendering — these lists can grow without bound, so render the tail
+  // and let the user pull in older items with a "load previous" button.
+  const [chatLimit, setChatLimit] = useState(20)
+  const [actLimit, setActLimit] = useState(50)
   const token = getToken()
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [chat])
-  useEffect(() => { activityEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [activity])
+  // Best-practice chat scroll: auto-stick to bottom only when already there,
+  // otherwise surface a "N new" pill instead of yanking the view.
+  const chatScroll = useStickToBottom(chat.length)
+  const actScroll = useStickToBottom(activity.length)
 
   // Activity is persisted server-side (DB), loaded here — no client-only log.
   const loadActivity = useCallback(async () => {
@@ -290,6 +308,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
 
   // Open a ticket's detail panel (right of the board): full ticket + its messages.
   const openTicket = useCallback(async (t: Ticket) => {
+    setFilePreview(null) // ticket takes the inspector
     setSelTicket(t)
     setSelMsgs([])
     if (!token) return
@@ -298,6 +317,29 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
       setSelMsgs(r.messages ?? [])
     } catch { /* ignore */ }
   }, [token, appId])
+
+  // Preview one of the agents' working-tree files in the right inspector.
+  const openFile = useCallback(async (path: string) => {
+    if (!token) return
+    setFilePreview({ path, content: '', loading: true })
+    try {
+      const r = await api(`/projects/${appId}/files/content?path=${encodeURIComponent(path)}`, token) as { path: string; content: string; truncated?: boolean }
+      setFilePreview({ path: r.path, content: r.content, loading: false, truncated: r.truncated })
+    } catch (err) {
+      setFilePreview({ path, content: `Could not load file: ${(err as Error).message}`, loading: false })
+    }
+  }, [token, appId])
+
+  // Lazy-load the file list the first time the Files browser is opened.
+  const toggleFileList = useCallback(async () => {
+    if (fileList) { setFileList(null); return }
+    if (!token) return
+    setFileList([])
+    try {
+      const r = await api(`/projects/${appId}/files`, token) as { files: { path: string; size: number }[] }
+      setFileList(r.files)
+    } catch { setFileList([]) }
+  }, [token, appId, fileList])
 
   useEffect(() => { loadProject() }, [loadProject])
 
@@ -474,37 +516,50 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
             <CopyBtn label="Chat" getData={() => JSON.stringify(chat.map(m => ({ role: m.role, text: m.text, time: new Date(m.timestamp).toISOString(), ...(m.toolCall ? { tool: m.toolCall } : {}) })), null, 2)} />
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
-          {chat.length === 0 && (
-            <p className="text-xs text-[var(--muted)] text-center py-8">
-              Start typing. Describe what you want built, ask questions, give feedback.
-            </p>
-          )}
-          {chat.map(msg => (
-            <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[85%] rounded-xl px-3 py-2 ${
-                msg.role === 'user' ? 'bg-[var(--accent)] text-white'
-                  : msg.role === 'system' ? 'bg-[var(--panel-hover)] text-[var(--muted)]'
-                    : 'border border-[var(--line)] bg-[var(--panel)]'
-              }`}>
-                {msg.role !== 'user' && msg.role !== 'system' && (
-                  <span className="text-xs font-bold block mb-0.5" style={{ color: ROLE_COLOR[msg.role] }}>{msg.role}</span>
-                )}
-                {msg.role === 'user'
-                  ? <p className="text-sm whitespace-pre-wrap break-words">{msg.text}</p>
-                  : <Markdown compact>{msg.text}</Markdown>}
-                {msg.toolCall && (
-                  <div className="mt-1 px-2 py-1 rounded bg-black/5 dark:bg-white/5 text-xs font-mono text-[var(--muted)]">
-                    {msg.toolCall.name}({msg.toolCall.args ?? ''})
-                  </div>
-                )}
-                <span className="text-[10px] opacity-50 block mt-1">
-                  {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
+        <div className="relative flex-1 min-h-0">
+          <div ref={chatScroll.ref} onScroll={chatScroll.onScroll} className="absolute inset-0 overflow-y-auto p-4 space-y-3">
+            {chat.length === 0 && (
+              <p className="text-xs text-[var(--muted)] text-center py-8">
+                Start typing. Describe what you want built, ask questions, give feedback.
+              </p>
+            )}
+            {chat.length > chatLimit && (
+              <button type="button" onClick={() => setChatLimit(l => l + 20)}
+                className="block mx-auto mb-1 text-xs text-[var(--accent)] hover:underline">
+                Load previous 20 ({chat.length - chatLimit} older)
+              </button>
+            )}
+            {chat.slice(-chatLimit).map(msg => (
+              <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] rounded-xl px-3 py-2 ${
+                  msg.role === 'user' ? 'bg-[var(--accent)] text-white'
+                    : msg.role === 'system' ? 'bg-[var(--panel-hover)] text-[var(--muted)]'
+                      : 'border border-[var(--line)] bg-[var(--panel)]'
+                }`}>
+                  {msg.role !== 'user' && msg.role !== 'system' && (
+                    <span className="text-xs font-bold block mb-0.5" style={{ color: ROLE_COLOR[msg.role] }}>{msg.role}</span>
+                  )}
+                  {msg.role === 'user'
+                    ? <p className="text-sm whitespace-pre-wrap break-words">{msg.text}</p>
+                    : <Markdown compact>{msg.text}</Markdown>}
+                  {msg.toolCall && (
+                    <div className="mt-1 px-2 py-1 rounded bg-black/5 dark:bg-white/5 text-xs font-mono text-[var(--muted)]">
+                      {msg.toolCall.name}({msg.toolCall.args ?? ''})
+                    </div>
+                  )}
+                  <span className="text-[10px] opacity-50 block mt-1">
+                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
               </div>
-            </div>
-          ))}
-          <div ref={chatEndRef} />
+            ))}
+          </div>
+          {chatScroll.unseen > 0 && (
+            <button type="button" onClick={chatScroll.jumpToBottom}
+              className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full bg-[var(--accent)] text-white text-xs font-semibold px-3 py-1.5 shadow-lg hover:opacity-90">
+              ↓ {chatScroll.unseen} new
+            </button>
+          )}
         </div>
         <div className="p-3 border-t border-[var(--line)]">
           <div className="flex gap-2">
@@ -587,6 +642,13 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-bold text-[var(--ink)]">Activity</h3>
             <div className="flex items-center gap-1">
+              <button type="button" onClick={toggleFileList}
+                className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+                  fileList ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--accent)]'
+                }`}
+                title="Browse the agents' working-tree files">
+                Files
+              </button>
               <button type="button" onClick={loadActivity}
                 className="text-[10px] text-[var(--muted)] hover:text-[var(--ink)] px-1.5 py-0.5 rounded border border-[var(--line)] hover:border-[var(--accent)]"
                 title="Reload the persisted activity trail">
@@ -595,26 +657,103 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
               <CopyBtn label="Log" getData={() => JSON.stringify(activity.map(a => ({ type: a.type, detail: a.detail, time: new Date(a.timestamp).toISOString() })), null, 2)} />
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto space-y-1 text-xs font-mono min-h-0">
-            {activity.length === 0 && (
-              <p className="text-[var(--muted)] py-4 text-center font-sans text-xs">Agent activity, tool calls, and ticket transitions appear here.</p>
+          <div className="relative flex-1 min-h-0">
+            <div ref={actScroll.ref} onScroll={actScroll.onScroll} className="absolute inset-0 overflow-y-auto space-y-1 text-xs font-mono">
+              {activity.length === 0 && (
+                <p className="text-[var(--muted)] py-4 text-center font-sans text-xs">Agent activity, tool calls, and ticket transitions appear here.</p>
+              )}
+              {activity.length > actLimit && (
+                <button type="button" onClick={() => setActLimit(l => l + 50)}
+                  className="block mx-auto mb-1 text-[11px] font-sans text-[var(--accent)] hover:underline">
+                  Load previous 50 ({activity.length - actLimit} older)
+                </button>
+              )}
+              {activity.slice(-actLimit).map(entry => {
+                const refs = entry.type === 'tool' ? fileRefsFromActivity(entry.detail) : []
+                return (
+                  <div key={entry.id} className="flex gap-2 text-[var(--muted)] leading-snug">
+                    <span className="flex-shrink-0 opacity-50 tabular-nums">{new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                    <span className="flex-shrink-0 font-bold" style={{
+                      color: entry.type === 'ticket' ? '#f59e0b' : entry.type === 'tool' ? '#3b82f6' : entry.type === 'transition' ? '#8b5cf6' : entry.type === 'error' ? 'var(--error)' : 'var(--muted)',
+                    }}>{entry.type}</span>
+                    {refs.length === 1 ? (
+                      <button type="button" onClick={() => openFile(refs[0]!)}
+                        className="text-left text-[var(--ink)] break-words min-w-0 hover:text-[var(--accent)] hover:underline"
+                        title="Preview this file">{entry.detail}</button>
+                    ) : (
+                      <span className="text-[var(--ink)] break-words min-w-0">
+                        {entry.detail}
+                        {refs.length > 1 && (
+                          <span className="ml-1 inline-flex flex-wrap gap-1 align-middle">
+                            {refs.map(p => (
+                              <button key={p} type="button" onClick={() => openFile(p)}
+                                className="text-[var(--accent)] hover:underline" title="Preview this file">[{p.split('/').pop()}]</button>
+                            ))}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            {actScroll.unseen > 0 && (
+              <button type="button" onClick={actScroll.jumpToBottom}
+                className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full bg-[var(--accent)] text-white text-xs font-semibold px-3 py-1.5 shadow-lg hover:opacity-90 font-sans">
+                ↓ {actScroll.unseen} new
+              </button>
             )}
-            {activity.map(entry => (
-              <div key={entry.id} className="flex gap-2 text-[var(--muted)] leading-snug">
-                <span className="flex-shrink-0 opacity-50 tabular-nums">{new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-                <span className="flex-shrink-0 font-bold" style={{
-                  color: entry.type === 'ticket' ? '#f59e0b' : entry.type === 'tool' ? '#3b82f6' : entry.type === 'transition' ? '#8b5cf6' : entry.type === 'error' ? 'var(--error)' : 'var(--muted)',
-                }}>{entry.type}</span>
-                <span className="text-[var(--ink)] break-words min-w-0">{entry.detail}</span>
-              </div>
-            ))}
-            <div ref={activityEndRef} />
           </div>
         </div>
       </div>
 
+      {/* INSPECTOR (right): file preview → file browser → ticket detail, in priority order */}
+      {filePreview && (
+        <div className="flex flex-col lg:w-[460px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-[var(--line)] flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--muted)] flex-shrink-0"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+              <h3 className="text-xs font-mono font-semibold text-[var(--ink)] truncate" title={filePreview.path}>{filePreview.path}</h3>
+            </div>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <CopyBtn label="Copy" getData={() => filePreview.content} />
+              <button type="button" onClick={() => setFilePreview(null)}
+                className="text-[var(--muted)] hover:text-[var(--ink)] text-lg leading-none px-1" title="Close">&times;</button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-auto min-h-0">
+            {filePreview.loading
+              ? <p className="text-xs text-[var(--muted)] p-4">Loading…</p>
+              : <pre className="text-[11px] leading-relaxed p-4 font-mono whitespace-pre text-[var(--ink)]"><code>{filePreview.content}</code></pre>}
+          </div>
+          {filePreview.truncated && (
+            <div className="px-4 py-1.5 border-t border-[var(--line)] text-[10px] text-[var(--muted)]">Truncated at 200 KB.</div>
+          )}
+        </div>
+      )}
+
+      {!filePreview && fileList && (
+        <div className="flex flex-col lg:w-[300px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-[var(--line)] flex items-center justify-between">
+            <h3 className="text-sm font-bold text-[var(--ink)]">Files {fileList.length > 0 && <span className="text-[var(--muted)] font-normal">({fileList.length})</span>}</h3>
+            <button type="button" onClick={() => setFileList(null)} className="text-[var(--muted)] hover:text-[var(--ink)] text-lg leading-none px-1" title="Close">&times;</button>
+          </div>
+          <div className="flex-1 overflow-y-auto min-h-0 py-1">
+            {fileList.length === 0
+              ? <p className="text-xs text-[var(--muted)] p-4">No files yet — the agents haven’t written any.</p>
+              : fileList.map(f => (
+                <button key={f.path} type="button" onClick={() => openFile(f.path)}
+                  className="flex items-center justify-between gap-2 w-full px-4 py-1.5 text-left hover:bg-[var(--panel-hover)]">
+                  <span className="text-xs font-mono text-[var(--ink)] truncate" title={f.path}>{f.path}</span>
+                  <span className="text-[10px] text-[var(--muted)] flex-shrink-0 tabular-nums">{f.size > 1024 ? `${(f.size / 1024).toFixed(1)}k` : `${f.size}b`}</span>
+                </button>
+              ))}
+          </div>
+        </div>
+      )}
+
       {/* DETAIL: ticket panel (right of the board) */}
-      {selTicket && (
+      {!filePreview && !fileList && selTicket && (
         <div className="flex flex-col lg:w-[380px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
           <div className="px-4 py-3 border-b border-[var(--line)] flex items-start justify-between gap-2">
             <div className="min-w-0">
