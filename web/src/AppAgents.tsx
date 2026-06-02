@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { Markdown } from './Markdown'
 
 const AGENT_API = 'https://agents.proappstore.online/v1'
 
@@ -137,7 +138,9 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     if (!token) return
     try {
       const a = await api(`/projects/${appId}/activity`, token) as { activity: { id: string; type: string; detail: string; createdAt: number }[] }
-      setActivity(a.activity.map(e => ({ id: e.id, type: e.type, detail: e.detail, timestamp: e.createdAt })))
+      const next = a.activity.map(e => ({ id: e.id, type: e.type, detail: e.detail, timestamp: e.createdAt }))
+      // Only swap when it changed, so polling doesn't re-render/re-scroll the log.
+      setActivity(prev => (prev.length === next.length && prev[prev.length - 1]?.id === next[next.length - 1]?.id) ? prev : next)
     } catch { /* no activity yet */ }
   }, [token, appId])
 
@@ -172,6 +175,26 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
       setTickets(t.tickets)
     } catch { /* ignore */ }
   }, [token, appId])
+
+  // Reload chat history, but only swap state when it actually grew/changed — keeps
+  // polling from re-rendering (and re-scrolling) the chat on every tick.
+  const refreshChat = useCallback(async () => {
+    if (!token) return
+    try {
+      const h = await api(`/projects/${appId}/chat/history`, token) as { messages: { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }[] }
+      const next = h.messages.map(m => ({ id: m.id, role: m.role as ChatMessage['role'], text: m.body, timestamp: m.createdAt, toolCall: m.toolCall }))
+      setChat(prev => (prev.length === next.length && prev[prev.length - 1]?.id === next[next.length - 1]?.id) ? prev : next)
+    } catch { /* ignore */ }
+  }, [token, appId])
+
+  // Pull the full live state in one shot. Used on WS (re)connect to catch up on
+  // anything missed while disconnected, and as a polling fallback while running
+  // (so the UI stays fresh even if the WebSocket push silently drops).
+  const syncLive = useCallback(() => {
+    refreshTickets()
+    refreshChat()
+    loadActivity()
+  }, [refreshTickets, refreshChat, loadActivity])
 
   // Full-screen state snapshot — everything visible across every tile, as JSON,
   // so it can be pasted into a chat/issue and someone sees exactly what you see.
@@ -224,7 +247,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     const connect = () => {
       if (closed) return
       ws = new WebSocket(`wss://agents.proappstore.online/v1/projects/${appId}/ws?token=${encodeURIComponent(token)}`)
-      ws.onopen = () => { retry = 0 }
+      ws.onopen = () => { retry = 0; syncLive() } // catch up on anything missed while disconnected
       ws.onmessage = (ev) => {
         let d: Record<string, unknown>
         try { d = JSON.parse(typeof ev.data === 'string' ? ev.data : '') } catch { return }
@@ -269,7 +292,16 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
       if (reconnectTimer) clearTimeout(reconnectTimer)
       try { ws?.close() } catch { /* noop */ }
     }
-  }, [token, appId, notStarted, refreshTickets])
+  }, [token, appId, notStarted, syncLive])
+
+  // Polling fallback: while the team is running, refresh every 3.5s so the board,
+  // chat, and activity stay live even if the WebSocket push drops a message or
+  // the socket silently dies. WS is the fast path; this guarantees freshness.
+  useEffect(() => {
+    if (notStarted || project?.status !== 'running') return
+    const id = setInterval(syncLive, 3500)
+    return () => clearInterval(id)
+  }, [notStarted, project?.status, syncLive])
 
   // Keep the open ticket panel live: when tickets refresh (WS), pull the fresh
   // row in, and re-fetch its messages whenever the agent has done another turn.
@@ -387,7 +419,9 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
                 {msg.role !== 'user' && msg.role !== 'system' && (
                   <span className="text-xs font-bold block mb-0.5" style={{ color: ROLE_COLOR[msg.role] }}>{msg.role}</span>
                 )}
-                <p className="text-sm whitespace-pre-wrap break-words">{msg.text}</p>
+                {msg.role === 'user'
+                  ? <p className="text-sm whitespace-pre-wrap break-words">{msg.text}</p>
+                  : <Markdown compact>{msg.text}</Markdown>}
                 {msg.toolCall && (
                   <div className="mt-1 px-2 py-1 rounded bg-black/5 dark:bg-white/5 text-xs font-mono text-[var(--muted)]">
                     {msg.toolCall.name}({msg.toolCall.args ?? ''})
@@ -535,7 +569,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
             {selTicket.rawIdea && (
               <div>
                 <p className="text-[11px] font-semibold text-[var(--muted)] uppercase tracking-wide mb-1">Idea</p>
-                <p className="text-sm text-[var(--ink)] whitespace-pre-wrap break-words">{selTicket.rawIdea}</p>
+                <Markdown>{selTicket.rawIdea}</Markdown>
               </div>
             )}
             <div>
@@ -552,7 +586,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
                         <span className="text-[11px] font-bold" style={{ color: ROLE_COLOR[m.author] ?? 'var(--muted)' }}>{m.author}</span>
                         <span className="text-[10px] text-[var(--muted)] tabular-nums">{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
-                      <p className="text-xs text-[var(--ink)] whitespace-pre-wrap break-words leading-snug">{m.body}</p>
+                      <Markdown compact>{m.body}</Markdown>
                     </div>
                   ))}
                 </div>
