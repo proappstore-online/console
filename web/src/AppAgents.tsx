@@ -89,57 +89,32 @@ function fileRefsFromActivity(detail: string): string[] {
   return []
 }
 
-function CopyBtn({ getData, label }: { getData: () => string; label: string }) {
-  const [copied, setCopied] = useState(false)
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        navigator.clipboard.writeText(getData())
-        setCopied(true)
-        setTimeout(() => setCopied(false), 1500)
-      }}
-      className="text-[10px] text-[var(--muted)] hover:text-[var(--ink)] px-1.5 py-0.5 rounded border border-[var(--line)] hover:border-[var(--accent)] transition-colors"
-      title={`Copy ${label} as JSON`}
-    >
-      {copied ? 'Copied!' : label}
-    </button>
-  )
-}
-
-// Tiny icon copy button for a single message/detail. Inherits currentColor so it
-// works on both the accent (user) bubble and the muted agent bubbles.
-function InlineCopy({ text, title = 'Copy' }: { text: string; title?: string }) {
+// The one copy control used everywhere — icon-only, consistent. Inherits
+// currentColor so it reads correctly in headers (muted) and on the accent chat
+// bubble (white). Shows a checkmark on copy. `getData` is lazy so it captures
+// the latest state at click time.
+function CopyButton({ getData, title }: { getData: () => string; title: string }) {
   const [done, setDone] = useState(false)
   return (
     <button type="button" title={title}
-      onClick={() => { navigator.clipboard.writeText(text); setDone(true); setTimeout(() => setDone(false), 1200) }}
+      onClick={() => { navigator.clipboard.writeText(getData()); setDone(true); setTimeout(() => setDone(false), 1200) }}
       className="inline-flex items-center opacity-50 hover:opacity-100 transition-opacity">
       {done
-        ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-        : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>}
+        ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>}
     </button>
   )
 }
 
-// Prominent "copy the whole screen as JSON" button (vs the subtle per-tile ones).
+// Wrappers keep call-sites tidy; all render the same icon-only CopyButton.
+function CopyBtn({ getData, label }: { getData: () => string; label: string }) {
+  return <CopyButton getData={getData} title={`Copy ${label} as JSON`} />
+}
+function InlineCopy({ text, title = 'Copy' }: { text: string; title?: string }) {
+  return <CopyButton getData={() => text} title={title} />
+}
 function ScreenCopyBtn({ getData }: { getData: () => string }) {
-  const [copied, setCopied] = useState(false)
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        navigator.clipboard.writeText(getData())
-        setCopied(true)
-        setTimeout(() => setCopied(false), 1500)
-      }}
-      className="flex items-center gap-1.5 rounded-lg border border-[var(--line-strong)] px-2.5 py-1 text-[11px] font-semibold text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--accent)] transition-colors"
-      title="Copy the entire screen state (all tiles) as JSON"
-    >
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-      {copied ? 'Copied screen!' : 'Copy screen'}
-    </button>
-  )
+  return <CopyButton getData={getData} title="Copy the entire screen (all tiles) as JSON" />
 }
 
 // Explains the agent team + roles + board flow. Opened from the (i) in the chat header.
