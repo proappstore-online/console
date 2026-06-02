@@ -215,8 +215,9 @@ interface RoleCfg {
 }
 
 const MODEL_SUGGESTIONS: Record<string, string[]> = {
-  'cf-native': ['claude-sonnet-4-6', 'claude-opus-4-6', 'claude-haiku-4-5'],
-  'openai-responses': ['gpt-4o', 'gpt-4o-mini', 'o3-mini'],
+  // Anthropic Claude 4.x lineup (Opus = most capable, Haiku = fastest/cheapest).
+  'cf-native': ['claude-opus-4-8', 'claude-sonnet-4-6', 'claude-haiku-4-5'],
+  'openai-responses': ['gpt-4o', 'gpt-4o-mini', 'o3', 'o3-mini'],
 }
 
 function AgentSettingsModal({ appId, token, onClose }: { appId: string; token: string; onClose: () => void }) {
@@ -382,6 +383,17 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     } catch { /* ignore */ }
   }, [token, appId])
 
+  // Delete a ticket (with confirm). Closes the panel + refreshes the board.
+  const deleteTicket = useCallback(async (t: Ticket) => {
+    if (!token) return
+    if (!confirm(`Delete ticket "${t.title}"? This removes it and its messages.`)) return
+    try {
+      await api(`/projects/${appId}/tickets/${t.id}`, token, { method: 'DELETE' })
+      setSelTicket(prev => prev?.id === t.id ? null : prev)
+      setTickets(prev => prev.filter(x => x.id !== t.id))
+    } catch (err) { setError((err as Error).message) }
+  }, [token, appId])
+
   // Turn a chat message into a backlog ticket with one click (PO short-circuit).
   const convertToTicket = useCallback(async (text: string) => {
     if (!token || !text.trim()) return
@@ -518,6 +530,12 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
           case 'ticket-failed':
           case 'message': // agent posted a message → ticket updatedAt bumped
             refreshTickets()
+            break
+          case 'ticket-deleted':
+            if (d.ticketId) {
+              setTickets(prev => prev.filter(x => x.id !== d.ticketId))
+              setSelTicket(prev => prev?.id === d.ticketId ? null : prev)
+            }
             break
           case 'cost-cap-reached':
             setProject(prev => prev ? { ...prev, status: 'paused' } : prev)
@@ -939,6 +957,10 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
               <CopyBtn label="JSON" getData={() => JSON.stringify({ ...selTicket, messages: selMsgs }, null, 2)} />
+              <button type="button" onClick={() => deleteTicket(selTicket)}
+                className="text-[var(--muted)] hover:text-[var(--error)] px-1" title="Delete this ticket">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
               <button type="button" onClick={() => setSelTicket(null)}
                 className="text-[var(--muted)] hover:text-[var(--ink)] text-lg leading-none px-1" title="Close">&times;</button>
             </div>
