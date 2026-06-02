@@ -53,7 +53,12 @@ async function api(path: string, token: string, opts?: { method?: string; body?:
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     ...(opts?.body ? { body: JSON.stringify(opts.body) } : {}),
   })
-  if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
+  if (!res.ok) {
+    const text = await res.text()
+    let msg = text
+    try { msg = (JSON.parse(text) as { error?: string }).error ?? text } catch { /* not json */ }
+    throw new Error(msg || `${res.status}`)
+  }
   return res.json()
 }
 
