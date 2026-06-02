@@ -21,6 +21,10 @@ interface AppEntry {
   description?: string | null
   hasSubmission?: boolean
   submissionStatus?: string | null
+  /** false when the app exists only as an agent-teams project (not yet published). */
+  published?: boolean
+  /** true when an agent team (project) exists for this app. */
+  hasAgentTeam?: boolean
 }
 
 const API_BASE = 'https://api.proappstore.online/v1'
@@ -62,6 +66,40 @@ async function fetchApps(token: string | null): Promise<AppEntry[]> {
     hasSubmission: a.has_submission,
     submissionStatus: a.submission_status,
   }))
+}
+
+/** The caller's agent-teams projects (in-progress apps being built by agents). */
+async function fetchAgentProjects(token: string | null): Promise<{ slug: string; name: string; createdAt: number }[]> {
+  if (!token) return []
+  try {
+    const res = await fetch('https://agents.proappstore.online/v1/projects', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) return []
+    const data = (await res.json()) as { projects: { slug: string; name: string; createdAt: number }[] }
+    return data.projects ?? []
+  } catch {
+    return []
+  }
+}
+
+/** Merge published apps (registry) with agent-teams projects, deduped by id. */
+function mergeApps(apps: AppEntry[], projects: { slug: string; name: string; createdAt: number }[]): AppEntry[] {
+  const projSlugs = new Set(projects.map((p) => p.slug))
+  const byId = new Map<string, AppEntry>()
+  for (const a of apps) byId.set(a.id, { ...a, published: true, hasAgentTeam: projSlugs.has(a.id) })
+  // Add project-only entries (in-progress apps not yet published)
+  for (const p of projects) {
+    if (byId.has(p.slug)) continue
+    byId.set(p.slug, {
+      id: p.slug,
+      name: p.name,
+      createdAt: new Date(p.createdAt).toISOString(),
+      published: false,
+      hasAgentTeam: true,
+    })
+  }
+  return [...byId.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 }
 
 async function deleteAppApi(token: string | null, id: string): Promise<boolean> {
@@ -159,7 +197,13 @@ export default function App() {
   }, [])
 
   const reloadApps = useCallback(async () => {
-    try { setApps(await fetchApps(pro.auth.token)) } catch { /* ignore */ }
+    try {
+      const [published, projects] = await Promise.all([
+        fetchApps(pro.auth.token),
+        fetchAgentProjects(pro.auth.token),
+      ])
+      setApps(mergeApps(published, projects))
+    } catch { /* ignore */ }
   }, [])
 
   useEffect(() => {
@@ -434,7 +478,7 @@ function Dashboard({
 }: {
   user: User
   apps: AppEntry[]
-  onOpenApp: (id: string) => void
+  onOpenApp: (id: string, tab?: 'overview' | 'agents') => void
   onPublishNew: () => void
   onNewApp: () => void
 }) {
@@ -528,16 +572,24 @@ function Dashboard({
             {apps.map((a) => (
               <button
                 key={a.id}
-                onClick={() => onOpenApp(a.id)}
+                onClick={() => onOpenApp(a.id, a.published === false ? 'agents' : 'overview')}
                 className="text-left rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4 hover:bg-[var(--panel-hover)] shadow-sm"
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-[var(--ink)]">{a.name}</span>
-                  <AppStatusBadge submissionStatus={a.submissionStatus} hasSubmission={a.hasSubmission} />
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-[var(--ink)] truncate">{a.name}</span>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {a.published === false && (
+                      <span className="rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">Building</span>
+                    )}
+                    {a.published !== false && a.hasAgentTeam && (
+                      <span className="rounded-full border border-[var(--line-strong)] text-[var(--muted)] px-2 py-0.5 text-[10px] font-semibold">Agents</span>
+                    )}
+                    <AppStatusBadge submissionStatus={a.submissionStatus} hasSubmission={a.hasSubmission} />
+                  </div>
                 </div>
                 <p className="mt-1 text-xs text-[var(--muted)] font-mono">{a.id}</p>
                 <p className="mt-1 text-xs text-[var(--muted)]">
-                  Created {new Date(a.createdAt).toLocaleDateString()}
+                  {a.published === false ? 'In progress · ' : ''}Created {new Date(a.createdAt).toLocaleDateString()}
                 </p>
               </button>
             ))}
