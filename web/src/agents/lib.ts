@@ -16,6 +16,16 @@ export async function api(path: string, token: string, opts?: { method?: string;
   return res.json()
 }
 
+// Pretty-print a file's content for the previewer. Minified .json (common for
+// agent-written files) otherwise renders as one unreadable line — parse and
+// re-stringify with indentation. Non-JSON or invalid JSON is returned as-is.
+export function prettyForDisplay(path: string, content: string): string {
+  if (/\.json$/i.test(path)) {
+    try { return JSON.stringify(JSON.parse(content), null, 2) } catch { /* leave as-is */ }
+  }
+  return content
+}
+
 // Extract previewable file paths from an enriched tool-activity detail line, e.g.
 // "Dev: read_file src/index.ts" or "Dev: batch_write_files (3): a.ts, b.ts, c.ts".
 export function fileRefsFromActivity(detail: string): string[] {

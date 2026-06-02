@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { Markdown } from './Markdown'
 import { CodeView } from './CodeView'
 import { useStickToBottom } from './useStickToBottom'
-import { api, fileRefsFromActivity } from './agents/lib'
+import { api, fileRefsFromActivity, prettyForDisplay } from './agents/lib'
 import { CopyBtn, InlineCopy, ScreenCopyBtn, AgentsInfoModal, AgentSettingsModal, MemoryPanel } from './agents/components'
 import { COLUMNS, ROLE_COLOR } from './agents/types'
 import type { Ticket, Project, ChatMessage, ActivityEntry } from './agents/types'
@@ -722,7 +722,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
               <h3 className="text-xs font-mono font-semibold text-[var(--ink)] truncate" title={filePreview.path}>{filePreview.path}</h3>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
-              <CopyBtn label="Copy" getData={() => filePreview.content} />
+              <CopyBtn label="Copy" getData={() => prettyForDisplay(filePreview.path, filePreview.content)} />
               <button type="button" onClick={() => setFilePreview(null)}
                 className="text-[var(--muted)] hover:text-[var(--ink)] text-lg leading-none px-1" title="Close">&times;</button>
             </div>
@@ -730,7 +730,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
           <div className="flex-1 overflow-auto min-h-0">
             {filePreview.loading
               ? <p className="text-xs text-[var(--muted)] p-4">Loading…</p>
-              : <CodeView code={filePreview.content} path={filePreview.path} />}
+              : <CodeView code={prettyForDisplay(filePreview.path, filePreview.content)} path={filePreview.path} />}
           </div>
           {filePreview.truncated && (
             <div className="px-4 py-1.5 border-t border-[var(--line)] text-[10px] text-[var(--muted)]">Truncated at 200 KB.</div>
