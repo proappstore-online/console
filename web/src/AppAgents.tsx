@@ -110,9 +110,14 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [chat])
   useEffect(() => { activityEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [activity])
 
-  const logActivity = useCallback((type: string, detail: string) => {
-    setActivity(prev => [...prev.slice(-200), { id: crypto.randomUUID(), type, detail, timestamp: Date.now() }])
-  }, [])
+  // Activity is persisted server-side (DB), loaded here — no client-only log.
+  const loadActivity = useCallback(async () => {
+    if (!token) return
+    try {
+      const a = await api(`/projects/${appId}/activity`, token) as { activity: { id: string; type: string; detail: string; createdAt: number }[] }
+      setActivity(a.activity.map(e => ({ id: e.id, type: e.type, detail: e.detail, timestamp: e.createdAt })))
+    } catch { /* no activity yet */ }
+  }, [token, appId])
 
   // Load this app's project (slug = appId)
   const loadProject = useCallback(async () => {
@@ -128,13 +133,14 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
         const h = await api(`/projects/${appId}/chat/history`, token) as { messages: { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }[] }
         setChat(h.messages.map(m => ({ id: m.id, role: m.role as ChatMessage['role'], text: m.body, timestamp: m.createdAt, toolCall: m.toolCall })))
       } catch { /* no history yet */ }
+      await loadActivity()
     } catch (err) {
       const msg = (err as Error).message
       if (msg.includes('404')) setNotStarted(true)
       else setError(msg)
     }
     setLoading(false)
-  }, [token, appId])
+  }, [token, appId, loadActivity])
 
   useEffect(() => { loadProject() }, [loadProject])
 
@@ -145,7 +151,6 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     setError(null)
     try {
       await api('/projects', token, { method: 'POST', body: { name: appName || appId, slug: appId, idea: idea.trim() || undefined } })
-      logActivity('project', `Started agent team for ${appId}`)
       setChat([{ id: '0', role: 'system', text: `Agent team ready for "${appName || appId}". Press Play to start, or chat to add work — the PO agent turns your messages into tickets.`, timestamp: Date.now() }])
       await loadProject()
     } catch (err) { setError((err as Error).message) }
@@ -157,9 +162,8 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     const action = project.status === 'running' ? 'pause' : 'play'
     try {
       await api(`/projects/${appId}/${action}`, token, { method: 'POST' })
-      logActivity('control', action === 'play' ? 'Agents STARTED' : 'Agents PAUSED')
       setProject(prev => prev ? { ...prev, status: action === 'play' ? 'running' : 'paused' } : prev)
-      if (action === 'play') loadProject()
+      loadProject()
     } catch (err) { setError((err as Error).message) }
   }
 
@@ -169,16 +173,12 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     setInput('')
     setSending(true)
     setChat(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, timestamp: Date.now() }])
-    logActivity('chat', `You: ${text.slice(0, 80)}${text.length > 80 ? '...' : ''}`)
     try {
       const result = await api(`/projects/${appId}/chat`, token, { method: 'POST', body: { message: text } }) as { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }
       setChat(prev => [...prev, { id: result.id, role: result.role as ChatMessage['role'], text: result.body, timestamp: result.createdAt, toolCall: result.toolCall }])
-      if (result.toolCall) logActivity('tool', `${result.role}: ${result.toolCall.name}(${result.toolCall.args ?? ''})`)
-      logActivity('chat', `PO: ${result.body.slice(0, 80)}`)
       loadProject()
     } catch (err) {
       setChat(prev => [...prev, { id: crypto.randomUUID(), role: 'system', text: `Error: ${(err as Error).message}`, timestamp: Date.now() }])
-      logActivity('error', (err as Error).message)
     }
     setSending(false)
   }
@@ -337,7 +337,14 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
         <div className="flex-1 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4 flex flex-col min-h-[200px]">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-bold text-[var(--ink)]">Activity</h3>
-            <CopyBtn label="Log" getData={() => JSON.stringify(activity.map(a => ({ type: a.type, detail: a.detail, time: new Date(a.timestamp).toISOString() })), null, 2)} />
+            <div className="flex items-center gap-1">
+              <button type="button" onClick={loadActivity}
+                className="text-[10px] text-[var(--muted)] hover:text-[var(--ink)] px-1.5 py-0.5 rounded border border-[var(--line)] hover:border-[var(--accent)]"
+                title="Reload the persisted activity trail">
+                Refresh
+              </button>
+              <CopyBtn label="Log" getData={() => JSON.stringify(activity.map(a => ({ type: a.type, detail: a.detail, time: new Date(a.timestamp).toISOString() })), null, 2)} />
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto space-y-1 text-xs font-mono min-h-0" style={{ maxHeight: 'calc(100dvh - 560px)' }}>
             {activity.length === 0 && (
