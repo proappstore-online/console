@@ -15,20 +15,18 @@ interface Props {
   appId: string
   appName: string | null
   getToken: () => string | null
-  onBack: () => void
   onDelete: () => Promise<void>
-  initialTab?: 'overview' | 'agents'
+  /** Settings vs. agents workspace is controlled from the navbar switcher. */
+  settingsOpen: boolean
 }
 
-export function AppDetail({ appId, appName, getToken, onBack, onDelete, initialTab }: Props) {
+export function AppDetail({ appId, appName, getToken, onDelete, settingsOpen }: Props) {
   const [listing, setListing] = useState<Listing | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  // Settings (listing/config) live behind a button now — the agents workspace is
-  // the page; settings open as a separate full view to free up vertical space.
-  const [showSettings, setShowSettings] = useState(initialTab === 'overview')
+  const showSettings = settingsOpen
 
   useEffect(() => {
     let cancelled = false
@@ -47,49 +45,13 @@ export function AppDetail({ appId, appName, getToken, onBack, onDelete, initialT
 
   return (
     <div className="space-y-3">
-      {/* Compact breadcrumb (Apps / name [/ Settings]) + Settings button + live link */}
-      <div className="flex items-center justify-between gap-3">
-        <nav className="flex items-center gap-2 text-sm min-w-0">
-          <button type="button" onClick={onBack} className="font-medium text-[var(--accent)] hover:underline">Apps</button>
-          <span className="text-[var(--muted)]">/</span>
-          {showSettings ? (
-            <button type="button" onClick={() => setShowSettings(false)} className="font-medium text-[var(--accent)] hover:underline truncate">{appName ?? appId}</button>
-          ) : (
-            <span className="font-semibold text-[var(--ink)] truncate">{appName ?? appId}</span>
-          )}
-          {showSettings && (
-            <>
-              <span className="text-[var(--muted)]">/</span>
-              <span className="font-semibold text-[var(--ink)]">Settings</span>
-            </>
-          )}
-        </nav>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <button
-            type="button"
-            onClick={() => setShowSettings((s) => !s)}
-            className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
-              showSettings
-                ? 'border-[var(--accent)] text-[var(--accent)]'
-                : 'border-[var(--line-strong)] text-[var(--muted)] hover:text-[var(--ink)]'
-            }`}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-            {showSettings ? 'Close settings' : 'Settings'}
-          </button>
-          <a
-            href={`https://${subdomain}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs font-medium text-[var(--muted)] hover:text-[var(--ink)] whitespace-nowrap"
-          >
-            {subdomain} &rarr;
-          </a>
-        </div>
-      </div>
-
+      {/* Navbar owns the project switcher / Settings toggle / live link now. */}
       {!showSettings && (
         <AppAgents appId={appId} appName={appName} getToken={getToken} />
+      )}
+
+      {showSettings && (
+        <h2 className="display-font text-lg font-bold text-[var(--ink)]">{appName ?? appId} — Settings</h2>
       )}
 
       {showSettings && loading && (

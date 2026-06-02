@@ -108,6 +108,72 @@ function ScreenCopyBtn({ getData }: { getData: () => string }) {
   )
 }
 
+// Explains the agent team + roles + board flow. Opened from the (i) in the chat header.
+const ROLE_INFO: { role: string; title: string; blurb: string }[] = [
+  { role: 'po', title: 'PO — Product Owner', blurb: 'Reads your chat and turns it into tickets. Decides what gets built and in what order. This is who you talk to.' },
+  { role: 'BA', title: 'BA — Business Analyst', blurb: 'Refines a ticket into a clear spec with acceptance criteria. Pushes back on vague requests instead of guessing.' },
+  { role: 'Dev', title: 'Dev — Developer', blurb: 'Implements the approved spec — writes and edits the app’s files, then deploys.' },
+  { role: 'QA', title: 'QA — Quality Assurance', blurb: 'Reviews the Dev’s work against the acceptance criteria. Passes it to Done, or sends it back for another pass.' },
+]
+
+function AgentsInfoModal({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
+      <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow-card)]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--line)] sticky top-0 bg-[var(--panel)]">
+          <h3 className="text-base font-bold text-[var(--ink)]">How your agent team works</h3>
+          <button type="button" onClick={onClose} className="text-[var(--muted)] hover:text-[var(--ink)] text-xl leading-none">&times;</button>
+        </div>
+        <div className="px-5 py-4 space-y-5 text-sm text-[var(--ink)]">
+          <p className="text-[var(--muted)]">
+            You describe what you want in <strong className="text-[var(--ink)]">Chat</strong>. The team takes it from there —
+            refining, building, reviewing, and deploying — while you watch the board. Press <strong className="text-[var(--ink)]">Play</strong> to
+            let them work autonomously, <strong className="text-[var(--ink)]">Pause</strong> to stop.
+          </p>
+
+          <div>
+            <h4 className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wide mb-2">The roles</h4>
+            <div className="space-y-2">
+              {ROLE_INFO.map(r => (
+                <div key={r.role} className="flex gap-3 rounded-xl border border-[var(--line)] p-3">
+                  <span className="w-2 h-2 mt-1.5 rounded-full flex-shrink-0" style={{ background: ROLE_COLOR[r.role] ?? 'var(--muted)' }} />
+                  <div>
+                    <p className="font-semibold" style={{ color: ROLE_COLOR[r.role] ?? 'var(--ink)' }}>{r.title}</p>
+                    <p className="text-[var(--muted)] mt-0.5">{r.blurb}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h4 className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wide mb-2">The board</h4>
+            <p className="text-[var(--muted)]">
+              Tickets flow left to right: <strong className="text-[var(--ink)]">Inbox → BA → Dev → QA → Done</strong>.
+              A ticket in <strong className="text-[var(--ink)]">Blocked</strong> means an agent needs your input — answer in chat,
+              or press Play to retry. Click any ticket to see its full spec and the agents’ conversation.
+            </p>
+          </div>
+
+          <div>
+            <h4 className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wide mb-2">Cost</h4>
+            <p className="text-[var(--muted)]">
+              Agents run on <strong className="text-[var(--ink)]">your own API key</strong> (add it in Profile). The board shows
+              spend vs. your monthly cap; the team auto-pauses when the cap is reached.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Component ───────────────────────────────────────────────
 // The agent team for ONE app. The agent-teams project slug IS the app id, so
 // this is scoped by appId — no localStorage, no separate project picker.
@@ -126,6 +192,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
   const [starting, setStarting] = useState(false)
   const [selTicket, setSelTicket] = useState<Ticket | null>(null)
   const [selMsgs, setSelMsgs] = useState<{ id: string; author: string; body: string; createdAt: number }[]>([])
+  const [showInfo, setShowInfo] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const activityEndRef = useRef<HTMLDivElement>(null)
   const token = getToken()
@@ -393,10 +460,14 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     <div className="flex flex-col lg:flex-row gap-3 h-[calc(100dvh-120px)]">
       {/* LEFT: Chat */}
       <div className="flex flex-col lg:w-[360px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
-        <div className="px-4 py-3 border-b border-[var(--line)] flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-bold text-[var(--ink)]">Talk to your agents</h3>
-            <p className="text-xs text-[var(--muted)]">The PO turns messages into tickets</p>
+        <div className="px-3 py-2 border-b border-[var(--line)] flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <h3 className="text-sm font-bold text-[var(--ink)]">Chat</h3>
+            <button type="button" onClick={() => setShowInfo(true)}
+              className="text-[var(--muted)] hover:text-[var(--accent)] transition-colors"
+              title="How the agent team works">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            </button>
           </div>
           <div className="flex items-center gap-1">
             <CopyBtn label="ID" getData={() => JSON.stringify({ projectId: project?.id, slug: appId, name: project?.name })} />
@@ -595,6 +666,8 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
           </div>
         </div>
       )}
+
+      {showInfo && <AgentsInfoModal onClose={() => setShowInfo(false)} />}
 
       {error && (
         <div className="fixed bottom-4 right-4 bg-red-600 text-white text-sm px-4 py-2 rounded-lg shadow-lg z-50">

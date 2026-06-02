@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { User, Subscription } from '@proappstore/sdk'
 import { pro } from './sdk'
 import { ProfileView } from './ProfileView'
@@ -9,22 +9,7 @@ import { AdminView } from './AdminView'
 import { UILibraryView } from './UILibraryView'
 import { fetchOwnerSummary, formatNumber, type OwnerSummary } from './usage'
 
-type View = 'dashboard' | 'app-detail' | 'publish' | 'payouts' | 'subscription' | 'admin' | 'profile' | 'ui-library'
-
-interface AppEntry {
-  id: string
-  name: string
-  /** ISO timestamp string, derived from the backend's created_at (epoch ms). */
-  createdAt: string
-  category?: string | null
-  description?: string | null
-  hasSubmission?: boolean
-  submissionStatus?: string | null
-  /** false when the app exists only as an agent-teams project (not yet published). */
-  published?: boolean
-  /** true when an agent team (project) exists for this app. */
-  hasAgentTeam?: boolean
-}
+import { type View, type AppEntry, parseHash as parseHashString, hashFor, deriveSlug, mergeApps } from './nav'
 
 const API_BASE = 'https://api.proappstore.online/v1'
 
@@ -82,33 +67,6 @@ async function fetchAgentProjects(token: string | null): Promise<{ slug: string;
   }
 }
 
-/** Merge published apps (registry) with agent-teams projects, deduped by id. */
-/** Derive an app id/slug from a display name. Empty when the name has no
- *  alphanumerics (caller should reject). Prefixes `app-` if it starts non-letter. */
-function deriveSlug(name: string): string {
-  const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 56)
-  if (!id) return ''
-  return (/^[a-z]/.test(id) ? id : `app-${id}`).slice(0, 56)
-}
-
-function mergeApps(apps: AppEntry[], projects: { slug: string; name: string; createdAt: number }[]): AppEntry[] {
-  const projSlugs = new Set(projects.map((p) => p.slug))
-  const byId = new Map<string, AppEntry>()
-  for (const a of apps) byId.set(a.id, { ...a, published: true, hasAgentTeam: projSlugs.has(a.id) })
-  // Add project-only entries (in-progress apps not yet published)
-  for (const p of projects) {
-    if (byId.has(p.slug)) continue
-    byId.set(p.slug, {
-      id: p.slug,
-      name: p.name,
-      createdAt: new Date(p.createdAt).toISOString(),
-      published: false,
-      hasAgentTeam: true,
-    })
-  }
-  return [...byId.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-}
-
 async function deleteAppApi(token: string | null, id: string): Promise<boolean> {
   if (!token) return false
   const res = await fetch(`${API_BASE}/apps/${encodeURIComponent(id)}`, {
@@ -143,20 +101,14 @@ async function fetchIsAdmin(token: string | null): Promise<boolean> {
 // App
 // ---------------------------------------------------------------------------
 
-/** Parse hash route into view + optional param */
+/** Parse the current location hash into view + optional param (DOM wrapper). */
 function parseHash(): { view: View; param: string | null } {
-  const hash = location.hash.replace(/^#\/?/, '')
-  if (!hash || hash === 'dashboard') return { view: 'dashboard', param: null }
-  if (hash.startsWith('apps/')) return { view: 'app-detail', param: hash.slice(5) }
-  const valid: View[] = ['dashboard', 'app-detail', 'publish', 'payouts', 'subscription', 'admin', 'profile', 'ui-library']
-  if (valid.includes(hash as View)) return { view: hash as View, param: null }
-  return { view: 'dashboard', param: null }
+  return parseHashString(location.hash)
 }
 
-/** Update hash without triggering hashchange */
+/** Update hash without triggering hashchange (DOM wrapper). */
 function setHash(view: View, param?: string | null) {
-  const path = view === 'app-detail' && param ? `apps/${param}` : view === 'dashboard' ? '' : view
-  const target = path ? `#/${path}` : '#/'
+  const target = hashFor(view, param)
   if (location.hash !== target) history.pushState(null, '', target)
 }
 
@@ -166,7 +118,7 @@ export default function App() {
   const initial = parseHash()
   const [view, setViewState] = useState<View>(initial.view)
   const [selectedAppId, setSelectedAppId] = useState<string | null>(initial.param)
-  const [appInitialTab, setAppInitialTab] = useState<'overview' | 'agents'>('agents')
+  const [appSettingsOpen, setAppSettingsOpen] = useState(false)
   const [apps, setApps] = useState<AppEntry[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [showNewApp, setShowNewApp] = useState(false)
@@ -174,7 +126,7 @@ export default function App() {
   // Sync view to hash
   const setView = useCallback((v: View) => {
     setViewState(v)
-    if (v !== 'app-detail') setHash(v)
+    if (v !== 'app-detail') { setAppSettingsOpen(false); setHash(v) }
   }, [])
 
   // Listen for back/forward navigation
@@ -217,7 +169,7 @@ export default function App() {
   }, [user])
 
   const openAppDetail = useCallback((id: string, tab: 'overview' | 'agents' = 'agents') => {
-    setAppInitialTab(tab)
+    setAppSettingsOpen(tab === 'overview')
     setSelectedAppId(id)
     setViewState('app-detail')
     setHash('app-detail', id)
@@ -269,7 +221,17 @@ export default function App() {
 
   return (
     <div className="min-h-[100dvh] flex flex-col">
-      <Header user={user} view={view} onNavigate={setView} isAdmin={isAdmin} />
+      <Header
+        user={user}
+        view={view}
+        onNavigate={setView}
+        isAdmin={isAdmin}
+        apps={apps}
+        selectedAppId={selectedAppId}
+        onOpenApp={openAppDetail}
+        settingsOpen={appSettingsOpen}
+        onToggleSettings={() => setAppSettingsOpen((s) => !s)}
+      />
       <main className={view === 'app-detail'
         ? 'flex-1 w-full px-3 py-3 sm:px-4'
         : 'flex-1 mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8'}>
@@ -288,9 +250,8 @@ export default function App() {
             appId={selectedAppId}
             appName={selected?.name ?? null}
             getToken={() => pro.auth.token}
-            onBack={() => setView('dashboard')}
             onDelete={deleteSelectedApp}
-            initialTab={appInitialTab}
+            settingsOpen={appSettingsOpen}
           />
         )}
         {view === 'publish' && <PublishView getToken={() => pro.auth.token} />}
@@ -402,36 +363,86 @@ const TABS: { key: View; label: string }[] = [
   { key: 'ui-library', label: 'UI Library' },
 ]
 
-function Header({ user, view, onNavigate, isAdmin }: { user: User; view: View; onNavigate: (v: View) => void; isAdmin: boolean }) {
+function Header({
+  user, view, onNavigate, isAdmin, apps, selectedAppId, onOpenApp, settingsOpen, onToggleSettings,
+}: {
+  user: User
+  view: View
+  onNavigate: (v: View) => void
+  isAdmin: boolean
+  apps: AppEntry[]
+  selectedAppId: string | null
+  onOpenApp: (id: string, tab?: 'overview' | 'agents') => void
+  settingsOpen: boolean
+  onToggleSettings: () => void
+}) {
   const tabs: { key: View; label: string }[] = isAdmin
     ? [...TABS.slice(0, -1), { key: 'admin', label: 'Admin' }, TABS[TABS.length - 1]!]
     : TABS
+  const onApp = view === 'app-detail' && !!selectedAppId
+  const isWide = onApp // app pages run full-width; match the navbar to the content
   return (
     <header className="sticky top-0 z-30 border-b border-[var(--line)] bg-[var(--panel)] backdrop-blur-xl">
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 flex items-center gap-4">
+      <div className={`${isWide ? 'w-full px-3 sm:px-4' : 'mx-auto max-w-5xl px-4 sm:px-6 lg:px-8'} flex items-center gap-3`}>
         <button
           type="button"
           onClick={() => onNavigate('dashboard')}
-          className="display-font text-base font-bold text-[var(--ink)] tracking-tight py-2 mr-2 whitespace-nowrap"
+          className="display-font text-base font-bold text-[var(--ink)] tracking-tight py-2 whitespace-nowrap"
         >
           Creator Console
         </button>
-        <nav className="flex gap-0.5 -mb-px overflow-x-auto flex-1">
-          {tabs.map((tab) => (
+
+        {onApp ? (
+          // On an app page the nav becomes a project switcher + its controls.
+          <div className="flex items-center gap-1 flex-1 min-w-0">
+            <span className="text-[var(--muted)] select-none">/</span>
+            <ProjectSwitcher
+              apps={apps}
+              selectedAppId={selectedAppId!}
+              onOpenApp={onOpenApp}
+              onAllApps={() => onNavigate('dashboard')}
+            />
             <button
-              key={tab.key}
               type="button"
-              onClick={() => onNavigate(tab.key)}
-              className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                (view === tab.key || (view === 'app-detail' && tab.key === 'dashboard'))
-                  ? 'border-[var(--accent)] text-[var(--ink)]'
-                  : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
+              onClick={onToggleSettings}
+              title="Project settings (listing, domains, roles, danger zone)"
+              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors ${
+                settingsOpen ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-[var(--line-strong)] text-[var(--muted)] hover:text-[var(--ink)]'
               }`}
             >
-              {tab.label}
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              <span className="hidden sm:inline">Settings</span>
             </button>
-          ))}
-        </nav>
+            <a
+              href={`https://${selectedAppId}.proappstore.online`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Open the live site"
+              className="flex items-center gap-1 rounded-lg border border-[var(--line-strong)] px-2.5 py-1 text-xs font-medium text-[var(--muted)] hover:text-[var(--ink)] transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              <span className="hidden md:inline">Open</span>
+            </a>
+          </div>
+        ) : (
+          <nav className="flex gap-0.5 -mb-px overflow-x-auto flex-1 ml-2">
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => onNavigate(tab.key)}
+                className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  view === tab.key
+                    ? 'border-[var(--accent)] text-[var(--ink)]'
+                    : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        )}
+
         <button
           type="button"
           onClick={() => onNavigate('profile')}
@@ -444,6 +455,70 @@ function Header({ user, view, onNavigate, isAdmin }: { user: User; view: View; o
         </button>
       </div>
     </header>
+  )
+}
+
+// Project switcher: current app name + chevron; dropdown to jump between apps
+// or back to all apps. The breadcrumb-style switcher pattern (GitHub/Vercel/Linear).
+function ProjectSwitcher({
+  apps, selectedAppId, onOpenApp, onAllApps,
+}: {
+  apps: AppEntry[]
+  selectedAppId: string
+  onOpenApp: (id: string, tab?: 'overview' | 'agents') => void
+  onAllApps: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const current = apps.find((a) => a.id === selectedAppId)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [open])
+
+  return (
+    <div className="relative min-w-0" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 rounded-lg px-2 py-1 hover:bg-[var(--panel-hover)] transition-colors max-w-[40vw] sm:max-w-xs"
+      >
+        <span className="font-semibold text-[var(--ink)] truncate">{current?.name ?? selectedAppId}</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--muted)] flex-shrink-0"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1 w-64 max-h-[70vh] overflow-y-auto rounded-xl border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow-card)] py-1 z-40">
+          <button
+            type="button"
+            onClick={() => { setOpen(false); onAllApps() }}
+            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-[var(--muted)] hover:bg-[var(--panel-hover)] hover:text-[var(--ink)]"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            All apps
+          </button>
+          <div className="my-1 border-t border-[var(--line)]" />
+          {apps.length === 0 && <p className="px-3 py-2 text-xs text-[var(--muted)]">No apps yet.</p>}
+          {apps.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => { setOpen(false); if (a.id !== selectedAppId) onOpenApp(a.id, 'agents') }}
+              className={`flex items-center justify-between gap-2 w-full px-3 py-2 text-sm hover:bg-[var(--panel-hover)] ${
+                a.id === selectedAppId ? 'text-[var(--ink)] font-semibold' : 'text-[var(--muted)] hover:text-[var(--ink)]'
+              }`}
+            >
+              <span className="truncate">{a.name}</span>
+              {a.id === selectedAppId && (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--accent)] flex-shrink-0"><polyline points="20 6 9 17 4 12"/></svg>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

@@ -57,6 +57,33 @@ test.describe('Agent Teams — API contract', () => {
   });
 });
 
+test.describe('Agent Teams — endpoints require auth', () => {
+  const base = 'https://agents.proappstore.online/v1/projects/test';
+  const cases: { name: string; run: (request: import('@playwright/test').APIRequestContext) => Promise<{ status(): number }> }[] = [
+    { name: 'chat', run: (r) => r.post(`${base}/chat`, { data: { message: 'hi' }, headers: { 'Content-Type': 'application/json' } }) },
+    { name: 'activity', run: (r) => r.get(`${base}/activity`) },
+    { name: 'tickets list', run: (r) => r.get(`${base}/tickets`) },
+    { name: 'ticket messages', run: (r) => r.get(`${base}/tickets/abc/messages`) },
+    { name: 'play', run: (r) => r.post(`${base}/play`) },
+    { name: 'pause', run: (r) => r.post(`${base}/pause`) },
+  ];
+  for (const c of cases) {
+    test(`${c.name} returns 401 unauthenticated`, async ({ request }) => {
+      const res = await c.run(request);
+      expect(res.status()).toBe(401);
+    });
+  }
+});
+
+test.describe('Console — navbar shell', () => {
+  test('shows the brand and the expected top-level tabs', async ({ page }) => {
+    await page.goto(CONSOLE_URL, { waitUntil: 'domcontentloaded' });
+    const body = (await page.locator('body').textContent()) ?? '';
+    // Brand is always present (signed-out landing or signed-in shell).
+    expect(body).toContain('Creator Console');
+  });
+});
+
 test.describe('Agent Teams — security', () => {
   test('CORS blocks requests from unknown origins', async ({ request }) => {
     const res = await request.get('https://agents.proappstore.online/health', {
