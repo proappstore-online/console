@@ -43,6 +43,7 @@ interface ActivityEntry {
   type: string
   detail: string
   timestamp: number
+  meta?: string // JSON: { args?, ok?, result? } — tool call output, for the audit view
 }
 
 // ── API ──────────────────────────────────────────────────────
@@ -410,8 +411,8 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
   const loadActivity = useCallback(async () => {
     if (!token) return
     try {
-      const a = await api(`/projects/${appId}/activity`, token) as { activity: { id: string; type: string; detail: string; createdAt: number }[] }
-      const next = a.activity.map(e => ({ id: e.id, type: e.type, detail: e.detail, timestamp: e.createdAt }))
+      const a = await api(`/projects/${appId}/activity`, token) as { activity: { id: string; type: string; detail: string; createdAt: number; meta?: string }[] }
+      const next = a.activity.map(e => ({ id: e.id, type: e.type, detail: e.detail, timestamp: e.createdAt, meta: e.meta }))
       // Only swap when it changed, so polling doesn't re-render/re-scroll the log.
       setActivity(prev => (prev.length === next.length && prev[prev.length - 1]?.id === next[next.length - 1]?.id) ? prev : next)
     } catch { /* no activity yet */ }
@@ -561,6 +562,21 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     }
   }, [token, appId])
 
+  // Show a tool call's captured output (args + returned result) in the inspector.
+  const openToolResult = useCallback((entry: ActivityEntry) => {
+    if (!entry.meta) return
+    let content = entry.meta
+    try {
+      const m = JSON.parse(entry.meta) as { args?: unknown; ok?: boolean; result?: string }
+      const parts: string[] = []
+      if (m.args !== undefined && Object.keys(m.args as object).length) parts.push(`// args\n${JSON.stringify(m.args, null, 2)}`)
+      if (m.ok === false) parts.push('// ⚠ tool reported an error')
+      parts.push(`// output\n${m.result ?? '(no output)'}`)
+      content = parts.join('\n\n')
+    } catch { /* show raw meta */ }
+    setFilePreview({ path: entry.detail, content, loading: false })
+  }, [])
+
   // Lazy-load the file list the first time the Files browser is opened.
   const toggleFileList = useCallback(async () => {
     if (fileList) { setFileList(null); return }
@@ -623,8 +639,13 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
             setProject(prev => prev ? { ...prev, status: d.status as 'running' | 'paused' } : prev)
             break
           case 'activity': {
-            const e = d.entry as { id: string; type: string; detail: string; createdAt: number } | undefined
-            if (e) setActivity(prev => prev.some(a => a.id === e.id) ? prev : [...prev.slice(-300), { id: e.id, type: e.type, detail: e.detail, timestamp: e.createdAt }])
+            const e = d.entry as { id: string; type: string; detail: string; createdAt: number; meta?: string } | undefined
+            if (e) setActivity(prev => prev.some(a => a.id === e.id) ? prev : [...prev.slice(-300), { id: e.id, type: e.type, detail: e.detail, timestamp: e.createdAt, meta: e.meta }])
+            break
+          }
+          case 'activity-meta': {
+            // Tool output captured after the call — attach it to the row for the audit view.
+            if (d.id) setActivity(prev => prev.map(a => a.id === d.id ? { ...a, meta: d.meta as string } : a))
             break
           }
           case 'chat': {
@@ -985,7 +1006,14 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
                     <span className="flex-shrink-0 font-bold" style={{
                       color: entry.type === 'ticket' ? '#f59e0b' : entry.type === 'tool' ? '#3b82f6' : entry.type === 'transition' ? '#8b5cf6' : entry.type === 'error' ? 'var(--error)' : 'var(--muted)',
                     }}>{entry.type}</span>
-                    {refs.length === 1 ? (
+                    {entry.meta ? (
+                      // Tool call with captured output → click to inspect what it returned.
+                      <button type="button" onClick={() => openToolResult(entry)}
+                        className="text-left text-[var(--ink)] break-words min-w-0 hover:text-[var(--accent)] hover:underline"
+                        title="View this tool's output">
+                        {entry.detail} <span className="opacity-50">↗</span>
+                      </button>
+                    ) : refs.length === 1 ? (
                       <button type="button" onClick={() => openFile(refs[0]!)}
                         className="text-left text-[var(--ink)] break-words min-w-0 hover:text-[var(--accent)] hover:underline"
                         title="Preview this file">{entry.detail}</button>
