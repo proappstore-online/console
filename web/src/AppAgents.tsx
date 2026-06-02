@@ -20,6 +20,7 @@ interface Ticket {
   iterations: number
   costSpentUsd: number
   updatedAt: number
+  stuckReason: string | null
 }
 
 interface Project {
@@ -74,6 +75,7 @@ const COLUMNS: { keys: TicketStatus[]; label: string; color: string }[] = [
   { keys: ['deploying'], label: 'Deploy', color: '#06b6d4' },
   { keys: ['needs-input'], label: 'Blocked', color: '#ef4444' },
   { keys: ['done'], label: 'Done', color: '#22c55e' },
+  { keys: ['failed', 'cancelled'], label: 'Failed', color: '#b91c1c' },
 ]
 
 const ROLE_COLOR: Record<string, string> = {
@@ -924,7 +926,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
               )}
             </div>
           </div>
-          <div className="grid grid-cols-7 gap-2">
+          <div className="grid grid-cols-4 lg:grid-cols-8 gap-2">
             {COLUMNS.map(col => {
               const colTickets = tickets.filter(t => (col.keys as string[]).includes(t.status))
               return (
@@ -1143,6 +1145,14 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
             </div>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+            {selTicket.stuckReason && (
+              <div className="rounded-lg border border-[var(--error)]/40 bg-[var(--error)]/5 p-2.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--error)' }}>
+                  {selTicket.status === 'failed' || selTicket.status === 'cancelled' ? 'Failed' : 'Needs attention'}
+                </p>
+                <p className="text-xs text-[var(--ink)] whitespace-pre-wrap break-words">{selTicket.stuckReason}</p>
+              </div>
+            )}
             {selTicket.rawIdea && (
               <div>
                 <p className="text-[11px] font-semibold text-[var(--muted)] uppercase tracking-wide mb-1">Idea</p>
