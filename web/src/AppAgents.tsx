@@ -399,6 +399,22 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     } catch (err) { setError((err as Error).message) }
   }, [token, appId])
 
+  // Clear the founder↔PO chat (tickets are untouched).
+  const clearChat = useCallback(async () => {
+    if (!token) return
+    if (!confirm('Clear the chat history? Tickets and the board are not affected.')) return
+    try { await api(`/projects/${appId}/chat/history`, token, { method: 'DELETE' }); setChat([]) }
+    catch (err) { setError((err as Error).message) }
+  }, [token, appId])
+
+  // Clear the activity trail (audit log) to start fresh.
+  const clearActivity = useCallback(async () => {
+    if (!token) return
+    if (!confirm('Clear the activity log?')) return
+    try { await api(`/projects/${appId}/activity`, token, { method: 'DELETE' }); setActivity([]) }
+    catch (err) { setError((err as Error).message) }
+  }, [token, appId])
+
   // Turn a chat message into a backlog ticket with one click (PO short-circuit).
   const convertToTicket = useCallback(async (text: string) => {
     if (!token || !text.trim()) return
@@ -542,6 +558,12 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
               setSelTicket(prev => prev?.id === d.ticketId ? null : prev)
             }
             break
+          case 'chat-cleared':
+            setChat([])
+            break
+          case 'activity-cleared':
+            setActivity([])
+            break
           case 'cost-cap-reached':
             setProject(prev => prev ? { ...prev, status: 'paused' } : prev)
             refreshTickets()
@@ -680,6 +702,8 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
           <div className="flex items-center gap-1">
             <CopyBtn label="ID" getData={() => JSON.stringify({ projectId: project?.id, slug: appId, name: project?.name })} />
             <CopyBtn label="Chat" getData={() => JSON.stringify(chat.map(m => ({ role: m.role, text: m.text, time: new Date(m.timestamp).toISOString(), ...(m.toolCall ? { tool: m.toolCall } : {}) })), null, 2)} />
+            <button type="button" onClick={clearChat} title="Clear chat history"
+              className="text-[10px] text-[var(--muted)] hover:text-[var(--error)] px-1.5 py-0.5 rounded border border-[var(--line)] hover:border-[var(--error)] transition-colors">Clear</button>
           </div>
         </div>
         <div className="relative flex-1 min-h-0">
@@ -748,8 +772,11 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
               className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3 py-2.5 text-sm text-[var(--ink)] disabled:opacity-50"
             />
             <button type="button" onClick={sendMessage} disabled={sending || !input.trim()}
-              className="rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
-              {sending ? '...' : 'Send'}
+              title="Send message"
+              className="flex items-center justify-center rounded-lg bg-[var(--accent)] w-10 h-10 flex-shrink-0 text-white hover:opacity-90 disabled:opacity-50">
+              {sending
+                ? <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>}
             </button>
           </div>
         </div>
@@ -837,6 +864,8 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
                 Refresh
               </button>
               <CopyBtn label="Log" getData={() => JSON.stringify(activity.map(a => ({ type: a.type, detail: a.detail, time: new Date(a.timestamp).toISOString() })), null, 2)} />
+              <button type="button" onClick={clearActivity} title="Clear activity log"
+                className="text-[10px] text-[var(--muted)] hover:text-[var(--error)] px-1.5 py-0.5 rounded border border-[var(--line)] hover:border-[var(--error)] transition-colors">Clear</button>
             </div>
           </div>
           <div className="relative flex-1 min-h-0">
