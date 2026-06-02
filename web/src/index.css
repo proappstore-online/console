@@ -141,6 +141,19 @@ html[data-text="xl"] { font-size: 20px; }
 .md-compact p, .md-compact ul, .md-compact ol { margin: 0.35em 0; }
 .md-compact h1, .md-compact h2, .md-compact h3, .md-compact h4 { margin: 0.6em 0 0.3em; }
 
+/* ── Syntax highlighting (highlight.js) — mapped to the themed palette so it
+   works in both light and dark without importing a fixed hljs theme. ──────── */
+.hljs { color: var(--ink); background: transparent; }
+.hljs-comment, .hljs-quote { color: var(--muted); font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-built_in, .hljs-name, .hljs-tag { color: var(--accent); }
+.hljs-string, .hljs-attr, .hljs-regexp, .hljs-addition, .hljs-meta-string { color: var(--mint); }
+.hljs-number, .hljs-literal, .hljs-symbol, .hljs-bullet, .hljs-meta { color: var(--sky); }
+.hljs-title, .hljs-section, .hljs-function .hljs-title, .hljs-class .hljs-title { color: var(--warning); }
+.hljs-type, .hljs-attribute, .hljs-variable, .hljs-template-variable { color: var(--sky); }
+.hljs-deletion { color: var(--error); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }
+
 body {
   min-height: 100dvh;
   /* Allow text selection — chat, activity, agent output and file previews must

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Markdown } from './Markdown'
+import { CodeView } from './CodeView'
 import { useStickToBottom } from './useStickToBottom'
 import { AGENT_BASE as AGENT_API } from './api'
 
@@ -883,7 +884,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
           <div className="flex-1 overflow-auto min-h-0">
             {filePreview.loading
               ? <p className="text-xs text-[var(--muted)] p-4">Loading…</p>
-              : <pre className="text-[11px] leading-relaxed p-4 font-mono whitespace-pre text-[var(--ink)]"><code>{filePreview.content}</code></pre>}
+              : <CodeView code={filePreview.content} path={filePreview.path} />}
           </div>
           {filePreview.truncated && (
             <div className="px-4 py-1.5 border-t border-[var(--line)] text-[10px] text-[var(--muted)]">Truncated at 200 KB.</div>
