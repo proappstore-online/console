@@ -410,59 +410,43 @@ function Header({ user, view, onNavigate, isAdmin }: { user: User; view: View; o
     ? [...TABS.slice(0, -1), { key: 'admin', label: 'Admin' }, TABS[TABS.length - 1]!]
     : TABS
   return (
-    <header className="sticky top-0 z-30">
-      {/* Top bar — store-wide navigation */}
-      <div className="border-b border-[var(--line)] bg-[var(--panel)] backdrop-blur-xl">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 flex h-12 items-center justify-between">
-          <div className="flex items-center gap-4">
-            <a href="https://proappstore.online" className="text-sm font-bold text-[var(--accent)] no-underline hover:opacity-80">
-              Pro
-            </a>
-            <nav className="hidden sm:flex items-center gap-3 text-xs font-medium text-[var(--muted)]">
-              <a href="https://proappstore.online" className="hover:text-[var(--ink)] no-underline">Apps</a>
-              <a href="https://proappstore.online/docs" className="hover:text-[var(--ink)] no-underline">Docs</a>
-              <a href="https://proappstore.online/pricing" className="hover:text-[var(--ink)] no-underline">Pricing</a>
-              <a href="https://dashboard.proappstore.online" className="hover:text-[var(--ink)] no-underline">Account</a>
-            </nav>
-          </div>
-          <div className="flex items-center gap-3">
-            {user.avatarUrl && (
-              <img src={user.avatarUrl} alt={user.login} className="h-6 w-6 rounded-full ring-1 ring-[var(--line-strong)]" />
-            )}
-            <span className="hidden sm:inline text-xs font-medium text-[var(--muted)]">{user.login}</span>
+    <header className="sticky top-0 z-30 border-b border-[var(--line)] bg-[var(--panel)] backdrop-blur-xl">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 flex items-center gap-4">
+        <button
+          type="button"
+          onClick={() => onNavigate('dashboard')}
+          className="display-font text-base font-bold text-[var(--ink)] tracking-tight py-2 mr-2 whitespace-nowrap"
+        >
+          Creator Console
+        </button>
+        <nav className="flex gap-0.5 -mb-px overflow-x-auto flex-1">
+          {tabs.map((tab) => (
             <button
-              onClick={() => pro.auth.signOut()}
-              className="text-xs font-medium text-[var(--muted)] hover:text-[var(--ink)] underline py-2"
+              key={tab.key}
+              type="button"
+              onClick={() => onNavigate(tab.key)}
+              className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                (view === tab.key || (view === 'app-detail' && tab.key === 'dashboard'))
+                  ? 'border-[var(--accent)] text-[var(--ink)]'
+                  : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
+              }`}
             >
-              Sign out
+              {tab.label}
             </button>
-          </div>
-        </div>
-      </div>
-      {/* Tab bar — console-specific navigation */}
-      <div className="border-b border-[var(--line)] bg-[var(--panel)]">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+          ))}
+        </nav>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {user.avatarUrl && (
+            <img src={user.avatarUrl} alt={user.login} className="h-6 w-6 rounded-full ring-1 ring-[var(--line-strong)]" />
+          )}
+          <span className="hidden sm:inline text-xs font-medium text-[var(--muted)]">{user.login}</span>
           <button
-            onClick={() => onNavigate('dashboard')}
-            className="display-font text-base font-bold text-[var(--ink)] tracking-tight py-2 mr-4"
+            type="button"
+            onClick={() => pro.auth.signOut()}
+            className="text-xs font-medium text-[var(--muted)] hover:text-[var(--ink)] underline py-2"
           >
-            Creator Console
+            Sign out
           </button>
-          <nav className="flex gap-0.5 -mb-px overflow-x-auto">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => onNavigate(tab.key)}
-                className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  (view === tab.key || (view === 'app-detail' && tab.key === 'dashboard'))
-                    ? 'border-[var(--accent)] text-[var(--ink)]'
-                    : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
         </div>
       </div>
     </header>
