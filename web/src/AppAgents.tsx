@@ -8,7 +8,7 @@ import { AGENT_BASE as AGENT_API } from './api'
 
 type TicketStatus =
   | 'inbox' | 'ba-refining' | 'awaiting-approval' | 'ready'
-  | 'dev-active' | 'qa-active' | 'qa-failed' | 'needs-input' | 'done' | 'failed' | 'cancelled'
+  | 'dev-active' | 'qa-active' | 'qa-failed' | 'deploying' | 'needs-input' | 'done' | 'failed' | 'cancelled'
 
 interface Ticket {
   id: string
@@ -70,6 +70,7 @@ const COLUMNS: { keys: TicketStatus[]; label: string; color: string }[] = [
   { keys: ['ba-refining', 'awaiting-approval'], label: 'BA', color: '#f59e0b' },
   { keys: ['ready', 'dev-active'], label: 'Dev', color: '#3b82f6' },
   { keys: ['qa-active', 'qa-failed'], label: 'QA', color: '#8b5cf6' },
+  { keys: ['deploying'], label: 'Deploy', color: '#06b6d4' },
   { keys: ['needs-input'], label: 'Blocked', color: '#ef4444' },
   { keys: ['done'], label: 'Done', color: '#22c55e' },
 ]
@@ -947,7 +948,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
               )}
             </div>
           </div>
-          <div className="grid grid-cols-6 gap-2">
+          <div className="grid grid-cols-7 gap-2">
             {COLUMNS.map(col => {
               const colTickets = tickets.filter(t => (col.keys as string[]).includes(t.status))
               return (
