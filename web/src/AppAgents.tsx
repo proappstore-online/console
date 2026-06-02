@@ -701,7 +701,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
           </div>
           <div className="flex items-center gap-1">
             <CopyBtn label="ID" getData={() => JSON.stringify({ projectId: project?.id, slug: appId, name: project?.name })} />
-            <CopyBtn label="Chat" getData={() => JSON.stringify(chat.map(m => ({ role: m.role, text: m.text, time: new Date(m.timestamp).toISOString(), ...(m.toolCall ? { tool: m.toolCall } : {}) })), null, 2)} />
+            <InlineCopy title="Copy chat as JSON" text={JSON.stringify(chat.map(m => ({ role: m.role, text: m.text, time: new Date(m.timestamp).toISOString(), ...(m.toolCall ? { tool: m.toolCall } : {}) })), null, 2)} />
             <button type="button" onClick={clearChat} title="Clear chat history"
               className="text-[10px] text-[var(--muted)] hover:text-[var(--error)] px-1.5 py-0.5 rounded border border-[var(--line)] hover:border-[var(--error)] transition-colors">Clear</button>
           </div>
