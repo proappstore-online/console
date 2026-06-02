@@ -391,6 +391,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
   // File preview (right inspector). Takes priority over the ticket panel.
   const [filePreview, setFilePreview] = useState<{ path: string; content: string; loading: boolean; truncated?: boolean } | null>(null)
   const [fileList, setFileList] = useState<{ path: string; size: number }[] | null>(null)
+  const fileListOpenRef = useRef(false)
   // Project memory (decisions/facts the team treats as ground truth).
   const [memory, setMemory] = useState<{ id: string; category: string; key: string; value: string }[] | null>(null)
   const memOpenRef = useRef(false)
@@ -577,16 +578,32 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     setFilePreview({ path: entry.detail, content, loading: false })
   }, [])
 
-  // Lazy-load the file list the first time the Files browser is opened.
-  const toggleFileList = useCallback(async () => {
-    if (fileList) { setFileList(null); return }
+  const loadFileList = useCallback(async () => {
     if (!token) return
-    setFileList([])
     try {
       const r = await api(`/projects/${appId}/files`, token) as { files: { path: string; size: number }[] }
       setFileList(r.files)
     } catch { setFileList([]) }
-  }, [token, appId, fileList])
+  }, [token, appId])
+
+  // Lazy-load the file list the first time the Files browser is opened.
+  const toggleFileList = useCallback(() => {
+    if (fileList) { setFileList(null); fileListOpenRef.current = false; return }
+    fileListOpenRef.current = true; setFileList([]); loadFileList()
+  }, [fileList, loadFileList])
+
+  const [syncing, setSyncing] = useState(false)
+  // Manually pull the latest committed code from GitHub into the working tree.
+  const syncRepo = useCallback(async () => {
+    if (!token) return
+    setSyncing(true)
+    try {
+      await api(`/projects/${appId}/sync`, token, { method: 'POST' })
+      const f = await api(`/projects/${appId}/files`, token) as { files: { path: string; size: number }[] }
+      setFileList(f.files)
+    } catch (err) { setError((err as Error).message) }
+    setSyncing(false)
+  }, [token, appId])
 
   const loadMemory = useCallback(async () => {
     if (!token) return
@@ -670,6 +687,9 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
           case 'memory-updated':
             if (memOpenRef.current) loadMemory()
             break
+          case 'files-synced':
+            if (fileListOpenRef.current) loadFileList()
+            break
           case 'chat-cleared':
             setChat([])
             break
@@ -696,7 +716,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
       if (reconnectTimer) clearTimeout(reconnectTimer)
       try { ws?.close() } catch { /* noop */ }
     }
-  }, [token, appId, notStarted, syncLive, loadMemory])
+  }, [token, appId, notStarted, syncLive, loadMemory, loadFileList])
 
   // Polling safety net so the page is always interactive even if the WebSocket
   // silently drops. WS is the instant path; this guarantees freshness. It's cheap
@@ -1078,7 +1098,14 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
         <div className="flex flex-col lg:w-[300px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
           <div className="px-4 py-2.5 border-b border-[var(--line)] flex items-center justify-between">
             <h3 className="text-sm font-bold text-[var(--ink)]">Files {fileList.length > 0 && <span className="text-[var(--muted)] font-normal">({fileList.length})</span>}</h3>
-            <button type="button" onClick={() => setFileList(null)} className="text-[var(--muted)] hover:text-[var(--ink)] text-lg leading-none px-1" title="Close">&times;</button>
+            <div className="flex items-center gap-1">
+              <button type="button" onClick={syncRepo} disabled={syncing}
+                className="text-[10px] px-1.5 py-0.5 rounded border border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--accent)] disabled:opacity-50"
+                title="Pull the latest committed code from GitHub">
+                {syncing ? 'Syncing…' : 'Sync GitHub'}
+              </button>
+              <button type="button" onClick={() => { setFileList(null); fileListOpenRef.current = false }} className="text-[var(--muted)] hover:text-[var(--ink)] text-lg leading-none px-1" title="Close">&times;</button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto min-h-0 py-1">
             {fileList.length === 0
