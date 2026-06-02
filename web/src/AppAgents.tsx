@@ -69,12 +69,11 @@ const ROLE_COLOR: Record<string, string> = {
   po: '#6366f1', BA: '#f59e0b', Dev: '#3b82f6', QA: '#8b5cf6', system: '#94a3b8', user: 'var(--ink)',
 }
 
-// ── Copy helper ─────────────────────────────────────────────
-
 function CopyBtn({ getData, label }: { getData: () => string; label: string }) {
   const [copied, setCopied] = useState(false)
   return (
     <button
+      type="button"
       onClick={() => {
         navigator.clipboard.writeText(getData())
         setCopied(true)
@@ -89,8 +88,10 @@ function CopyBtn({ getData, label }: { getData: () => string; label: string }) {
 }
 
 // ── Component ───────────────────────────────────────────────
+// The agent team for ONE app. The agent-teams project slug IS the app id, so
+// this is scoped by appId — no localStorage, no separate project picker.
 
-export function AgentTeamsView({ getToken }: { getToken: () => string | null }) {
+export function AppAgents({ appId, appName, getToken }: { appId: string; appName?: string | null; getToken: () => string | null }) {
   const [project, setProject] = useState<Project | null>(null)
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [chat, setChat] = useState<ChatMessage[]>([])
@@ -99,194 +100,152 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [setupMode, setSetupMode] = useState(false)
-  const [slug, setSlug] = useState('')
-  const [projectName, setProjectName] = useState('')
+  const [notStarted, setNotStarted] = useState(false)
+  const [idea, setIdea] = useState('')
+  const [starting, setStarting] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const activityEndRef = useRef<HTMLDivElement>(null)
   const token = getToken()
 
-  // Scroll chat to bottom
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [chat])
   useEffect(() => { activityEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [activity])
 
-  // Log activity
   const logActivity = useCallback((type: string, detail: string) => {
-    setActivity(prev => [...prev.slice(-200), {
-      id: crypto.randomUUID(),
-      type,
-      detail,
-      timestamp: Date.now(),
-    }])
+    setActivity(prev => [...prev.slice(-200), { id: crypto.randomUUID(), type, detail, timestamp: Date.now() }])
   }, [])
 
-  // Load project
+  // Load this app's project (slug = appId)
   const loadProject = useCallback(async () => {
     if (!token) return
     setLoading(true)
     try {
-      const stored = localStorage.getItem('pas-agent-project-slug')
-      if (!stored) { setSetupMode(true); setLoading(false); return }
-      const data = await api(`/projects/${stored}`, token) as Project
+      const data = await api(`/projects/${appId}`, token) as Project
       setProject(data)
-      setSlug(stored)
-      const t = await api(`/projects/${stored}/tickets`, token) as { tickets: Ticket[] }
+      setNotStarted(false)
+      const t = await api(`/projects/${appId}/tickets`, token) as { tickets: Ticket[] }
       setTickets(t.tickets)
-
-      // Load chat history
       try {
-        const h = await api(`/projects/${stored}/chat/history`, token) as { messages: { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }[] }
-        setChat(h.messages.map(m => ({
-          id: m.id,
-          role: m.role as ChatMessage['role'],
-          text: m.body,
-          timestamp: m.createdAt,
-          toolCall: m.toolCall,
-        })))
-      } catch { /* first load, no history yet */ }
+        const h = await api(`/projects/${appId}/chat/history`, token) as { messages: { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }[] }
+        setChat(h.messages.map(m => ({ id: m.id, role: m.role as ChatMessage['role'], text: m.body, timestamp: m.createdAt, toolCall: m.toolCall })))
+      } catch { /* no history yet */ }
     } catch (err) {
       const msg = (err as Error).message
-      if (msg.includes('404')) { localStorage.removeItem('pas-agent-project-slug'); setSetupMode(true) }
+      if (msg.includes('404')) setNotStarted(true)
       else setError(msg)
     }
     setLoading(false)
-  }, [token])
+  }, [token, appId])
 
   useEffect(() => { loadProject() }, [loadProject])
 
-  // Create project
-  const createProject = async () => {
-    if (!token || !projectName || !slug) return
+  // Start the agent team for this app (creates the project, slug = appId)
+  const startTeam = async () => {
+    if (!token) return
+    setStarting(true)
     setError(null)
     try {
-      await api('/projects', token, { method: 'POST', body: { name: projectName, slug } })
-      localStorage.setItem('pas-agent-project-slug', slug)
-      setSetupMode(false)
-      setChat([{ id: '0', role: 'system', text: `Project "${projectName}" created. You can start talking -- the PO agent reads your messages and creates tickets automatically.`, timestamp: Date.now() }])
-      logActivity('project', `Created project: ${projectName} (${slug})`)
-      loadProject()
+      await api('/projects', token, { method: 'POST', body: { name: appName || appId, slug: appId, idea: idea.trim() || undefined } })
+      logActivity('project', `Started agent team for ${appId}`)
+      setChat([{ id: '0', role: 'system', text: `Agent team ready for "${appName || appId}". Press Play to start, or chat to add work — the PO agent turns your messages into tickets.`, timestamp: Date.now() }])
+      await loadProject()
+    } catch (err) { setError((err as Error).message) }
+    setStarting(false)
+  }
+
+  const togglePlay = async () => {
+    if (!token || !project) return
+    const action = project.status === 'running' ? 'pause' : 'play'
+    try {
+      await api(`/projects/${appId}/${action}`, token, { method: 'POST' })
+      logActivity('control', action === 'play' ? 'Agents STARTED' : 'Agents PAUSED')
+      setProject(prev => prev ? { ...prev, status: action === 'play' ? 'running' : 'paused' } : prev)
+      if (action === 'play') loadProject()
     } catch (err) { setError((err as Error).message) }
   }
 
-  // Send chat message — calls the PO agent
   const sendMessage = async () => {
-    if (!token || !slug || !input.trim()) return
+    if (!token || !input.trim()) return
     const text = input.trim()
     setInput('')
     setSending(true)
-
-    // Show user message immediately (optimistic)
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', text, timestamp: Date.now() }
-    setChat(prev => [...prev, userMsg])
+    setChat(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, timestamp: Date.now() }])
     logActivity('chat', `You: ${text.slice(0, 80)}${text.length > 80 ? '...' : ''}`)
-
     try {
-      // Call PO agent — it decides whether to create a ticket, answer, or route
-      const result = await api(`/projects/${slug}/chat`, token, {
-        method: 'POST',
-        body: { message: text },
-      }) as { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }
-
-      const poReply: ChatMessage = {
-        id: result.id,
-        role: result.role as ChatMessage['role'],
-        text: result.body,
-        timestamp: result.createdAt,
-        toolCall: result.toolCall,
-      }
-      setChat(prev => [...prev, poReply])
-
-      if (result.toolCall) {
-        logActivity('tool', `${result.role}: ${result.toolCall.name}(${result.toolCall.args ?? ''})`)
-      }
+      const result = await api(`/projects/${appId}/chat`, token, { method: 'POST', body: { message: text } }) as { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }
+      setChat(prev => [...prev, { id: result.id, role: result.role as ChatMessage['role'], text: result.body, timestamp: result.createdAt, toolCall: result.toolCall }])
+      if (result.toolCall) logActivity('tool', `${result.role}: ${result.toolCall.name}(${result.toolCall.args ?? ''})`)
       logActivity('chat', `PO: ${result.body.slice(0, 80)}`)
-
-      // Reload tickets in case PO created one
       loadProject()
     } catch (err) {
-      const errMsg: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: 'system',
-        text: `Error: ${(err as Error).message}`,
-        timestamp: Date.now(),
-      }
-      setChat(prev => [...prev, errMsg])
+      setChat(prev => [...prev, { id: crypto.randomUUID(), role: 'system', text: `Error: ${(err as Error).message}`, timestamp: Date.now() }])
       logActivity('error', (err as Error).message)
     }
     setSending(false)
   }
 
-  // ── Setup ─────────────────────────────────────────────────
+  // ── Not started: offer to start the team for this app ─────────
 
-  if (setupMode) {
+  if (loading) return <p className="py-12 text-center text-[var(--muted)]">Loading agents...</p>
+
+  if (notStarted) {
     return (
-      <div className="max-w-lg mx-auto py-12">
-        <h2 className="display-font text-2xl font-bold text-[var(--ink)] mb-2">Create Agent Project</h2>
-        <p className="text-sm text-[var(--muted)] mb-6">
-          Set up a project with AI agents. You chat, they build.
+      <div className="max-w-lg mx-auto py-10">
+        <h3 className="display-font text-xl font-bold text-[var(--ink)] mb-2">Start the agent team</h3>
+        <p className="text-sm text-[var(--muted)] mb-5">
+          Describe what <strong>{appName || appId}</strong> should be. A BA / Dev / QA team will refine it,
+          build it, and review it — you just press Play and chat.
         </p>
-        <div className="space-y-4">
-          <input value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="Chess Academy"
-            className="block w-full rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-3 text-sm text-[var(--ink)]" />
-          <div>
-            <input value={slug} onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} placeholder="chess-academy"
-              className="block w-full rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-3 text-sm text-[var(--ink)]" />
-            {slug && <p className="mt-1 text-xs text-[var(--muted)]">{slug}.proappstore.online</p>}
-          </div>
-          <button onClick={createProject} disabled={!projectName || slug.length < 2}
-            className="w-full rounded-xl bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
-            Create Project
-          </button>
-        </div>
+        <textarea
+          value={idea}
+          onChange={e => setIdea(e.target.value)}
+          rows={4}
+          placeholder="e.g. A chess training app with daily puzzles, ELO tracking, and spaced-repetition review."
+          className="block w-full rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-3 text-sm text-[var(--ink)]"
+        />
+        <button
+          type="button"
+          onClick={startTeam}
+          disabled={starting}
+          className="mt-4 w-full rounded-xl bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+        >
+          {starting ? 'Starting...' : 'Start agent team'}
+        </button>
         {error && <p className="mt-4 text-sm text-[var(--error)]">{error}</p>}
       </div>
     )
   }
 
-  if (loading) return <p className="py-12 text-center text-[var(--muted)]">Loading...</p>
-
-  // ── Main layout: Chat | Kanban + Activity ─────────────────
+  // ── Workspace: Chat | Kanban + Activity ─────────────────────
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 min-h-[calc(100dvh-120px)]">
-
+    <div className="flex flex-col lg:flex-row gap-4 min-h-[calc(100dvh-220px)]">
       {/* LEFT: Chat */}
       <div className="flex flex-col lg:w-[400px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
-        {/* Chat header */}
         <div className="px-4 py-3 border-b border-[var(--line)] flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-bold text-[var(--ink)]">{project?.name ?? 'Chat'}</h3>
-            <p className="text-xs text-[var(--muted)]">Talk to your agents</p>
+            <h3 className="text-sm font-bold text-[var(--ink)]">Talk to your agents</h3>
+            <p className="text-xs text-[var(--muted)]">The PO turns messages into tickets</p>
           </div>
           <div className="flex items-center gap-1">
-            <CopyBtn label="ID" getData={() => JSON.stringify({ projectId: project?.id, slug, name: project?.name })} />
+            <CopyBtn label="ID" getData={() => JSON.stringify({ projectId: project?.id, slug: appId, name: project?.name })} />
             <CopyBtn label="Chat" getData={() => JSON.stringify(chat.map(m => ({ role: m.role, text: m.text, time: new Date(m.timestamp).toISOString(), ...(m.toolCall ? { tool: m.toolCall } : {}) })), null, 2)} />
-            <button onClick={() => { localStorage.removeItem('pas-agent-project-slug'); setSetupMode(true) }}
-              className="text-[10px] text-[var(--muted)] hover:text-[var(--ink)] px-1.5 py-0.5 rounded border border-[var(--line)] hover:border-[var(--accent)]">Switch</button>
           </div>
         </div>
-
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0" style={{ maxHeight: 'calc(100dvh - 280px)' }}>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0" style={{ maxHeight: 'calc(100dvh - 360px)' }}>
           {chat.length === 0 && (
             <p className="text-xs text-[var(--muted)] text-center py-8">
               Start typing. Describe what you want built, ask questions, give feedback.
-              The PO agent reads everything and creates tickets automatically.
             </p>
           )}
           {chat.map(msg => (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[85%] rounded-xl px-3 py-2 ${
-                msg.role === 'user'
-                  ? 'bg-[var(--accent)] text-white'
-                  : msg.role === 'system'
-                    ? 'bg-[var(--panel-hover)] text-[var(--muted)]'
+                msg.role === 'user' ? 'bg-[var(--accent)] text-white'
+                  : msg.role === 'system' ? 'bg-[var(--panel-hover)] text-[var(--muted)]'
                     : 'border border-[var(--line)] bg-[var(--panel)]'
               }`}>
                 {msg.role !== 'user' && msg.role !== 'system' && (
-                  <span className="text-xs font-bold block mb-0.5" style={{ color: ROLE_COLOR[msg.role] }}>
-                    {msg.role}
-                  </span>
+                  <span className="text-xs font-bold block mb-0.5" style={{ color: ROLE_COLOR[msg.role] }}>{msg.role}</span>
                 )}
                 <p className="text-sm whitespace-pre-wrap break-words">{msg.text}</p>
                 {msg.toolCall && (
@@ -302,8 +261,6 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
           ))}
           <div ref={chatEndRef} />
         </div>
-
-        {/* Input */}
         <div className="p-3 border-t border-[var(--line)]">
           <div className="flex gap-2">
             <input
@@ -314,7 +271,7 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
               disabled={sending}
               className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3 py-2.5 text-sm text-[var(--ink)] disabled:opacity-50"
             />
-            <button onClick={sendMessage} disabled={sending || !input.trim()}
+            <button type="button" onClick={sendMessage} disabled={sending || !input.trim()}
               className="rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
               {sending ? '...' : 'Send'}
             </button>
@@ -324,48 +281,23 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
 
       {/* RIGHT: Kanban + Activity */}
       <div className="flex-1 flex flex-col gap-4 min-w-0">
-
-        {/* Kanban board */}
         <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
               <h3 className="text-sm font-bold text-[var(--ink)]">Board</h3>
               {project && (
-                <button
-                  onClick={async () => {
-                    if (!token || !slug) return
-                    const action = project.status === 'running' ? 'pause' : 'play'
-                    try {
-                      await api(`/projects/${slug}/${action}`, token, { method: 'POST' })
-                      logActivity('control', action === 'play' ? 'Agents STARTED' : 'Agents PAUSED')
-                      setProject(prev => prev ? { ...prev, status: action === 'play' ? 'running' : 'paused' } : prev)
-                      if (action === 'play') loadProject()
-                    } catch (err) {
-                      const msg = (err as Error).message
-                      if (msg.includes('404')) {
-                        setProject(null)
-                        setSetupMode(true)
-                        localStorage.removeItem('pas-agent-project-slug')
-                      }
-                      setError(msg)
-                    }
-                  }}
+                <button type="button" onClick={togglePlay}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
                     project.status === 'running'
                       ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 hover:bg-amber-200'
                       : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200'
-                  }`}
-                >
-                  {project.status === 'running' ? (
-                    <><span>&#9646;&#9646;</span> Pause</>
-                  ) : (
-                    <><span>&#9654;</span> Play</>
-                  )}
+                  }`}>
+                  {project.status === 'running' ? (<><span>&#9646;&#9646;</span> Pause</>) : (<><span>&#9654;</span> Play</>)}
                 </button>
               )}
             </div>
             <div className="flex items-center gap-2">
-              <CopyBtn label="Board" getData={() => JSON.stringify({ slug, status: project?.status, cost: { spent: project?.costSpentMonthlyUsd, cap: project?.costCapMonthlyUsd }, tickets: tickets.map(t => ({ id: t.id, title: t.title, status: t.status, assignee: t.assigneeRole, iterations: t.iterations, cost: t.costSpentUsd })) }, null, 2)} />
+              <CopyBtn label="Board" getData={() => JSON.stringify({ slug: appId, status: project?.status, cost: { spent: project?.costSpentMonthlyUsd, cap: project?.costCapMonthlyUsd }, tickets: tickets.map(t => ({ id: t.id, title: t.title, status: t.status, assignee: t.assigneeRole, iterations: t.iterations, cost: t.costSpentUsd })) }, null, 2)} />
               {project && (
                 <span className="text-xs text-[var(--muted)]">
                   ${(project.costSpentMonthlyUsd ?? 0).toFixed(2)} / ${(project.costCapMonthlyUsd ?? 50).toFixed(2)}
@@ -385,15 +317,11 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
                   </div>
                   <div className="space-y-1.5 min-h-[60px]">
                     {colTickets.map(ticket => (
-                      <div key={ticket.id}
-                        className="rounded-lg border border-[var(--line)] p-2 text-xs hover:border-[var(--accent)] transition-colors cursor-default"
-                        title={ticket.rawIdea}>
+                      <div key={ticket.id} className="rounded-lg border border-[var(--line)] p-2 text-xs hover:border-[var(--accent)] transition-colors cursor-default" title={ticket.rawIdea}>
                         <p className="font-medium text-[var(--ink)] line-clamp-2 leading-tight">{ticket.title}</p>
                         <div className="flex items-center gap-1 mt-1">
                           {ticket.assigneeRole && (
-                            <span className="font-bold" style={{ color: ROLE_COLOR[ticket.assigneeRole] ?? 'var(--muted)', fontSize: '10px' }}>
-                              {ticket.assigneeRole}
-                            </span>
+                            <span className="font-bold" style={{ color: ROLE_COLOR[ticket.assigneeRole] ?? 'var(--muted)', fontSize: '10px' }}>{ticket.assigneeRole}</span>
                           )}
                           {ticket.iterations > 0 && <span className="text-[var(--muted)]" style={{ fontSize: '10px' }}>i:{ticket.iterations}</span>}
                         </div>
@@ -406,32 +334,21 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
           </div>
         </div>
 
-        {/* Activity log */}
         <div className="flex-1 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4 flex flex-col min-h-[200px]">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-bold text-[var(--ink)]">Activity</h3>
             <CopyBtn label="Log" getData={() => JSON.stringify(activity.map(a => ({ type: a.type, detail: a.detail, time: new Date(a.timestamp).toISOString() })), null, 2)} />
           </div>
-          <div className="flex-1 overflow-y-auto space-y-1 text-xs font-mono min-h-0" style={{ maxHeight: 'calc(100dvh - 500px)' }}>
+          <div className="flex-1 overflow-y-auto space-y-1 text-xs font-mono min-h-0" style={{ maxHeight: 'calc(100dvh - 560px)' }}>
             {activity.length === 0 && (
-              <p className="text-[var(--muted)] py-4 text-center font-sans text-xs">
-                Agent activity, tool calls, and ticket transitions appear here.
-              </p>
+              <p className="text-[var(--muted)] py-4 text-center font-sans text-xs">Agent activity, tool calls, and ticket transitions appear here.</p>
             )}
             {activity.map(entry => (
               <div key={entry.id} className="flex gap-2 text-[var(--muted)] leading-snug">
-                <span className="flex-shrink-0 opacity-50 tabular-nums">
-                  {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                </span>
+                <span className="flex-shrink-0 opacity-50 tabular-nums">{new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
                 <span className="flex-shrink-0 font-bold" style={{
-                  color: entry.type === 'ticket' ? '#f59e0b'
-                    : entry.type === 'tool' ? '#3b82f6'
-                    : entry.type === 'transition' ? '#8b5cf6'
-                    : entry.type === 'error' ? 'var(--error)'
-                    : 'var(--muted)',
-                }}>
-                  {entry.type}
-                </span>
+                  color: entry.type === 'ticket' ? '#f59e0b' : entry.type === 'tool' ? '#3b82f6' : entry.type === 'transition' ? '#8b5cf6' : entry.type === 'error' ? 'var(--error)' : 'var(--muted)',
+                }}>{entry.type}</span>
                 <span className="text-[var(--ink)] break-words min-w-0">{entry.detail}</span>
               </div>
             ))}
@@ -443,7 +360,7 @@ export function AgentTeamsView({ getToken }: { getToken: () => string | null }) 
       {error && (
         <div className="fixed bottom-4 right-4 bg-red-600 text-white text-sm px-4 py-2 rounded-lg shadow-lg z-50">
           {error}
-          <button onClick={() => setError(null)} className="ml-2 font-bold">x</button>
+          <button type="button" onClick={() => setError(null)} className="ml-2 font-bold">x</button>
         </div>
       )}
     </div>

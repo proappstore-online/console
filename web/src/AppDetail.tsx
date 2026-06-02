@@ -39,6 +39,7 @@ import { RolesManager } from './RolesManager'
 import { DbBrowser } from './DbBrowser'
 import { WebhooksManager } from './WebhooksManager'
 import { CodeHealth } from './CodeHealth'
+import { AppAgents } from './AppAgents'
 
 interface Props {
   appId: string
@@ -46,16 +47,18 @@ interface Props {
   getToken: () => string | null
   onBack: () => void
   onDelete: () => Promise<void>
+  initialTab?: 'overview' | 'agents'
 }
 
 type SaveState = 'idle' | 'saving' | 'saved' | { error: string }
 
-export function AppDetail({ appId, appName, getToken, onBack, onDelete }: Props) {
+export function AppDetail({ appId, appName, getToken, onBack, onDelete, initialTab }: Props) {
   const [listing, setListing] = useState<Listing | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [tab, setTab] = useState<'overview' | 'agents'>(initialTab ?? 'overview')
 
   useEffect(() => {
     let cancelled = false
@@ -69,20 +72,6 @@ export function AppDetail({ appId, appName, getToken, onBack, onDelete }: Props)
   }, [appId, getToken])
 
   const update = useCallback((next: Listing) => setListing(next), [])
-
-  if (loading) {
-    return <p className="text-[var(--muted)] py-12 text-center">Loading listing…</p>
-  }
-  if (loadError || !listing) {
-    return (
-      <div className="space-y-4">
-        <button type="button" onClick={onBack} className="text-sm font-medium text-[var(--accent)] hover:underline">
-          &larr; Back
-        </button>
-        <p className="text-[var(--error)]">{loadError ?? 'No listing data.'}</p>
-      </div>
-    )
-  }
 
   const subdomain = `${appId}.proappstore.online`
 
@@ -103,13 +92,42 @@ export function AppDetail({ appId, appName, getToken, onBack, onDelete }: Props)
       </div>
 
       <header className="flex items-center gap-4">
-        <Preview iconUrl={listing.iconUrl} splashColor={listing.splashColor} />
+        <Preview iconUrl={listing?.iconUrl ?? null} splashColor={listing?.splashColor ?? null} />
         <div>
           <h2 className="display-font text-3xl font-bold text-[var(--ink)]">{appName ?? appId}</h2>
           <p className="text-sm text-[var(--muted)] font-mono">{appId}</p>
         </div>
       </header>
 
+      {/* Tabs: Overview (listing/settings) | Agents (the build/maintenance team) */}
+      <div className="flex gap-1 border-b border-[var(--line)]">
+        {(['overview', 'agents'] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={`px-4 py-2 text-sm font-semibold capitalize border-b-2 -mb-px transition-colors ${
+              tab === t ? 'border-[var(--accent)] text-[var(--ink)]' : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'agents' && (
+        <AppAgents appId={appId} appName={appName} getToken={getToken} />
+      )}
+
+      {tab === 'overview' && loading && (
+        <p className="text-[var(--muted)] py-12 text-center">Loading listing…</p>
+      )}
+      {tab === 'overview' && !loading && (loadError || !listing) && (
+        <p className="text-[var(--muted)] py-12 text-center">
+          No storefront listing yet — this app hasn't been published/provisioned. Use the <strong>Agents</strong> tab to build it.
+        </p>
+      )}
+      {tab === 'overview' && !loading && listing && (
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
           <BrandingSection appId={appId} listing={listing} update={update} getToken={getToken} />
@@ -168,6 +186,7 @@ export function AppDetail({ appId, appName, getToken, onBack, onDelete }: Props)
           </div>
         </aside>
       </div>
+      )}
     </div>
   )
 }

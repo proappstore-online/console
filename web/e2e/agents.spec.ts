@@ -1,20 +1,20 @@
 import { expect, test } from '@playwright/test';
 
-// Agent Teams UI tests — verify the console shell loads the Agents tab
-// and the setup/kanban views render correctly. Full agent interaction
-// requires auth + a running agent-teams Worker; these tests cover the
-// UI surface that a signed-out or newly signed-in user sees.
+// Agent Teams UI tests. The agent team now lives INSIDE each app
+// (#/apps/{id} → Agents tab), not as a top-level nav tab — so the shell test
+// just verifies the console loads and that Agents is NOT a top-level tab. The
+// per-app Agents tab needs auth; the API contract is covered below.
 
 const CONSOLE_URL = 'https://console.proappstore.online';
 
 test.describe('Agent Teams — UI shell', () => {
-  test('Console has Agents tab in navigation', async ({ page }) => {
+  test('Console loads; Agents is not a top-level nav tab (it lives inside each app)', async ({ page }) => {
     await page.goto(CONSOLE_URL, { waitUntil: 'domcontentloaded' });
-    // The SPA shell renders navigation tabs even before auth
-    // Check that 'Agents' appears in the tab bar
+    const body = await page.locator('body').textContent();
+    expect(body && body.length > 0).toBe(true);
     const tabs = page.locator('nav button, nav a');
     const tabTexts = await tabs.allTextContents();
-    expect(tabTexts.some((t) => t.includes('Agents'))).toBe(true);
+    expect(tabTexts.some((t) => t.trim() === 'Agents')).toBe(false);
   });
 });
 

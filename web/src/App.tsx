@@ -6,12 +6,11 @@ import { PayoutsView } from './PayoutsView'
 import { AppDetail } from './AppDetail'
 import { AdminView } from './AdminView'
 import { UILibraryView } from './UILibraryView'
-import { AgentTeamsView } from './AgentTeamsView'
 import { fetchOwnerSummary, formatNumber, type OwnerSummary } from './usage'
 
 const pro = initPro({ appId: 'console' })
 
-type View = 'dashboard' | 'app-detail' | 'publish' | 'agents' | 'payouts' | 'subscription' | 'admin' | 'settings' | 'ui-library'
+type View = 'dashboard' | 'app-detail' | 'publish' | 'payouts' | 'subscription' | 'admin' | 'settings' | 'ui-library'
 
 interface AppEntry {
   id: string
@@ -114,7 +113,7 @@ function parseHash(): { view: View; param: string | null } {
   const hash = location.hash.replace(/^#\/?/, '')
   if (!hash || hash === 'dashboard') return { view: 'dashboard', param: null }
   if (hash.startsWith('apps/')) return { view: 'app-detail', param: hash.slice(5) }
-  const valid: View[] = ['dashboard', 'app-detail', 'publish', 'agents', 'payouts', 'subscription', 'admin', 'settings', 'ui-library']
+  const valid: View[] = ['dashboard', 'app-detail', 'publish', 'payouts', 'subscription', 'admin', 'settings', 'ui-library']
   if (valid.includes(hash as View)) return { view: hash as View, param: null }
   return { view: 'dashboard', param: null }
 }
@@ -132,8 +131,10 @@ export default function App() {
   const initial = parseHash()
   const [view, setViewState] = useState<View>(initial.view)
   const [selectedAppId, setSelectedAppId] = useState<string | null>(initial.param)
+  const [appInitialTab, setAppInitialTab] = useState<'overview' | 'agents'>('overview')
   const [apps, setApps] = useState<AppEntry[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
+  const [showNewApp, setShowNewApp] = useState(false)
 
   // Sync view to hash
   const setView = useCallback((v: View) => {
@@ -174,11 +175,33 @@ export default function App() {
     return () => { cancelled = true }
   }, [user])
 
-  const openAppDetail = useCallback((id: string) => {
+  const openAppDetail = useCallback((id: string, tab: 'overview' | 'agents' = 'overview') => {
+    setAppInitialTab(tab)
     setSelectedAppId(id)
     setViewState('app-detail')
     setHash('app-detail', id)
   }, [])
+
+  // Create a new app = create its agent-teams project (slug = id), then land on
+  // the app's Agents tab. The repo/hosting is built by the team afterward.
+  const createApp = useCallback(async (name: string, idea: string): Promise<string | null> => {
+    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 56)
+    const slug = /^[a-z]/.test(id) ? id : `app-${id}`.slice(0, 56)
+    if (slug.length < 2) return 'Please enter a longer name.'
+    try {
+      const res = await fetch('https://agents.proappstore.online/v1/projects', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${pro.auth.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, slug, idea: idea.trim() || undefined }),
+      })
+      if (!res.ok) return `${res.status}: ${await res.text()}`
+      setShowNewApp(false)
+      openAppDetail(slug, 'agents')
+      return null
+    } catch (e) {
+      return (e as Error).message
+    }
+  }, [openAppDetail])
 
   const deleteSelectedApp = useCallback(async () => {
     if (!selectedAppId) return
@@ -214,18 +237,20 @@ export default function App() {
             apps={apps}
             onOpenApp={openAppDetail}
             onPublishNew={() => setView('publish')}
+            onNewApp={() => setShowNewApp(true)}
           />
         )}
         {view === 'app-detail' && selectedAppId && (
           <AppDetail
+            key={selectedAppId}
             appId={selectedAppId}
             appName={selected?.name ?? null}
             getToken={() => pro.auth.token}
             onBack={() => setView('dashboard')}
             onDelete={deleteSelectedApp}
+            initialTab={appInitialTab}
           />
         )}
-        {view === 'agents' && <AgentTeamsView getToken={() => pro.auth.token} />}
         {view === 'publish' && <PublishView getToken={() => pro.auth.token} />}
         {view === 'payouts' && <PayoutsView getToken={() => pro.auth.token} />}
         {view === 'subscription' && <SubscriptionView />}
@@ -233,6 +258,62 @@ export default function App() {
         {view === 'settings' && <Settings />}
         {view === 'ui-library' && <UILibraryView />}
       </main>
+      {showNewApp && <NewAppModal onClose={() => setShowNewApp(false)} onCreate={createApp} />}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// New app modal — name + idea → create the agent-teams project → Agents tab
+// ---------------------------------------------------------------------------
+
+function NewAppModal({ onClose, onCreate }: { onClose: () => void; onCreate: (name: string, idea: string) => Promise<string | null> }) {
+  const [name, setName] = useState('')
+  const [idea, setIdea] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = async () => {
+    if (!name.trim() || busy) return
+    setBusy(true)
+    setError(null)
+    const err = await onCreate(name.trim(), idea)
+    if (err) { setError(err); setBusy(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6" onClick={(e) => e.stopPropagation()}>
+        <h2 className="display-font text-2xl font-bold text-[var(--ink)] mb-1">New app</h2>
+        <p className="text-sm text-[var(--muted)] mb-5">Name it and describe the idea. Your agent team (BA / Dev / QA) builds it — you press Play and chat.</p>
+        <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wide mb-1">Name</label>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Chess Academy"
+          className="block w-full rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-2.5 text-sm text-[var(--ink)] mb-1"
+        />
+        {name.trim() && (
+          <p className="text-xs text-[var(--muted)] mb-3 font-mono">
+            {name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 56)}.proappstore.online
+          </p>
+        )}
+        <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wide mb-1 mt-2">Idea (optional)</label>
+        <textarea
+          value={idea}
+          onChange={(e) => setIdea(e.target.value)}
+          rows={3}
+          placeholder="A chess training app with daily puzzles, ELO tracking, and spaced-repetition review."
+          className="block w-full rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-2.5 text-sm text-[var(--ink)]"
+        />
+        {error && <p className="mt-3 text-sm text-[var(--error)]">{error}</p>}
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="rounded-lg border border-[var(--line-strong)] px-4 py-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]">Cancel</button>
+          <button type="button" onClick={submit} disabled={!name.trim() || busy} className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
+            {busy ? 'Creating…' : 'Create app'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -273,7 +354,6 @@ function Landing() {
 
 const TABS: { key: View; label: string }[] = [
   { key: 'dashboard', label: 'Dashboard' },
-  { key: 'agents', label: 'Agents' },
   { key: 'publish', label: 'Publish' },
   { key: 'payouts', label: 'Payouts' },
   { key: 'subscription', label: 'Subscription' },
@@ -350,12 +430,13 @@ function Header({ user, view, onNavigate, isAdmin }: { user: User; view: View; o
 // ---------------------------------------------------------------------------
 
 function Dashboard({
-  user, apps, onOpenApp, onPublishNew,
+  user, apps, onOpenApp, onPublishNew, onNewApp,
 }: {
   user: User
   apps: AppEntry[]
   onOpenApp: (id: string) => void
   onPublishNew: () => void
+  onNewApp: () => void
 }) {
   const [sub, setSub] = useState<Subscription | null>(null)
   const [summary, setSummary] = useState<OwnerSummary | null>(null)
@@ -414,23 +495,32 @@ function Dashboard({
       <div>
         <div className="flex items-center justify-between mb-4">
           <h3 className="display-font text-xl font-bold text-[var(--ink)]">Your Apps</h3>
-          <button
-            type="button"
-            onClick={onPublishNew}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
-          >
-            + Publish New App
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onPublishNew}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--line-strong)] px-3 py-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
+            >
+              Publish existing
+            </button>
+            <button
+              type="button"
+              onClick={onNewApp}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+            >
+              + New app
+            </button>
+          </div>
         </div>
 
         {apps.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-[var(--line-strong)] p-12 text-center">
             <p className="text-[var(--muted)]">
               No apps yet.{' '}
-              <button type="button" onClick={onPublishNew} className="text-[var(--accent)] font-semibold underline">
-                Submit your first app
+              <button type="button" onClick={onNewApp} className="text-[var(--accent)] font-semibold underline">
+                Create your first app
               </button>{' '}
-              for review.
+              — your agent team builds it.
             </p>
           </div>
         ) : (
