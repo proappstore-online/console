@@ -142,7 +142,76 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     setLoading(false)
   }, [token, appId, loadActivity])
 
+  // Reload just the tickets (used by live WS events — no loading spinner).
+  const refreshTickets = useCallback(async () => {
+    if (!token) return
+    try {
+      const t = await api(`/projects/${appId}/tickets`, token) as { tickets: Ticket[] }
+      setTickets(t.tickets)
+    } catch { /* ignore */ }
+  }, [token, appId])
+
   useEffect(() => { loadProject() }, [loadProject])
+
+  // ── Live updates over WebSocket ───────────────────────────
+  // The DO broadcasts every event (play-state, activity, chat, transitions).
+  // Connect once a project exists; reconnect with backoff; clean up on unmount.
+  useEffect(() => {
+    if (!token || notStarted) return
+    let closed = false
+    let ws: WebSocket | null = null
+    let retry = 0
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined
+
+    const connect = () => {
+      if (closed) return
+      ws = new WebSocket(`wss://agents.proappstore.online/v1/projects/${appId}/ws?token=${encodeURIComponent(token)}`)
+      ws.onopen = () => { retry = 0 }
+      ws.onmessage = (ev) => {
+        let d: Record<string, unknown>
+        try { d = JSON.parse(typeof ev.data === 'string' ? ev.data : '') } catch { return }
+        switch (d.type) {
+          case 'play-state':
+            setProject(prev => prev ? { ...prev, status: d.status as 'running' | 'paused' } : prev)
+            break
+          case 'activity': {
+            const e = d.entry as { id: string; type: string; detail: string; createdAt: number } | undefined
+            if (e) setActivity(prev => prev.some(a => a.id === e.id) ? prev : [...prev.slice(-300), { id: e.id, type: e.type, detail: e.detail, timestamp: e.createdAt }])
+            break
+          }
+          case 'chat': {
+            if (d.role === 'user') break // sender already shows it optimistically
+            const id = String(d.id ?? crypto.randomUUID())
+            setChat(prev => prev.some(m => m.id === id) ? prev : [...prev, { id, role: d.role as ChatMessage['role'], text: String(d.body ?? ''), timestamp: Date.now(), toolCall: d.toolCall as ChatMessage['toolCall'] }])
+            break
+          }
+          case 'transition':
+          case 'ticket-created':
+          case 'ticket-updated':
+          case 'ticket-failed':
+            refreshTickets()
+            break
+          case 'cost-cap-reached':
+            setProject(prev => prev ? { ...prev, status: 'paused' } : prev)
+            refreshTickets()
+            break
+        }
+      }
+      ws.onerror = () => { try { ws?.close() } catch { /* noop */ } }
+      ws.onclose = () => {
+        if (closed) return
+        retry += 1
+        reconnectTimer = setTimeout(connect, Math.min(1000 * retry, 10000))
+      }
+    }
+    connect()
+
+    return () => {
+      closed = true
+      if (reconnectTimer) clearTimeout(reconnectTimer)
+      try { ws?.close() } catch { /* noop */ }
+    }
+  }, [token, appId, notStarted, refreshTickets])
 
   // Start the agent team for this app (creates the project, slug = appId)
   const startTeam = async () => {
