@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-
-const API_BASE = 'https://api.proappstore.online/v1'
+import { API_BASE } from './api'
 
 interface ConnectStatus {
   connected: boolean

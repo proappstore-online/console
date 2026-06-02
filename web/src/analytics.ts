@@ -7,7 +7,7 @@
  * Uses the same bearer-token auth as the rest of the console.
  */
 
-const API_BASE = 'https://api.proappstore.online/v1'
+import { API_BASE } from './api'
 
 export interface AnalyticsConfig {
   cfBeaconToken: string | null

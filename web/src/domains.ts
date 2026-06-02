@@ -13,7 +13,7 @@
  * docs/custom-domain-purchase-plan.md in pas/platform).
  */
 
-const API_BASE = 'https://api.proappstore.online/v1'
+import { API_BASE } from './api'
 
 export interface VerificationData {
   status?: string

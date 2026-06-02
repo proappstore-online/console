@@ -3,7 +3,7 @@
  * and /v1/apps/:id/listing-assets/:kind contract.
  */
 
-const API_BASE = 'https://api.proappstore.online/v1'
+import { API_BASE } from './api'
 
 export interface Listing {
   appId: string

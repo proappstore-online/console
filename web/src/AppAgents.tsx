@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Markdown } from './Markdown'
 import { useStickToBottom } from './useStickToBottom'
-
-const AGENT_API = 'https://agents.proappstore.online/v1'
+import { AGENT_BASE as AGENT_API } from './api'
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -226,6 +225,8 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
   // and let the user pull in older items with a "load previous" button.
   const [chatLimit, setChatLimit] = useState(20)
   const [actLimit, setActLimit] = useState(50)
+  const [msgLimit, setMsgLimit] = useState(20)
+  const [fileLimit, setFileLimit] = useState(50)
   const token = getToken()
 
   // Best-practice chat scroll: auto-stick to bottom only when already there,
@@ -336,6 +337,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     setFilePreview(null) // ticket takes the inspector
     setSelTicket(t)
     setSelMsgs([])
+    setMsgLimit(20)
     if (!token) return
     try {
       const r = await api(`/projects/${appId}/tickets/${t.id}/messages`, token) as { messages: { id: string; author: string; body: string; createdAt: number }[] }
@@ -775,13 +777,21 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
           <div className="flex-1 overflow-y-auto min-h-0 py-1">
             {fileList.length === 0
               ? <p className="text-xs text-[var(--muted)] p-4">No files yet — the agents haven’t written any.</p>
-              : fileList.map(f => (
-                <button key={f.path} type="button" onClick={() => openFile(f.path)}
-                  className="flex items-center justify-between gap-2 w-full px-4 py-1.5 text-left hover:bg-[var(--panel-hover)]">
-                  <span className="text-xs font-mono text-[var(--ink)] truncate" title={f.path}>{f.path}</span>
-                  <span className="text-[10px] text-[var(--muted)] flex-shrink-0 tabular-nums">{f.size > 1024 ? `${(f.size / 1024).toFixed(1)}k` : `${f.size}b`}</span>
-                </button>
-              ))}
+              : <>
+                {fileList.slice(0, fileLimit).map(f => (
+                  <button key={f.path} type="button" onClick={() => openFile(f.path)}
+                    className="flex items-center justify-between gap-2 w-full px-4 py-1.5 text-left hover:bg-[var(--panel-hover)]">
+                    <span className="text-xs font-mono text-[var(--ink)] truncate" title={f.path}>{f.path}</span>
+                    <span className="text-[10px] text-[var(--muted)] flex-shrink-0 tabular-nums">{f.size > 1024 ? `${(f.size / 1024).toFixed(1)}k` : `${f.size}b`}</span>
+                  </button>
+                ))}
+                {fileList.length > fileLimit && (
+                  <button type="button" onClick={() => setFileLimit(l => l + 50)}
+                    className="block mx-auto my-1 text-[11px] text-[var(--accent)] hover:underline">
+                    Show more ({fileList.length - fileLimit} more)
+                  </button>
+                )}
+              </>}
           </div>
         </div>
       )}
@@ -824,7 +834,13 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
                 <p className="text-xs text-[var(--muted)] py-2">No agent messages on this ticket yet.</p>
               ) : (
                 <div className="space-y-2">
-                  {selMsgs.map(m => (
+                  {selMsgs.length > msgLimit && (
+                    <button type="button" onClick={() => setMsgLimit(l => l + 20)}
+                      className="block mx-auto mb-1 text-[11px] text-[var(--accent)] hover:underline">
+                      Load previous 20 ({selMsgs.length - msgLimit} older)
+                    </button>
+                  )}
+                  {selMsgs.slice(-msgLimit).map(m => (
                     <div key={m.id} className="rounded-lg border border-[var(--line)] p-2">
                       <div className="flex items-center justify-between mb-0.5">
                         <span className="text-[11px] font-bold" style={{ color: ROLE_COLOR[m.author] ?? 'var(--muted)' }}>{m.author}</span>

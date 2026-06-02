@@ -5,7 +5,7 @@
  * Both endpoints use the FAS session bearer token (from `pro.auth.token`).
  */
 
-const API_BASE = 'https://api.proappstore.online/v1'
+import { API_BASE } from './api'
 
 export interface UsageDay {
   /** YYYY-MM-DD */

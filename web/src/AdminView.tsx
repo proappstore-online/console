@@ -6,6 +6,7 @@ import {
   formatViewCount,
   type PlatformAnalyticsResponse,
 } from './analytics'
+import { apiFetch } from './api'
 
 // ---------------------------------------------------------------------------
 // Admin view — submission review queue.
@@ -15,8 +16,6 @@ import {
 // backend, so a non-admin who somehow reaches this view still can't do
 // anything destructive — the API will 403.
 // ---------------------------------------------------------------------------
-
-const API_BASE = 'https://api.proappstore.online/v1'
 
 type Filter = SubmissionStatus | 'all'
 
@@ -82,40 +81,6 @@ function shortId(id: string): string {
 function truncate(text: string, max: number): string {
   if (text.length <= max) return text
   return text.slice(0, max - 1).trimEnd() + '…'
-}
-
-async function apiFetch<T>(
-  path: string,
-  init: RequestInit & { token: string | null },
-): Promise<T> {
-  const { token, headers, ...rest } = init
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...rest,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(headers ?? {}),
-    },
-  })
-  const text = await res.text()
-  let body: unknown = null
-  if (text) {
-    try {
-      body = JSON.parse(text)
-    } catch {
-      body = text
-    }
-  }
-  if (!res.ok) {
-    let message = `Request failed (${res.status})`
-    if (body && typeof body === 'object' && 'error' in body && typeof (body as { error: unknown }).error === 'string') {
-      message = (body as { error: string }).error
-    } else if (typeof body === 'string' && body) {
-      message = body
-    }
-    throw new Error(message)
-  }
-  return body as T
 }
 
 // ---------------------------------------------------------------------------

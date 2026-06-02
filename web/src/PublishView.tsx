@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { KeyboardEvent } from 'react'
+import { apiFetch, ApiError } from './api'
 
 // ---------------------------------------------------------------------------
 // Types — mirror the PAS submissions API contract
 // ---------------------------------------------------------------------------
-
-const API_BASE = 'https://api.proappstore.online/v1'
 
 export type SubmissionStatus = 'pending' | 'approved' | 'rejected' | 'published'
 
@@ -85,52 +84,6 @@ function validateAppId(value: string): string | null {
   if (!/^[a-z0-9-]+$/.test(value)) return 'Lowercase letters, digits, and hyphens only.'
   if (value.startsWith('-') || value.endsWith('-')) return 'Cannot start or end with a hyphen.'
   return null
-}
-
-async function apiFetch<T>(
-  path: string,
-  init: RequestInit & { token: string | null },
-): Promise<T> {
-  const { token, headers, ...rest } = init
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...rest,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(headers ?? {}),
-    },
-  })
-  const text = await res.text()
-  let body: unknown = null
-  if (text) {
-    try {
-      body = JSON.parse(text)
-    } catch {
-      body = text
-    }
-  }
-  if (!res.ok) {
-    const err = new ApiError(res.status, body)
-    throw err
-  }
-  return body as T
-}
-
-class ApiError extends Error {
-  status: number
-  body: unknown
-  constructor(status: number, body: unknown) {
-    let message = `Request failed (${status})`
-    if (body && typeof body === 'object' && 'error' in body && typeof (body as { error: unknown }).error === 'string') {
-      message = (body as { error: string }).error
-    } else if (typeof body === 'string' && body) {
-      message = body
-    }
-    super(message)
-    this.name = 'ApiError'
-    this.status = status
-    this.body = body
-  }
 }
 
 // ---------------------------------------------------------------------------

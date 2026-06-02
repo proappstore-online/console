@@ -10,8 +10,7 @@ import { UILibraryView } from './UILibraryView'
 import { fetchOwnerSummary, formatNumber, type OwnerSummary } from './usage'
 
 import { type View, type AppEntry, parseHash as parseHashString, hashFor, deriveSlug, mergeApps } from './nav'
-
-const API_BASE = 'https://api.proappstore.online/v1'
+import { API_BASE } from './api'
 
 interface AppApiRow {
   id: string

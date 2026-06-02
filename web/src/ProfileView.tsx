@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { User } from '@proappstore/sdk'
 import { pro } from './sdk'
-
-const API = 'https://api.proappstore.online/v1'
+import { API_BASE as API } from './api'
 
 interface Provider { id: string; name: string; docs_url: string | null; key_prefix: string | null }
 interface KeyStatus { provider: string; label: string | null; createdAt: number; lastUsedAt: number | null }

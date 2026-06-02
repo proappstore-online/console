@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-
-const API = 'https://api.proappstore.online/v1'
+import { API_BASE as API } from './api'
 
 const SUPPORTED_EVENTS = [
   'notification.sent',
