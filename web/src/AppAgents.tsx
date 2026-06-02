@@ -120,9 +120,9 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
   }, [token, appId])
 
   // Load this app's project (slug = appId)
-  const loadProject = useCallback(async () => {
+  const loadProject = useCallback(async (silent = false) => {
     if (!token) return
-    setLoading(true)
+    if (!silent) setLoading(true)
     try {
       const data = await api(`/projects/${appId}`, token) as Project
       setProject(data)
@@ -139,7 +139,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
       if (msg.includes('404')) setNotStarted(true)
       else setError(msg)
     }
-    setLoading(false)
+    if (!silent) setLoading(false)
   }, [token, appId, loadActivity])
 
   // Reload just the tickets (used by live WS events — no loading spinner).
@@ -232,7 +232,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     try {
       await api(`/projects/${appId}/${action}`, token, { method: 'POST' })
       setProject(prev => prev ? { ...prev, status: action === 'play' ? 'running' : 'paused' } : prev)
-      loadProject()
+      loadProject(true) // silent — don't blank the board with a spinner
     } catch (err) { setError((err as Error).message) }
   }
 
@@ -245,7 +245,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     try {
       const result = await api(`/projects/${appId}/chat`, token, { method: 'POST', body: { message: text } }) as { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }
       setChat(prev => [...prev, { id: result.id, role: result.role as ChatMessage['role'], text: result.body, timestamp: result.createdAt, toolCall: result.toolCall }])
-      loadProject()
+      loadProject(true) // silent — keep the board/chat in place
     } catch (err) {
       setChat(prev => [...prev, { id: crypto.randomUUID(), role: 'system', text: `Error: ${(err as Error).message}`, timestamp: Date.now() }])
     }

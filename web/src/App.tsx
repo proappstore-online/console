@@ -84,6 +84,14 @@ async function fetchAgentProjects(token: string | null): Promise<{ slug: string;
 }
 
 /** Merge published apps (registry) with agent-teams projects, deduped by id. */
+/** Derive an app id/slug from a display name. Empty when the name has no
+ *  alphanumerics (caller should reject). Prefixes `app-` if it starts non-letter. */
+function deriveSlug(name: string): string {
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 56)
+  if (!id) return ''
+  return (/^[a-z]/.test(id) ? id : `app-${id}`).slice(0, 56)
+}
+
 function mergeApps(apps: AppEntry[], projects: { slug: string; name: string; createdAt: number }[]): AppEntry[] {
   const projSlugs = new Set(projects.map((p) => p.slug))
   const byId = new Map<string, AppEntry>()
@@ -229,9 +237,8 @@ export default function App() {
   // Create a new app = create its agent-teams project (slug = id), then land on
   // the app's Agents tab. The repo/hosting is built by the team afterward.
   const createApp = useCallback(async (name: string, idea: string): Promise<string | null> => {
-    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 56)
-    const slug = /^[a-z]/.test(id) ? id : `app-${id}`.slice(0, 56)
-    if (slug.length < 2) return 'Please enter a longer name.'
+    const slug = deriveSlug(name)
+    if (slug.length < 2) return 'Please use letters or numbers in the name.'
     try {
       const res = await fetch('https://agents.proappstore.online/v1/projects', {
         method: 'POST',
@@ -337,9 +344,9 @@ function NewAppModal({ onClose, onCreate }: { onClose: () => void; onCreate: (na
           placeholder="Chess Academy"
           className="block w-full rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-2.5 text-sm text-[var(--ink)] mb-1"
         />
-        {name.trim() && (
+        {deriveSlug(name) && (
           <p className="text-xs text-[var(--muted)] mb-3 font-mono">
-            {name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 56)}.proappstore.online
+            {deriveSlug(name)}.proappstore.online
           </p>
         )}
         <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wide mb-1 mt-2">Idea (optional)</label>
