@@ -74,8 +74,10 @@ export function Header({
 
         {onApp ? (
           // On an app page the nav becomes a project switcher + its controls.
-          <div className="flex items-center gap-1 flex-1 min-w-0">
-            <span className="text-[var(--muted)] select-none">/</span>
+          // overflow-x-auto: the 5-tab switcher can be wider than the row on
+          // small screens — let it scroll instead of shoving the avatar off.
+          <div className="flex items-center gap-1 flex-1 min-w-0 overflow-x-auto">
+            <span className="text-[var(--muted)] select-none flex-shrink-0">/</span>
             <ProjectSwitcher
               apps={apps}
               selectedAppId={selectedAppId!}
@@ -83,7 +85,7 @@ export function Header({
               onAllApps={() => onNavigate('dashboard')}
             />
             {/* Per-app workspace tabs: Research · Build · QA · Dev Ops · Settings */}
-            <div className="flex items-center rounded-lg border border-[var(--line-strong)] overflow-hidden ml-1">
+            <div className="flex items-center rounded-lg border border-[var(--line-strong)] overflow-hidden ml-1 flex-shrink-0">
               {APP_TABS.map((t, i) => (
                 <button
                   key={t.key}
@@ -102,7 +104,7 @@ export function Header({
               target="_blank"
               rel="noopener noreferrer"
               title="Open the live site"
-              className="flex items-center gap-1 rounded-lg border border-[var(--line-strong)] px-2.5 py-1 text-xs font-medium text-[var(--muted)] hover:text-[var(--ink)] transition-colors"
+              className="flex items-center gap-1 rounded-lg border border-[var(--line-strong)] px-2.5 py-1 text-xs font-medium text-[var(--muted)] hover:text-[var(--ink)] transition-colors flex-shrink-0"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
               <span className="hidden md:inline">Open</span>

@@ -19,15 +19,18 @@ import { NewAppModal } from './NewAppModal'
 // App
 // ---------------------------------------------------------------------------
 
-/** Parse the current location hash into view + optional param (DOM wrapper). */
-function parseHash(): { view: View; param: string | null } {
+/** Parse the current location hash into view + optional param + tab (DOM wrapper). */
+function parseHash(): { view: View; param: string | null; tab: AppTab | null } {
   return parseHashString(location.hash)
 }
 
-/** Update hash without triggering hashchange (DOM wrapper). */
-function setHash(view: View, param?: string | null) {
-  const target = hashFor(view, param)
-  if (location.hash !== target) history.pushState(null, '', target)
+/** Update hash without triggering hashchange (DOM wrapper). `replace` avoids
+ *  pushing a history entry — used for tab switches so Back doesn't cycle tabs. */
+function setHash(view: View, param?: string | null, tab?: AppTab | null, replace = false) {
+  const target = hashFor(view, param, tab)
+  if (location.hash === target) return
+  if (replace) history.replaceState(null, '', target)
+  else history.pushState(null, '', target)
 }
 
 export default function App() {
@@ -36,7 +39,7 @@ export default function App() {
   const initial = parseHash()
   const [view, setViewState] = useState<View>(initial.view)
   const [selectedAppId, setSelectedAppId] = useState<string | null>(initial.param)
-  const [appTab, setAppTab] = useState<AppTab>('build')
+  const [appTab, setAppTab] = useState<AppTab>(initial.tab ?? 'build')
   const [apps, setApps] = useState<AppEntry[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [showNewApp, setShowNewApp] = useState(false)
@@ -50,9 +53,12 @@ export default function App() {
   // Listen for back/forward navigation
   useEffect(() => {
     const onHashChange = () => {
-      const { view: v, param } = parseHash()
+      const { view: v, param, tab } = parseHash()
       setViewState(v)
-      if (v === 'app-detail' && param) setSelectedAppId(param)
+      if (v === 'app-detail' && param) {
+        setSelectedAppId(param)
+        if (tab) setAppTab(tab) // restore the deep-linked tab on back/forward
+      }
     }
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
@@ -90,8 +96,15 @@ export default function App() {
     setAppTab(tab)
     setSelectedAppId(id)
     setViewState('app-detail')
-    setHash('app-detail', id)
+    setHash('app-detail', id, tab)
   }, [])
+
+  // Switch the active per-app tab + reflect it in the URL (replace, so Back
+  // returns to the previous view rather than cycling through each tab).
+  const changeAppTab = useCallback((t: AppTab) => {
+    setAppTab(t)
+    if (selectedAppId) setHash('app-detail', selectedAppId, t, true)
+  }, [selectedAppId])
 
   // Create a new app = create its agent-teams project (slug = id), then land on
   // the app's Agents tab. The repo/hosting is built by the team afterward.
@@ -148,7 +161,7 @@ export default function App() {
         selectedAppId={selectedAppId}
         onOpenApp={openAppDetail}
         appTab={appTab}
-        onAppTab={setAppTab}
+        onAppTab={changeAppTab}
       />
       <main className={view === 'app-detail'
         ? 'flex-1 w-full px-3 py-3 sm:px-4'

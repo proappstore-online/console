@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Markdown } from './Markdown'
 import { api } from './agents/lib'
 
@@ -44,11 +44,9 @@ export function KbPreview({
   const [files, setFiles] = useState<KbFile[] | null>(null)
   const [selected, setSelected] = useState<string>('KNOWLEDGE.md')
   const [content, setContent] = useState<string>('')
-  const [loadingDoc, setLoadingDoc] = useState(false)
-  // Keep the latest selection in a ref so the content-load effect can read it
-  // without re-subscribing every time the user clicks a different doc.
-  const selectedRef = useRef(selected)
-  selectedRef.current = selected
+  // The doc that `content` currently belongs to. When it differs from `selected`
+  // (a fresh click), we show a loading state instead of the previous doc's body.
+  const [loadedPath, setLoadedPath] = useState<string | null>(null)
 
   const loadList = useCallback(async () => {
     if (!token) return
@@ -61,25 +59,31 @@ export function KbPreview({
     } catch { setFiles([]) }
   }, [token, appId])
 
-  const loadDoc = useCallback(async (path: string) => {
+  const loadDoc = useCallback(async (path: string, isStale: () => boolean) => {
     if (!token) return
-    setLoadingDoc(true)
     try {
       const r = await api(`/projects/${appId}/files/content?path=${encodeURIComponent(path)}`, token) as { content: string }
-      // Only apply if the user hasn't switched docs while this was in flight.
-      if (selectedRef.current === path) setContent(r.content)
+      if (isStale()) return // user switched docs / unmounted while this was in flight
+      setContent(r.content); setLoadedPath(path)
     } catch (err) {
-      if (selectedRef.current === path) setContent(`Could not load ${path}: ${(err as Error).message}`)
+      if (isStale()) return
+      setContent(`Could not load ${path}: ${(err as Error).message}`); setLoadedPath(path)
     }
-    setLoadingDoc(false)
   }, [token, appId])
 
   // (Re)load the file list on mount, and whenever the repo changes (version bump).
   useEffect(() => { loadList() }, [loadList, version])
 
   // Load the selected doc's content; re-load it on every version bump too, so the
-  // open doc updates live as the Architect rewrites it.
-  useEffect(() => { if (selected) loadDoc(selected) }, [selected, version, loadDoc])
+  // open doc updates live as the Architect rewrites it. The cancelled flag drops
+  // a stale/in-flight fetch when the user switches docs (or the component unmounts),
+  // so a slow earlier request can't clobber a newer one or set state after unmount.
+  useEffect(() => {
+    if (!selected) return
+    let cancelled = false
+    loadDoc(selected, () => cancelled)
+    return () => { cancelled = true }
+  }, [selected, version, loadDoc])
 
   // Slow poll as a safety net (WS push is the instant path). Paused when hidden.
   useEffect(() => {
@@ -154,7 +158,7 @@ export function KbPreview({
           </div>
           {/* Rendered doc */}
           <div className="flex-1 overflow-y-auto min-h-0 p-5">
-            {loadingDoc && !content
+            {selected !== loadedPath
               ? <p className="text-xs text-[var(--muted)]">Loading…</p>
               : <div className="text-sm"><Markdown>{content}</Markdown></div>}
           </div>

@@ -39,21 +39,27 @@ const VALID_VIEWS: View[] = [
   'dashboard', 'app-detail', 'publish', 'payouts', 'subscription', 'admin', 'profile', 'ui-library',
 ]
 
-/** Parse a location hash (e.g. `#/apps/foo`) into a view + optional param. */
-export function parseHash(rawHash: string): { view: View; param: string | null } {
+/** Parse a location hash into a view + optional app slug + optional app tab.
+ *  App routes are `#/apps/<slug>` or `#/apps/<slug>/<tab>` (tab deep-links the
+ *  per-app workspace). `tab` is null when absent or not a recognized tab. */
+export function parseHash(rawHash: string): { view: View; param: string | null; tab: AppTab | null } {
   const hash = rawHash.replace(/^#\/?/, '')
-  if (!hash || hash === 'dashboard') return { view: 'dashboard', param: null }
+  if (!hash || hash === 'dashboard') return { view: 'dashboard', param: null, tab: null }
   if (hash.startsWith('apps/')) {
-    const param = hash.slice(5)
-    return param ? { view: 'app-detail', param } : { view: 'dashboard', param: null }
+    const [param, maybeTab] = hash.slice(5).split('/')
+    if (!param) return { view: 'dashboard', param: null, tab: null }
+    const tab = APP_TABS.some((t) => t.key === maybeTab) ? (maybeTab as AppTab) : null
+    return { view: 'app-detail', param, tab }
   }
-  if (VALID_VIEWS.includes(hash as View)) return { view: hash as View, param: null }
-  return { view: 'dashboard', param: null }
+  if (VALID_VIEWS.includes(hash as View)) return { view: hash as View, param: null, tab: null }
+  return { view: 'dashboard', param: null, tab: null }
 }
 
-/** Build the hash string for a view (inverse of parseHash). */
-export function hashFor(view: View, param?: string | null): string {
-  const path = view === 'app-detail' && param ? `apps/${param}` : view === 'dashboard' ? '' : view
+/** Build the hash string for a view (inverse of parseHash). A tab is appended
+ *  only for app-detail routes that carry one. */
+export function hashFor(view: View, param?: string | null, tab?: AppTab | null): string {
+  if (view === 'app-detail' && param) return tab ? `#/apps/${param}/${tab}` : `#/apps/${param}`
+  const path = view === 'dashboard' ? '' : view
   return path ? `#/${path}` : '#/'
 }
 
