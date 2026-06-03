@@ -17,6 +17,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   const [project, setProject] = useState<Project | null>(null)
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [chat, setChat] = useState<ChatMessage[]>([])
+  const [kbChat, setKbChat] = useState<ChatMessage[]>([]) // 'research' thread (Architect)
   const [activity, setActivity] = useState<ActivityEntry[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -52,9 +53,16 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   const [filesVersion, setFilesVersion] = useState(0)
   const token = getToken()
 
+  // Two separate chat threads with two separate agents: Research → the Architect
+  // (Knowledge Base), Build → the PO (backlog). The visible tab picks which one
+  // the chat panel reads + sends to.
+  const activeThread: 'research' | 'build' = tab === 'research' ? 'research' : 'build'
+  const chatMessages = activeThread === 'research' ? kbChat : chat
+  const setActiveChat = activeThread === 'research' ? setKbChat : setChat
+
   // Best-practice chat scroll: auto-stick to bottom only when already there,
   // otherwise surface a "N new" pill instead of yanking the view.
-  const chatScroll = useStickToBottom(chat.length)
+  const chatScroll = useStickToBottom(chatMessages.length)
   const actScroll = useStickToBottom(activity.length)
 
   // Activity is persisted server-side (DB), loaded here — no client-only log.
@@ -78,11 +86,14 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
       setNotStarted(false)
       const t = await api(`/projects/${appId}/tickets`, token) as { tickets: Ticket[] }
       setTickets(t.tickets)
-      try {
-        const h = await api(`/projects/${appId}/chat/history`, token) as { messages: { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }[] }
-        const next = h.messages.map(m => ({ id: m.id, role: m.role as ChatMessage['role'], text: m.body, timestamp: m.createdAt, toolCall: m.toolCall }))
-        setChat(prev => mergeServerChat(prev, next))
-      } catch { /* no history yet */ }
+      // Load both chat threads (build = PO, research = Architect/KB).
+      await Promise.all((['build', 'research'] as const).map(async (thread) => {
+        try {
+          const h = await api(`/projects/${appId}/chat/history?thread=${thread}`, token) as { messages: { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }[] }
+          const next = h.messages.map(m => ({ id: m.id, role: m.role as ChatMessage['role'], text: m.body, timestamp: m.createdAt, toolCall: m.toolCall }))
+          ;(thread === 'research' ? setKbChat : setChat)(prev => mergeServerChat(prev, next))
+        } catch { /* no history yet */ }
+      }))
       await loadActivity()
     } catch (err) {
       const msg = (err as Error).message
@@ -112,13 +123,13 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
     } catch (err) { setError((err as Error).message) }
   }, [token, appId])
 
-  // Clear the founder↔PO chat (tickets are untouched).
-  const clearChat = useCallback(async () => {
+  // Clear the active chat thread (build = PO, research = KB). Tickets untouched.
+  const clearChat = async () => {
     if (!token) return
-    if (!confirm('Clear the chat history? Tickets and the board are not affected.')) return
-    try { await api(`/projects/${appId}/chat/history`, token, { method: 'DELETE' }); setChat([]) }
+    if (!confirm('Clear this chat thread? Tickets, the board, and the other chat are not affected.')) return
+    try { await api(`/projects/${appId}/chat/history?thread=${activeThread}`, token, { method: 'DELETE' }); setActiveChat([]) }
     catch (err) { setError((err as Error).message) }
-  }, [token, appId])
+  }
 
   // Clear the activity trail (audit log) to start fresh.
   const clearActivity = useCallback(async () => {
@@ -142,16 +153,19 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   // polling from re-rendering (and re-scrolling) the chat on every tick.
   const refreshChat = useCallback(async () => {
     if (!token) return
-    try {
-      const h = await api(`/projects/${appId}/chat/history`, token) as { messages: { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }[] }
-      const next = h.messages.map(m => ({ id: m.id, role: m.role as ChatMessage['role'], text: m.body, timestamp: m.createdAt, toolCall: m.toolCall }))
-      setChat(prev => {
-        const merged = mergeServerChat(prev, next)
-        // Skip the state swap when nothing changed, so polling doesn't re-render
-        // (and re-scroll) the chat every tick.
-        return (merged.length === prev.length && merged[merged.length - 1]?.id === prev[prev.length - 1]?.id) ? prev : merged
-      })
-    } catch { /* ignore */ }
+    // Refresh BOTH threads so the other tab's chat is current when you switch.
+    await Promise.all((['build', 'research'] as const).map(async (thread) => {
+      const setFn = thread === 'research' ? setKbChat : setChat
+      try {
+        const h = await api(`/projects/${appId}/chat/history?thread=${thread}`, token) as { messages: { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }[] }
+        const next = h.messages.map(m => ({ id: m.id, role: m.role as ChatMessage['role'], text: m.body, timestamp: m.createdAt, toolCall: m.toolCall }))
+        setFn(prev => {
+          const merged = mergeServerChat(prev, next)
+          // Skip the swap when nothing changed, so polling doesn't re-render/re-scroll.
+          return (merged.length === prev.length && merged[merged.length - 1]?.id === prev[prev.length - 1]?.id) ? prev : merged
+        })
+      } catch { /* ignore */ }
+    }))
   }, [token, appId])
 
   // Pull the full live state in one shot. Used on WS (re)connect to catch up on
@@ -350,7 +364,8 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
           case 'chat': {
             if (d.role === 'user') break // sender already shows it optimistically
             const id = String(d.id ?? crypto.randomUUID())
-            setChat(prev => prev.some(m => m.id === id) ? prev : [...prev, { id, role: d.role as ChatMessage['role'], text: String(d.body ?? ''), timestamp: Date.now(), toolCall: d.toolCall as ChatMessage['toolCall'] }])
+            const setFn = d.thread === 'research' ? setKbChat : setChat // route to the right thread
+            setFn(prev => prev.some(m => m.id === id) ? prev : [...prev, { id, role: d.role as ChatMessage['role'], text: String(d.body ?? ''), timestamp: Date.now(), toolCall: d.toolCall as ChatMessage['toolCall'] }])
             break
           }
           case 'transition':
@@ -374,7 +389,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
             if (fileListOpenRef.current) loadFileList()
             break
           case 'chat-cleared':
-            setChat([])
+            (d.thread === 'research' ? setKbChat : setChat)([])
             break
           case 'activity-cleared':
             setActivity([])
@@ -476,21 +491,23 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   const sendMessage = async () => {
     if (!token || !input.trim()) return
     const text = input.trim()
+    const thread = activeThread
+    const apply = thread === 'research' ? setKbChat : setChat
     setInput('')
     setSending(true)
     // Show it immediately (optimistic). `pending` keeps it on screen through any
     // racing server refetch until the server echoes it.
-    setChat(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, timestamp: Date.now(), pending: true }])
+    apply(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, timestamp: Date.now(), pending: true }])
     try {
-      const result = await api(`/projects/${appId}/chat`, token, { method: 'POST', body: { message: text } }) as { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }
-      // Append the PO reply (dedupe in case the WS push already delivered it).
-      setChat(prev => prev.some(m => m.id === result.id) ? prev : [...prev, { id: result.id, role: result.role as ChatMessage['role'], text: result.body, timestamp: result.createdAt, toolCall: result.toolCall }])
-      // Refresh the board/activity (the PO may have filed a ticket) — but NOT the
-      // chat: it's already current, and reloading it could blink the message out.
-      refreshTickets()
-      loadActivity()
+      const result = await api(`/projects/${appId}/chat`, token, { method: 'POST', body: { message: text, thread } }) as { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }
+      // Append the agent reply (dedupe in case the WS push already delivered it).
+      apply(prev => prev.some(m => m.id === result.id) ? prev : [...prev, { id: result.id, role: result.role as ChatMessage['role'], text: result.body, timestamp: result.createdAt, toolCall: result.toolCall }])
+      // The research (KB) agent may have written KB files; refresh the preview.
+      if (thread === 'research') setFilesVersion(v => v + 1)
+      // The PO may have filed a ticket → refresh the board/activity (build only).
+      else { refreshTickets(); loadActivity() }
     } catch (err) {
-      setChat(prev => [...prev, { id: crypto.randomUUID(), role: 'system', text: `Error: ${(err as Error).message}`, timestamp: Date.now() }])
+      apply(prev => [...prev, { id: crypto.randomUUID(), role: 'system', text: `Error: ${(err as Error).message}`, timestamp: Date.now() }])
     }
     setSending(false)
   }
@@ -531,12 +548,13 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
 
   return (
     <div className="flex flex-col lg:flex-row gap-3 h-[calc(100dvh-120px)]">
-      {/* RESEARCH: Chat (brainstorm) + live Knowledge Base preview */}
-      {tab === 'research' && (
+      {/* Chat panel — one per tab, bound to its own thread/agent: Research → the
+          Architect (KB), Build → the PO (backlog). Rendered for both tabs. */}
+      {(tab === 'research' || tab === 'build') && (
       <div className="flex flex-col lg:w-[360px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
         <div className="px-3 py-2 border-b border-[var(--line)] flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <h3 className="text-sm font-bold text-[var(--ink)]">Chat</h3>
+            <h3 className="text-sm font-bold text-[var(--ink)]">{activeThread === 'research' ? 'KB chat · Architect' : 'Chat · PO'}</h3>
             <button type="button" onClick={() => setShowInfo(true)}
               className="text-[var(--muted)] hover:text-[var(--accent)] transition-colors"
               title="How the agent team works">
@@ -545,25 +563,27 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
           </div>
           <div className="flex items-center gap-1">
             <CopyBtn label="ID" getData={() => JSON.stringify({ projectId: project?.id, slug: appId, name: project?.name })} />
-            <InlineCopy title="Copy chat as JSON" text={JSON.stringify(chat.map(m => ({ role: m.role, text: m.text, time: new Date(m.timestamp).toISOString(), ...(m.toolCall ? { tool: m.toolCall } : {}) })), null, 2)} />
+            <InlineCopy title="Copy chat as JSON" text={JSON.stringify(chatMessages.map(m => ({ role: m.role, text: m.text, time: new Date(m.timestamp).toISOString(), ...(m.toolCall ? { tool: m.toolCall } : {}) })), null, 2)} />
             <button type="button" onClick={clearChat} title="Clear chat history"
               className="text-[10px] text-[var(--muted)] hover:text-[var(--error)] px-1.5 py-0.5 rounded border border-[var(--line)] hover:border-[var(--error)] transition-colors">Clear</button>
           </div>
         </div>
         <div className="relative flex-1 min-h-0">
           <div ref={chatScroll.ref} onScroll={chatScroll.onScroll} className="absolute inset-0 overflow-y-auto p-4 space-y-3">
-            {chat.length === 0 && (
+            {chatMessages.length === 0 && (
               <p className="text-xs text-[var(--muted)] text-center py-8">
-                Start typing. Describe what you want built, ask questions, give feedback.
+                {activeThread === 'research'
+                  ? 'Brainstorm what this app is with the Architect. It researches and writes the Knowledge Base (KNOWLEDGE.md + docs/) — it does not build features.'
+                  : 'Describe what you want built, ask questions, give feedback. The PO turns it into tickets the team builds.'}
               </p>
             )}
-            {chat.length > chatLimit && (
+            {chatMessages.length > chatLimit && (
               <button type="button" onClick={chatMore}
                 className="block mx-auto mb-1 text-xs text-[var(--accent)] hover:underline">
-                Load previous 20 ({chat.length - chatLimit} older)
+                Load previous 20 ({chatMessages.length - chatLimit} older)
               </button>
             )}
-            {chat.slice(-chatLimit).map(msg => (
+            {chatMessages.slice(-chatLimit).map(msg => (
               <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[85%] rounded-xl px-3 py-2 ${
                   msg.role === 'user' ? 'bg-[var(--accent)] text-white'
@@ -584,7 +604,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
                   <div className="flex items-center gap-2 mt-1 text-[10px]">
                     <span className="opacity-50">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     {msg.role !== 'system' && <InlineCopy text={msg.text} title="Copy message" />}
-                    {msg.role !== 'system' && (
+                    {msg.role !== 'system' && activeThread === 'build' && (
                       <button type="button" onClick={() => convertToTicket(msg.text)}
                         title="Create a ticket from this message"
                         className="inline-flex items-center gap-0.5 opacity-50 hover:opacity-100 transition-opacity font-semibold">
@@ -611,7 +631,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
-              placeholder="Describe what you want..."
+              placeholder={activeThread === 'research' ? 'Brainstorm the app / shape the KB…' : 'Describe what you want built…'}
               disabled={sending}
               className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3 py-2.5 text-sm text-[var(--ink)] disabled:opacity-50"
             />
