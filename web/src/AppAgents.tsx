@@ -700,6 +700,11 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
                 title="The team's memory — durable decisions & facts">
                 Memory
               </button>
+              <button type="button" onClick={() => openFile('KNOWLEDGE.md')}
+                className="text-[10px] px-1.5 py-0.5 rounded border border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--accent)] transition-colors"
+                title="The project Knowledge Base the Architect wrote (the team's source of truth)">
+                KB
+              </button>
               <button type="button" onClick={toggleFileList}
                 className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
                   fileList ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--accent)]'
