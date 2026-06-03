@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 interface VcqaIssue {
   severity: string
@@ -25,6 +25,19 @@ interface VcqaReport {
 
 interface Props {
   appId: string
+  /** When true, render as a full Dev Ops tab: poll for fresh scans + refresh control. */
+  live?: boolean
+}
+
+// Human "x ago" for the last-scanned line.
+function ago(ms: number): string {
+  const s = Math.max(0, Math.round((Date.now() - ms) / 1000))
+  if (s < 60) return 'just now'
+  const m = Math.round(s / 60)
+  if (m < 60) return `${m}m ago`
+  const h = Math.round(m / 60)
+  if (h < 24) return `${h}h ago`
+  return `${Math.round(h / 24)}d ago`
 }
 
 const gradeColor = (g: string) => {
@@ -34,26 +47,57 @@ const gradeColor = (g: string) => {
   return 'var(--error, #dc2626)'
 }
 
-export function CodeHealth({ appId }: Props) {
+export function CodeHealth({ appId, live = false }: Props) {
   const [report, setReport] = useState<VcqaReport | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [fetchedAt, setFetchedAt] = useState<number | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [badgeError, setBadgeError] = useState(false)
 
-  useEffect(() => {
-    fetch(`https://${appId}.proappstore.online/.vcqa/report.json`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => setReport(data as VcqaReport | null))
-      .catch(() => {})
-      .finally(() => setLoading(false))
+  const load = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      // Cache-bust so a fresh post-deploy scan shows up immediately.
+      const r = await fetch(`https://${appId}.proappstore.online/.vcqa/report.json?t=${Date.now()}`, { cache: 'no-store' })
+      const data = r.ok ? (await r.json()) as VcqaReport : null
+      if (data) { setReport(data); setBadgeError(false) }
+      setFetchedAt(Date.now())
+    } catch { /* keep the last good report */ }
+    setRefreshing(false)
+    setLoading(false)
   }, [appId])
 
-  if (loading) return null
+  useEffect(() => { load() }, [load])
+
+  // Live mode: poll for a fresh scan + refresh on tab focus. A deploy's scan can
+  // land minutes after the push, so we keep checking. Paused while hidden.
+  useEffect(() => {
+    if (!live) return
+    const id = setInterval(() => { if (!document.hidden) load() }, 20000)
+    const onVisible = () => { if (!document.hidden) load() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible) }
+  }, [live, load])
+
+  if (loading) return live
+    ? <p className="py-12 text-center text-sm text-[var(--muted)]">Loading code health…</p>
+    : null
   if (!report) {
     return (
       <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-5">
-        <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide mb-2">Code Health</h3>
-        <p className="text-sm text-[var(--muted)]">No scan data yet. Code health runs automatically on each deploy.</p>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide">Code Health</h3>
+          {live && (
+            <button type="button" onClick={load} disabled={refreshing}
+              className="text-[11px] text-[var(--muted)] hover:text-[var(--ink)] px-2 py-0.5 rounded border border-[var(--line)] hover:border-[var(--accent)] disabled:opacity-50">
+              {refreshing ? 'Checking…' : 'Refresh'}
+            </button>
+          )}
+        </div>
+        <p className="text-sm text-[var(--muted)]">
+          No scan data yet. Code health runs automatically on each deploy{live ? ' — this checks for a fresh report every few seconds.' : '.'}
+        </p>
       </div>
     )
   }
@@ -63,12 +107,25 @@ export function CodeHealth({ appId }: Props) {
 
   return (
     <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-5">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
         <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide">Code Health</h3>
-        <span className="text-xs text-[var(--muted)]">
-          via <a href="https://vibecodeqa.online" target="_blank" rel="noopener noreferrer" className="text-[var(--accent)]">vcqa</a>
-          {report.timestamp && ` · ${new Date(report.timestamp).toLocaleDateString()}`}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-[var(--muted)]">
+            via <a href="https://vibecodeqa.online" target="_blank" rel="noopener noreferrer" className="text-[var(--accent)]">vcqa</a>
+            {report.timestamp && ` · scanned ${new Date(report.timestamp).toLocaleDateString()}`}
+            {live && fetchedAt && ` · checked ${ago(fetchedAt)}`}
+          </span>
+          {live && (
+            <button type="button" onClick={load} disabled={refreshing}
+              className="flex items-center gap-1 text-[11px] text-[var(--muted)] hover:text-[var(--ink)] px-2 py-0.5 rounded border border-[var(--line)] hover:border-[var(--accent)] disabled:opacity-50"
+              title="Re-fetch the latest scan">
+              {refreshing
+                ? <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                : <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>}
+              {refreshing ? 'Checking…' : 'Refresh'}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-4 mb-4">

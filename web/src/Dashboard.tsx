@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react'
 import type { User, Subscription } from '@proappstore/sdk'
 import { pro } from './sdk'
-import type { AppEntry } from './nav'
+import type { AppEntry, AppTab } from './nav'
 import { fetchOwnerSummary, formatNumber, type OwnerSummary } from './usage'
 import { PlanBadge, StatCard, AppStatusBadge } from './dashboardShared'
 
@@ -14,7 +14,7 @@ export function Dashboard({
 }: {
   user: User
   apps: AppEntry[]
-  onOpenApp: (id: string, tab?: 'overview' | 'agents') => void
+  onOpenApp: (id: string, tab?: AppTab) => void
   onPublishNew: () => void
   onNewApp: () => void
 }) {
@@ -108,7 +108,7 @@ export function Dashboard({
             {apps.map((a) => (
               <button
                 key={a.id}
-                onClick={() => onOpenApp(a.id, 'agents')}
+                onClick={() => onOpenApp(a.id, 'build')}
                 className="text-left rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4 hover:bg-[var(--panel-hover)] shadow-sm"
               >
                 <div className="flex items-center justify-between gap-2">

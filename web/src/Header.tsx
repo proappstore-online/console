@@ -5,7 +5,8 @@
 import { useState, useEffect, useRef } from 'react'
 import type { User } from '@proappstore/sdk'
 import { pro } from './sdk'
-import type { View, AppEntry } from './nav'
+import type { View, AppEntry, AppTab } from './nav'
+import { APP_TABS } from './nav'
 import { GitHubIcon } from './dashboardShared'
 
 export function Landing() {
@@ -43,7 +44,7 @@ const TABS: { key: View; label: string }[] = [
 ]
 
 export function Header({
-  user, view, onNavigate, isAdmin, apps, selectedAppId, onOpenApp, settingsOpen, onToggleSettings,
+  user, view, onNavigate, isAdmin, apps, selectedAppId, onOpenApp, appTab, onAppTab,
 }: {
   user: User
   view: View
@@ -51,9 +52,9 @@ export function Header({
   isAdmin: boolean
   apps: AppEntry[]
   selectedAppId: string | null
-  onOpenApp: (id: string, tab?: 'overview' | 'agents') => void
-  settingsOpen: boolean
-  onToggleSettings: () => void
+  onOpenApp: (id: string, tab?: AppTab) => void
+  appTab: AppTab
+  onAppTab: (t: AppTab) => void
 }) {
   const tabs: { key: View; label: string }[] = isAdmin
     ? [...TABS.slice(0, -1), { key: 'admin', label: 'Admin' }, TABS[TABS.length - 1]!]
@@ -81,17 +82,21 @@ export function Header({
               onOpenApp={onOpenApp}
               onAllApps={() => onNavigate('dashboard')}
             />
-            <button
-              type="button"
-              onClick={onToggleSettings}
-              title="Project settings (listing, domains, roles, danger zone)"
-              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors ${
-                settingsOpen ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-[var(--line-strong)] text-[var(--muted)] hover:text-[var(--ink)]'
-              }`}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-              <span className="hidden sm:inline">Settings</span>
-            </button>
+            {/* Per-app workspace tabs: Research · Build · QA · Dev Ops · Settings */}
+            <div className="flex items-center rounded-lg border border-[var(--line-strong)] overflow-hidden ml-1">
+              {APP_TABS.map((t, i) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => onAppTab(t.key)}
+                  className={`px-2.5 py-1 text-xs font-semibold transition-colors whitespace-nowrap ${i > 0 ? 'border-l border-[var(--line-strong)]' : ''} ${
+                    appTab === t.key ? 'bg-[var(--accent)] text-white' : 'text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--panel-hover)]'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
             <a
               href={`https://${selectedAppId}.proappstore.online`}
               target="_blank"
@@ -144,7 +149,7 @@ function ProjectSwitcher({
 }: {
   apps: AppEntry[]
   selectedAppId: string
-  onOpenApp: (id: string, tab?: 'overview' | 'agents') => void
+  onOpenApp: (id: string, tab?: AppTab) => void
   onAllApps: () => void
 }) {
   const [open, setOpen] = useState(false)
@@ -184,7 +189,7 @@ function ProjectSwitcher({
             <button
               key={a.id}
               type="button"
-              onClick={() => { setOpen(false); if (a.id !== selectedAppId) onOpenApp(a.id, 'agents') }}
+              onClick={() => { setOpen(false); if (a.id !== selectedAppId) onOpenApp(a.id, 'build') }}
               className={`flex items-center justify-between gap-2 w-full px-3 py-2 text-sm hover:bg-[var(--panel-hover)] ${
                 a.id === selectedAppId ? 'text-[var(--ink)] font-semibold' : 'text-[var(--muted)] hover:text-[var(--ink)]'
               }`}

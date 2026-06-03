@@ -5,6 +5,7 @@ import { DbBrowser } from './DbBrowser'
 import { WebhooksManager } from './WebhooksManager'
 import { CodeHealth } from './CodeHealth'
 import { AppAgents } from './AppAgents'
+import type { AppTab } from './nav'
 import {
   BrandingSection, ListingCopySection, ScreenshotsSection, DeveloperSection,
   SocialSection, LegalSection, UsageSection, AnalyticsSection, DomainsSection,
@@ -16,17 +17,17 @@ interface Props {
   appName: string | null
   getToken: () => string | null
   onDelete: () => Promise<void>
-  /** Settings vs. agents workspace is controlled from the navbar switcher. */
-  settingsOpen: boolean
+  /** Which per-app workspace tab is active (navbar switcher). */
+  tab: AppTab
 }
 
-export function AppDetail({ appId, appName, getToken, onDelete, settingsOpen }: Props) {
+export function AppDetail({ appId, appName, getToken, onDelete, tab }: Props) {
   const [listing, setListing] = useState<Listing | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const showSettings = settingsOpen
+  const showSettings = tab === 'settings'
 
   useEffect(() => {
     let cancelled = false
@@ -45,9 +46,25 @@ export function AppDetail({ appId, appName, getToken, onDelete, settingsOpen }: 
 
   return (
     <div className="space-y-3">
-      {/* Navbar owns the project switcher / Settings toggle / live link now. */}
-      {!showSettings && (
-        <AppAgents appId={appId} appName={appName} getToken={getToken} />
+      {/* Navbar owns the project switcher / tab switcher / live link.
+          Research + Build share ONE AppAgents instance (kept mounted across the
+          switch so its WebSocket + state survive) — it just renders chat+KB vs
+          kanban+activity based on `tab`. */}
+      {(tab === 'research' || tab === 'build') && (
+        <AppAgents appId={appId} appName={appName} getToken={getToken} tab={tab} />
+      )}
+
+      {tab === 'qa' && <QaTab appName={appName ?? appId} />}
+
+      {tab === 'devops' && (
+        <div className="max-w-4xl space-y-3">
+          <h2 className="display-font text-lg font-bold text-[var(--ink)]">{appName ?? appId} — Dev Ops</h2>
+          <p className="text-sm text-[var(--muted)]">
+            Automated code-health scan (<a href="https://vibecodeqa.online" target="_blank" rel="noopener noreferrer" className="text-[var(--accent)]">VCQA</a>),
+            re-run on every deploy. Live — this refreshes itself.
+          </p>
+          <CodeHealth appId={appId} live />
+        </div>
       )}
 
       {showSettings && (
@@ -76,7 +93,6 @@ export function AppDetail({ appId, appName, getToken, onDelete, settingsOpen }: 
           <LegalSection appId={appId} listing={listing} update={update} getToken={getToken} />
           <RolesManager appId={appId} getToken={getToken} />
           <WebhooksManager appId={appId} getToken={getToken} />
-          <CodeHealth appId={appId} />
           <DbBrowser appId={appId} getToken={getToken} />
 
           <div className="rounded-2xl border border-[var(--error)]/30 bg-[var(--panel)] p-6">
@@ -122,6 +138,27 @@ export function AppDetail({ appId, appName, getToken, onDelete, settingsOpen }: 
         </aside>
       </div>
       )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// QA tab — automated QA is a future feature; this is the placeholder for now.
+// ---------------------------------------------------------------------------
+
+function QaTab({ appName }: { appName: string }) {
+  return (
+    <div className="max-w-2xl mx-auto py-16 text-center space-y-4">
+      <span className="text-4xl">🧪</span>
+      <h2 className="display-font text-xl font-bold text-[var(--ink)]">Automated QA</h2>
+      <p className="text-sm text-[var(--muted)] max-w-lg mx-auto">
+        Hands-off quality gates for <strong>{appName}</strong> — automated end-to-end runs,
+        visual regression, and accessibility checks on every deploy. Coming soon.
+      </p>
+      <p className="text-xs text-[var(--muted)]">
+        Today, the QA agent reviews each build inside the <strong>Build</strong> tab, and
+        code-health scans live under <strong>Dev Ops</strong>.
+      </p>
     </div>
   )
 }

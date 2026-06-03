@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Markdown } from './Markdown'
+import { KbPreview } from './KbPreview'
 import { CodeView } from './CodeView'
 import { useStickToBottom } from './useStickToBottom'
 import { api, fileRefsFromActivity, prettyForDisplay, mergeServerChat } from './agents/lib'
@@ -12,7 +13,7 @@ import type { Ticket, Project, ChatMessage, ActivityEntry } from './agents/types
 // The agent team for ONE app. The agent-teams project slug IS the app id, so
 // this is scoped by appId — no localStorage, no separate project picker.
 
-export function AppAgents({ appId, appName, getToken }: { appId: string; appName?: string | null; getToken: () => string | null }) {
+export function AppAgents({ appId, appName, getToken, tab }: { appId: string; appName?: string | null; getToken: () => string | null; tab: 'research' | 'build' }) {
   const [project, setProject] = useState<Project | null>(null)
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [chat, setChat] = useState<ChatMessage[]>([])
@@ -46,6 +47,9 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
   // Live "an agent is working right now" signal — set by run/heartbeat/tool WS
   // events, auto-cleared by a staleness check (see effect below). null = idle.
   const [agentWork, setAgentWork] = useState<{ role: string; at: number } | null>(null)
+  // Bumped on every `files-synced` event so the live KB preview (Research tab)
+  // refetches as the Architect writes — without holding the file list in memory here.
+  const [filesVersion, setFilesVersion] = useState(0)
   const token = getToken()
 
   // Best-practice chat scroll: auto-stick to bottom only when already there,
@@ -366,6 +370,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
             if (memOpenRef.current) loadMemory()
             break
           case 'files-synced':
+            setFilesVersion(v => v + 1) // drive the live KB preview (Research tab)
             if (fileListOpenRef.current) loadFileList()
             break
           case 'chat-cleared':
@@ -526,7 +531,8 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
 
   return (
     <div className="flex flex-col lg:flex-row gap-3 h-[calc(100dvh-120px)]">
-      {/* LEFT: Chat */}
+      {/* RESEARCH: Chat (brainstorm) + live Knowledge Base preview */}
+      {tab === 'research' && (
       <div className="flex flex-col lg:w-[360px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
         <div className="px-3 py-2 border-b border-[var(--line)] flex items-center justify-between">
           <div className="flex items-center gap-1.5">
@@ -619,8 +625,23 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
           </div>
         </div>
       </div>
+      )}
 
-      {/* RIGHT: Kanban + Activity */}
+      {/* RESEARCH: live Knowledge Base preview (Architect's KNOWLEDGE.md + docs/) */}
+      {tab === 'research' && (
+        <KbPreview
+          appId={appId}
+          token={token}
+          version={filesVersion}
+          kbStarted={kbStarted}
+          building={buildingKb}
+          onBuildKb={buildKB}
+          working={agentWork}
+        />
+      )}
+
+      {/* BUILD: Kanban + Activity */}
+      {tab === 'build' && (
       <div className="flex-1 flex flex-col gap-3 min-w-0">
         <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
           <div className="flex items-center justify-between mb-3">
@@ -634,14 +655,6 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
                       : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200'
                   }`}>
                   {project.status === 'running' ? (<><span>&#9646;&#9646;</span> Pause</>) : (<><span>&#9654;</span> Play</>)}
-                </button>
-              )}
-              {/* Brainstorm-first: build the KB once, when the founder is ready. */}
-              {project && !kbStarted && (
-                <button type="button" onClick={buildKB} disabled={buildingKb}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 hover:bg-teal-200 disabled:opacity-50 transition-colors"
-                  title="Have the Architect research the app + write the Knowledge Base (once). Brainstorm in chat first; building starts when you ask the PO to build.">
-                  {buildingKb ? 'Starting…' : '📖 Build KB'}
                 </button>
               )}
               {/* Live working/idle indicator — so the founder knows whether an agent
@@ -804,13 +817,14 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
           </div>
         </div>
       </div>
+      )}
 
-      {/* INSPECTOR (right): memory → file preview → file browser → ticket detail */}
-      {memory !== null && !filePreview && (
+      {/* INSPECTOR (right, Build only): memory → file preview → file browser → ticket detail */}
+      {tab === 'build' && memory !== null && !filePreview && (
         <MemoryPanel entries={memory} onAdd={addMemory} onDelete={deleteMemory} onClose={() => { setMemory(null); memOpenRef.current = false }} />
       )}
 
-      {filePreview && (
+      {tab === 'build' && filePreview && (
         <div className="flex flex-col lg:w-[460px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
           <div className="px-4 py-2.5 border-b border-[var(--line)] flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 min-w-0">
@@ -845,7 +859,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
         </div>
       )}
 
-      {!filePreview && fileList && (
+      {tab === 'build' && !filePreview && fileList && (
         <div className="flex flex-col lg:w-[300px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
           <div className="px-4 py-2.5 border-b border-[var(--line)] flex items-center justify-between">
             <h3 className="text-sm font-bold text-[var(--ink)]">Files {fileList.length > 0 && <span className="text-[var(--muted)] font-normal">({fileList.length})</span>}</h3>
@@ -881,7 +895,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
       )}
 
       {/* DETAIL: ticket panel (right of the board) */}
-      {!filePreview && !fileList && selTicket && (
+      {tab === 'build' && !filePreview && !fileList && selTicket && (
         <div className="flex flex-col lg:w-[380px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
           <div className="px-4 py-3 border-b border-[var(--line)] flex items-start justify-between gap-2">
             <div className="min-w-0">

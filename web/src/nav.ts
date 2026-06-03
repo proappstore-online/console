@@ -4,6 +4,22 @@ export type View =
   | 'dashboard' | 'app-detail' | 'publish' | 'payouts'
   | 'subscription' | 'admin' | 'profile' | 'ui-library'
 
+// Per-app workspace tabs, shown next to the project switcher in the navbar.
+//  - research: brainstorm chat + live Knowledge Base preview
+//  - build:    the agent kanban + activity feed
+//  - qa:       automated QA (future)
+//  - devops:   the live VCQA code-health dashboard
+//  - settings: listing / domains / roles / danger zone
+export type AppTab = 'research' | 'build' | 'qa' | 'devops' | 'settings'
+
+export const APP_TABS: { key: AppTab; label: string }[] = [
+  { key: 'research', label: 'Research' },
+  { key: 'build', label: 'Build' },
+  { key: 'qa', label: 'QA' },
+  { key: 'devops', label: 'Dev Ops' },
+  { key: 'settings', label: 'Settings' },
+]
+
 export interface AppEntry {
   id: string
   name: string

@@ -8,7 +8,7 @@ import { AppDetail } from './AppDetail'
 import { AdminView } from './AdminView'
 import { UILibraryView } from './UILibraryView'
 
-import { type View, type AppEntry, parseHash as parseHashString, hashFor, deriveSlug, mergeApps } from './nav'
+import { type View, type AppEntry, type AppTab, parseHash as parseHashString, hashFor, deriveSlug, mergeApps } from './nav'
 import { fetchApps, fetchAgentProjects, deleteAppApi, fetchIsAdmin } from './appsApi'
 import { Landing, Header } from './Header'
 import { Dashboard } from './Dashboard'
@@ -36,7 +36,7 @@ export default function App() {
   const initial = parseHash()
   const [view, setViewState] = useState<View>(initial.view)
   const [selectedAppId, setSelectedAppId] = useState<string | null>(initial.param)
-  const [appSettingsOpen, setAppSettingsOpen] = useState(false)
+  const [appTab, setAppTab] = useState<AppTab>('build')
   const [apps, setApps] = useState<AppEntry[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [showNewApp, setShowNewApp] = useState(false)
@@ -44,7 +44,7 @@ export default function App() {
   // Sync view to hash
   const setView = useCallback((v: View) => {
     setViewState(v)
-    if (v !== 'app-detail') { setAppSettingsOpen(false); setHash(v) }
+    if (v !== 'app-detail') { setHash(v) }
   }, [])
 
   // Listen for back/forward navigation
@@ -86,8 +86,8 @@ export default function App() {
     return () => { cancelled = true }
   }, [user])
 
-  const openAppDetail = useCallback((id: string, tab: 'overview' | 'agents' = 'agents') => {
-    setAppSettingsOpen(tab === 'overview')
+  const openAppDetail = useCallback((id: string, tab: AppTab = 'build') => {
+    setAppTab(tab)
     setSelectedAppId(id)
     setViewState('app-detail')
     setHash('app-detail', id)
@@ -106,7 +106,7 @@ export default function App() {
       })
       if (!res.ok) return `${res.status}: ${await res.text()}`
       setShowNewApp(false)
-      openAppDetail(slug, 'agents')
+      openAppDetail(slug, 'research') // brand-new app: brainstorm + build the KB first
       return null
     } catch (e) {
       return (e as Error).message
@@ -147,8 +147,8 @@ export default function App() {
         apps={apps}
         selectedAppId={selectedAppId}
         onOpenApp={openAppDetail}
-        settingsOpen={appSettingsOpen}
-        onToggleSettings={() => setAppSettingsOpen((s) => !s)}
+        appTab={appTab}
+        onAppTab={setAppTab}
       />
       <main className={view === 'app-detail'
         ? 'flex-1 w-full px-3 py-3 sm:px-4'
@@ -169,7 +169,7 @@ export default function App() {
             appName={selected?.name ?? null}
             getToken={() => pro.auth.token}
             onDelete={deleteSelectedApp}
-            settingsOpen={appSettingsOpen}
+            tab={appTab}
           />
         )}
         {view === 'publish' && <PublishView getToken={() => pro.auth.token} />}
