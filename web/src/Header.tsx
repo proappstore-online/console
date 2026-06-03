@@ -74,9 +74,10 @@ export function Header({
 
         {onApp ? (
           // On an app page the nav becomes a project switcher + its controls.
-          // overflow-x-auto: the 5-tab switcher can be wider than the row on
-          // small screens — let it scroll instead of shoving the avatar off.
-          <div className="flex items-center gap-1 flex-1 min-w-0 overflow-x-auto">
+          // NOTE: no overflow on this row — it's an ancestor of the switcher
+          // dropdown, and any non-visible overflow clips it (overflow-x also
+          // forces overflow-y to auto). Only the tab group scrolls (below).
+          <div className="flex items-center gap-1 flex-1 min-w-0">
             <span className="text-[var(--muted)] select-none flex-shrink-0">/</span>
             <ProjectSwitcher
               apps={apps}
@@ -85,7 +86,7 @@ export function Header({
               onAllApps={() => onNavigate('dashboard')}
             />
             {/* Per-app workspace tabs: Research · Build · Test · Control · Settings */}
-            <div className="flex items-center rounded-lg border border-[var(--line-strong)] overflow-hidden ml-1 flex-shrink-0">
+            <div className="flex items-center rounded-lg border border-[var(--line-strong)] overflow-x-auto ml-1 min-w-0">
               {APP_TABS.map((t, i) => (
                 <button
                   key={t.key}

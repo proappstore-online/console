@@ -19,7 +19,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   const [chat, setChat] = useState<ChatMessage[]>([])
   const [kbChat, setKbChat] = useState<ChatMessage[]>([]) // 'research' thread (Architect)
   const [activity, setActivity] = useState<ActivityEntry[]>([])
-  const [input, setInput] = useState('')
+  const [inputByThread, setInputByThread] = useState<{ research: string; build: string }>({ research: '', build: '' })
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -59,6 +59,9 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   const activeThread: 'research' | 'build' = tab === 'research' ? 'research' : 'build'
   const chatMessages = activeThread === 'research' ? kbChat : chat
   const setActiveChat = activeThread === 'research' ? setKbChat : setChat
+  // Per-thread draft so a half-typed message doesn't follow you across tabs.
+  const input = inputByThread[activeThread]
+  const setInput = (v: string) => setInputByThread(prev => ({ ...prev, [activeThread]: v }))
 
   // Best-practice chat scroll: auto-stick to bottom only when already there,
   // otherwise surface a "N new" pill instead of yanking the view.
