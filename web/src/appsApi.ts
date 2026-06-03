@@ -2,7 +2,7 @@
 // gracefully (empty list / false) on auth or network errors.
 
 import type { AppEntry } from './nav'
-import { API_BASE } from './api'
+import { apiFetch, requestJson, AGENT_BASE } from './api'
 
 interface AppApiRow {
   id: string
@@ -27,31 +27,27 @@ interface AppApiRow {
  */
 export async function fetchApps(token: string | null): Promise<AppEntry[]> {
   if (!token) return []
-  const res = await fetch(`${API_BASE}/apps`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  if (!res.ok) return []
-  const data = (await res.json()) as { apps: AppApiRow[] }
-  return (data.apps ?? []).map((a) => ({
-    id: a.id,
-    name: a.name,
-    createdAt: new Date(a.created_at).toISOString(),
-    category: a.category,
-    description: a.description,
-    hasSubmission: a.has_submission,
-    submissionStatus: a.submission_status,
-  }))
+  try {
+    const data = await apiFetch<{ apps: AppApiRow[] }>('/apps', { token })
+    return (data.apps ?? []).map((a) => ({
+      id: a.id,
+      name: a.name,
+      createdAt: new Date(a.created_at).toISOString(),
+      category: a.category,
+      description: a.description,
+      hasSubmission: a.has_submission,
+      submissionStatus: a.submission_status,
+    }))
+  } catch {
+    return []
+  }
 }
 
 /** The caller's agent-teams projects (in-progress apps being built by agents). */
 export async function fetchAgentProjects(token: string | null): Promise<{ slug: string; name: string; createdAt: number }[]> {
   if (!token) return []
   try {
-    const res = await fetch('https://agents.proappstore.online/v1/projects', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (!res.ok) return []
-    const data = (await res.json()) as { projects: { slug: string; name: string; createdAt: number }[] }
+    const data = await requestJson<{ projects: { slug: string; name: string; createdAt: number }[] }>(`${AGENT_BASE}/projects`, { token })
     return data.projects ?? []
   } catch {
     return []
@@ -60,11 +56,12 @@ export async function fetchAgentProjects(token: string | null): Promise<{ slug: 
 
 export async function deleteAppApi(token: string | null, id: string): Promise<boolean> {
   if (!token) return false
-  const res = await fetch(`${API_BASE}/apps/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  return res.ok
+  try {
+    await apiFetch(`/apps/${encodeURIComponent(id)}`, { token, method: 'DELETE' })
+    return true
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -77,11 +74,7 @@ export async function deleteAppApi(token: string | null, id: string): Promise<bo
 export async function fetchIsAdmin(token: string | null): Promise<boolean> {
   if (!token) return false
   try {
-    const res = await fetch(`${API_BASE}/me/is-admin`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (!res.ok) return false
-    const data = (await res.json()) as { admin?: boolean }
+    const data = await apiFetch<{ admin?: boolean }>('/me/is-admin', { token })
     return data.admin === true
   } catch {
     return false
@@ -94,9 +87,7 @@ export interface Pricing {
 
 export async function fetchPricing(): Promise<Pricing | null> {
   try {
-    const res = await fetch(`${API_BASE}/pricing`)
-    if (!res.ok) return null
-    return (await res.json()) as Pricing
+    return await apiFetch<Pricing>('/pricing', { token: null })
   } catch {
     return null
   }

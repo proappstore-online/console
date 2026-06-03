@@ -5,7 +5,7 @@
  * Both endpoints use the FAS session bearer token (from `pro.auth.token`).
  */
 
-import { API_BASE } from './api'
+import { apiFetch } from './api'
 
 export interface UsageDay {
   /** YYYY-MM-DD */
@@ -50,27 +50,16 @@ export interface OwnerSummary {
   apiCalls: number
 }
 
-function bearer(token: string): HeadersInit {
-  return { Authorization: `Bearer ${token}` }
-}
-
 export async function fetchAppUsage(
   token: string,
   appId: string,
   days = 30,
 ): Promise<UsageResponse> {
-  const res = await fetch(
-    `${API_BASE}/apps/${encodeURIComponent(appId)}/usage?days=${days}`,
-    { headers: bearer(token) },
-  )
-  if (!res.ok) throw new Error(`fetchAppUsage failed: ${res.status} ${await res.text()}`)
-  return (await res.json()) as UsageResponse
+  return apiFetch<UsageResponse>(`/apps/${encodeURIComponent(appId)}/usage?days=${days}`, { token })
 }
 
 export async function fetchMyUsage(token: string, days = 30): Promise<MyUsageResponse> {
-  const res = await fetch(`${API_BASE}/usage/me?days=${days}`, { headers: bearer(token) })
-  if (!res.ok) throw new Error(`fetchMyUsage failed: ${res.status} ${await res.text()}`)
-  return (await res.json()) as MyUsageResponse
+  return apiFetch<MyUsageResponse>(`/usage/me?days=${days}`, { token })
 }
 
 /**
@@ -84,11 +73,7 @@ export async function fetchOwnerSummary(
 ): Promise<OwnerSummary | null> {
   if (!token) return null
   try {
-    const res = await fetch(`${API_BASE}/usage/owner-summary?days=${days}`, {
-      headers: bearer(token),
-    })
-    if (!res.ok) return null
-    return (await res.json()) as OwnerSummary
+    return await apiFetch<OwnerSummary>(`/usage/owner-summary?days=${days}`, { token })
   } catch {
     return null
   }

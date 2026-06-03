@@ -30,15 +30,18 @@ export class ApiError extends Error {
 }
 
 /**
- * Typed fetch against the PAS API. Sends JSON, attaches bearer auth, parses the
- * response (JSON when possible, else text), and throws ApiError on non-2xx.
+ * Typed fetch against an absolute URL. Sends JSON, attaches bearer auth, parses
+ * the response (JSON when possible, else text), and throws ApiError on non-2xx.
+ * The base building block — use `apiFetch` for API_BASE paths; pass a full URL
+ * here for other hosts (e.g. AGENT_BASE). Callers that want a silent fallback
+ * wrap this in try/catch and return their default.
  */
-export async function apiFetch<T>(
-  path: string,
+export async function requestJson<T>(
+  url: string,
   init: RequestInit & { token: string | null },
 ): Promise<T> {
   const { token, headers, ...rest } = init
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(url, {
     ...rest,
     headers: {
       'Content-Type': 'application/json',
@@ -53,4 +56,12 @@ export async function apiFetch<T>(
   }
   if (!res.ok) throw new ApiError(res.status, body)
   return body as T
+}
+
+/** Typed fetch against the PAS API (API_BASE). Thin wrapper over requestJson. */
+export async function apiFetch<T>(
+  path: string,
+  init: RequestInit & { token: string | null },
+): Promise<T> {
+  return requestJson<T>(`${API_BASE}${path}`, init)
 }

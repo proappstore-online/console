@@ -104,7 +104,7 @@ export function AgentSettingsModal({ appId, token, onClose }: { appId: string; t
 
   useEffect(() => {
     api(`/projects/${appId}/roles`, token)
-      .then((r: { roles: RoleCfg[] }) => setRoles(r.roles))
+      .then((r) => setRoles((r as { roles: RoleCfg[] }).roles))
       .catch((e: Error) => setError(e.message))
   }, [appId, token])
 

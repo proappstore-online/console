@@ -1,5 +1,5 @@
 // Non-component helpers for the agent-teams console view.
-import { AGENT_BASE as AGENT_API } from '../api'
+import { AGENT_BASE, requestJson } from '../api'
 import type { ChatMessage } from './types'
 
 /**
@@ -22,19 +22,14 @@ export function mergeServerChat(prev: ChatMessage[], server: ChatMessage[]): Cha
   return pending.length ? [...server, ...pending] : server
 }
 
-export async function api(path: string, token: string, opts?: { method?: string; body?: unknown }) {
-  const res = await fetch(`${AGENT_API}${path}`, {
+/** Typed fetch against the agent-teams API (AGENT_BASE). Throws ApiError on
+ *  non-2xx (its message is the body's `error` field or text). */
+export function api(path: string, token: string, opts?: { method?: string; body?: unknown }) {
+  return requestJson<unknown>(`${AGENT_BASE}${path}`, {
+    token,
     method: opts?.method ?? 'GET',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     ...(opts?.body ? { body: JSON.stringify(opts.body) } : {}),
   })
-  if (!res.ok) {
-    const text = await res.text()
-    let msg = text
-    try { msg = (JSON.parse(text) as { error?: string }).error ?? text } catch { /* not json */ }
-    throw new Error(msg || `${res.status}`)
-  }
-  return res.json()
 }
 
 // Pretty-print a file's content for the previewer. Minified .json (common for
