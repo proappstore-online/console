@@ -5,6 +5,7 @@ import { useStickToBottom } from './useStickToBottom'
 import { api, fileRefsFromActivity, prettyForDisplay, mergeServerChat } from './agents/lib'
 import { CopyBtn, InlineCopy, ScreenCopyBtn, AgentsInfoModal, AgentSettingsModal, MemoryPanel } from './agents/components'
 import { COLUMNS, ROLE_COLOR } from './agents/types'
+import { useWindowedLimit } from './agents/useWindowedLimit'
 import type { Ticket, Project, ChatMessage, ActivityEntry } from './agents/types'
 
 // ── Component ───────────────────────────────────────────────
@@ -38,10 +39,10 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
   const memOpenRef = useRef(false)
   // Windowed rendering — these lists can grow without bound, so render the tail
   // and let the user pull in older items with a "load previous" button.
-  const [chatLimit, setChatLimit] = useState(20)
-  const [actLimit, setActLimit] = useState(50)
-  const [msgLimit, setMsgLimit] = useState(20)
-  const [fileLimit, setFileLimit] = useState(50)
+  const { limit: chatLimit, more: chatMore } = useWindowedLimit(20)
+  const { limit: actLimit, more: actMore } = useWindowedLimit(50)
+  const { limit: msgLimit, more: msgMore, reset: msgReset } = useWindowedLimit(20)
+  const { limit: fileLimit, more: fileMore } = useWindowedLimit(50)
   const token = getToken()
 
   // Best-practice chat scroll: auto-stick to bottom only when already there,
@@ -194,7 +195,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     setFilePreview(null) // ticket takes the inspector
     setSelTicket(t)
     setSelMsgs([])
-    setMsgLimit(20)
+    msgReset()
     await loadMsgs(t.id)
   }, [loadMsgs])
 
@@ -512,7 +513,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
               </p>
             )}
             {chat.length > chatLimit && (
-              <button type="button" onClick={() => setChatLimit(l => l + 20)}
+              <button type="button" onClick={chatMore}
                 className="block mx-auto mb-1 text-xs text-[var(--accent)] hover:underline">
                 Load previous 20 ({chat.length - chatLimit} older)
               </button>
@@ -684,7 +685,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
                 <p className="text-[var(--muted)] py-4 text-center font-sans text-xs">Agent activity, tool calls, and ticket transitions appear here.</p>
               )}
               {activity.length > actLimit && (
-                <button type="button" onClick={() => setActLimit(l => l + 50)}
+                <button type="button" onClick={actMore}
                   className="block mx-auto mb-1 text-[11px] font-sans text-[var(--accent)] hover:underline">
                   Load previous 50 ({activity.length - actLimit} older)
                 </button>
@@ -801,7 +802,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
                   </button>
                 ))}
                 {fileList.length > fileLimit && (
-                  <button type="button" onClick={() => setFileLimit(l => l + 50)}
+                  <button type="button" onClick={fileMore}
                     className="block mx-auto my-1 text-[11px] text-[var(--accent)] hover:underline">
                     Show more ({fileList.length - fileLimit} more)
                   </button>
@@ -866,7 +867,7 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
               ) : (
                 <div className="space-y-2">
                   {selMsgs.length > msgLimit && (
-                    <button type="button" onClick={() => setMsgLimit(l => l + 20)}
+                    <button type="button" onClick={msgMore}
                       className="block mx-auto mb-1 text-[11px] text-[var(--accent)] hover:underline">
                       Load previous 20 ({selMsgs.length - msgLimit} older)
                     </button>
