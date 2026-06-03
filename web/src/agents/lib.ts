@@ -1,5 +1,26 @@
 // Non-component helpers for the agent-teams console view.
 import { AGENT_BASE as AGENT_API } from '../api'
+import type { ChatMessage } from './types'
+
+/**
+ * Reconcile a server chat snapshot with current local state WITHOUT making a
+ * just-sent message blink out. The server snapshot is authoritative for confirmed
+ * messages; we append any optimistic `pending` user message the snapshot hasn't
+ * caught up to yet, and drop it once the server echoes it (matched by role+text)
+ * so it doesn't double up with the server-assigned copy.
+ *
+ * Without this, a refetch racing a just-sent message replaces the list with a
+ * stale snapshot that lacks the message → it disappears, then a later poll/WS
+ * re-adds it → it reappears. Merging keeps it on screen the whole time.
+ * (Non-pending client-only messages — the welcome line, transient errors — are
+ * intentionally NOT preserved here, matching the prior full-replace behavior.)
+ */
+export function mergeServerChat(prev: ChatMessage[], server: ChatMessage[]): ChatMessage[] {
+  const pending = prev.filter(
+    (m) => m.pending && !server.some((s) => s.role === 'user' && s.text === m.text),
+  )
+  return pending.length ? [...server, ...pending] : server
+}
 
 export async function api(path: string, token: string, opts?: { method?: string; body?: unknown }) {
   const res = await fetch(`${AGENT_API}${path}`, {

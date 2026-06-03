@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { Markdown } from './Markdown'
 import { CodeView } from './CodeView'
 import { useStickToBottom } from './useStickToBottom'
-import { api, fileRefsFromActivity, prettyForDisplay } from './agents/lib'
+import { api, fileRefsFromActivity, prettyForDisplay, mergeServerChat } from './agents/lib'
 import { CopyBtn, InlineCopy, ScreenCopyBtn, AgentsInfoModal, AgentSettingsModal, MemoryPanel } from './agents/components'
 import { COLUMNS, ROLE_COLOR } from './agents/types'
 import type { Ticket, Project, ChatMessage, ActivityEntry } from './agents/types'
@@ -72,7 +72,8 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
       setTickets(t.tickets)
       try {
         const h = await api(`/projects/${appId}/chat/history`, token) as { messages: { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }[] }
-        setChat(h.messages.map(m => ({ id: m.id, role: m.role as ChatMessage['role'], text: m.body, timestamp: m.createdAt, toolCall: m.toolCall })))
+        const next = h.messages.map(m => ({ id: m.id, role: m.role as ChatMessage['role'], text: m.body, timestamp: m.createdAt, toolCall: m.toolCall }))
+        setChat(prev => mergeServerChat(prev, next))
       } catch { /* no history yet */ }
       await loadActivity()
     } catch (err) {
@@ -136,7 +137,12 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     try {
       const h = await api(`/projects/${appId}/chat/history`, token) as { messages: { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }[] }
       const next = h.messages.map(m => ({ id: m.id, role: m.role as ChatMessage['role'], text: m.body, timestamp: m.createdAt, toolCall: m.toolCall }))
-      setChat(prev => (prev.length === next.length && prev[prev.length - 1]?.id === next[next.length - 1]?.id) ? prev : next)
+      setChat(prev => {
+        const merged = mergeServerChat(prev, next)
+        // Skip the state swap when nothing changed, so polling doesn't re-render
+        // (and re-scroll) the chat every tick.
+        return (merged.length === prev.length && merged[merged.length - 1]?.id === prev[prev.length - 1]?.id) ? prev : merged
+      })
     } catch { /* ignore */ }
   }, [token, appId])
 
@@ -427,11 +433,17 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     const text = input.trim()
     setInput('')
     setSending(true)
-    setChat(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, timestamp: Date.now() }])
+    // Show it immediately (optimistic). `pending` keeps it on screen through any
+    // racing server refetch until the server echoes it.
+    setChat(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, timestamp: Date.now(), pending: true }])
     try {
       const result = await api(`/projects/${appId}/chat`, token, { method: 'POST', body: { message: text } }) as { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }
-      setChat(prev => [...prev, { id: result.id, role: result.role as ChatMessage['role'], text: result.body, timestamp: result.createdAt, toolCall: result.toolCall }])
-      loadProject(true) // silent — keep the board/chat in place
+      // Append the PO reply (dedupe in case the WS push already delivered it).
+      setChat(prev => prev.some(m => m.id === result.id) ? prev : [...prev, { id: result.id, role: result.role as ChatMessage['role'], text: result.body, timestamp: result.createdAt, toolCall: result.toolCall }])
+      // Refresh the board/activity (the PO may have filed a ticket) — but NOT the
+      // chat: it's already current, and reloading it could blink the message out.
+      refreshTickets()
+      loadActivity()
     } catch (err) {
       setChat(prev => [...prev, { id: crypto.randomUUID(), role: 'system', text: `Error: ${(err as Error).message}`, timestamp: Date.now() }])
     }

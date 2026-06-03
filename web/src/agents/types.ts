@@ -32,6 +32,9 @@ export interface ChatMessage {
   text: string
   timestamp: number
   toolCall?: { name: string; args?: string }
+  /** Optimistic local message not yet confirmed by the server. Preserved across
+   *  server-snapshot reconciliation until the server echoes it (matched by text). */
+  pending?: boolean
 }
 
 export interface ActivityEntry {
