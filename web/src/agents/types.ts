@@ -79,7 +79,7 @@ export const ROLE_INFO: { role: string; title: string; blurb: string }[] = [
   { role: 'Architect', title: 'Architect — Research & Knowledge Base', blurb: 'Before building, researches the app and writes its Knowledge Base (KNOWLEDGE.md + docs/) — the source of truth the rest of the team builds from. Runs in its own lane, alongside the build.' },
   { role: 'BA', title: 'BA — Business Analyst', blurb: 'Refines a ticket into a clear spec with acceptance criteria. Pushes back on vague requests instead of guessing.' },
   { role: 'Dev', title: 'Dev — Developer', blurb: 'Implements the approved spec — writes and edits the app’s files, then deploys.' },
-  { role: 'QA', title: 'QA — Quality Assurance', blurb: 'Reviews the Dev’s work against the acceptance criteria. Passes it to Done, or sends it back for another pass.' },
+  { role: 'QA', title: 'QA — Quality Assurance', blurb: 'Writes automated end-to-end tests from the acceptance criteria. They run against the live app on every deploy and gate it — a failing test sends the ticket back to Dev. Real QA: it drives the app, not just reads the code.' },
 ]
 
 export const MODEL_SUGGESTIONS: Record<string, string[]> = {
