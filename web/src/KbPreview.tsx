@@ -116,6 +116,13 @@ export function KbPreview({
             title="Refresh the Knowledge Base from the repo">
             Refresh
           </button>
+          {hasKb && (
+            <a href={`https://kb.proappstore.online/${appId}/`} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1 text-[10px] font-semibold text-[var(--accent)] hover:underline px-1.5 py-0.5 rounded border border-[var(--line)] hover:border-[var(--accent)]"
+              title="Open the published KB site (shareable URL — send it to anyone)">
+              Open site ↗
+            </a>
+          )}
           {!hasKb && (
             <button type="button" onClick={onBuildKb} disabled={building}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 hover:bg-teal-200 disabled:opacity-50 transition-colors"
