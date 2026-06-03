@@ -116,11 +116,11 @@ export function KbPreview({
             title="Refresh the Knowledge Base from the repo">
             Refresh
           </button>
-          {!kbStarted && (
+          {!hasKb && (
             <button type="button" onClick={onBuildKb} disabled={building}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 hover:bg-teal-200 disabled:opacity-50 transition-colors"
-              title="Have the Architect research the app + write the Knowledge Base (once). Brainstorm in chat first; building starts when you ask the PO to build.">
-              {building ? 'Starting…' : '📖 Build KB'}
+              title="Have the Architect research the app + write the Knowledge Base. Brainstorm in chat first; if a build looks stuck, this retries it.">
+              {building ? 'Starting…' : kbStarted ? '↻ Retry' : '📖 Build KB'}
             </button>
           )}
         </div>
@@ -132,15 +132,13 @@ export function KbPreview({
           <p className="text-sm text-[var(--ink)] font-semibold">No Knowledge Base yet</p>
           <p className="text-xs text-[var(--muted)] max-w-sm">
             {kbStarted
-              ? 'The Architect is researching your app and writing KNOWLEDGE.md + docs/. This panel updates live as it writes.'
+              ? 'The Architect is researching your app and writing KNOWLEDGE.md + docs/ — this panel updates live as it writes. If nothing appears after a minute, press Retry to re-run it.'
               : 'Brainstorm what you want in the chat, then press 📖 Build KB. The Architect will research the app and write its KNOWLEDGE.md + docs/ — the source of truth the rest of the team builds from.'}
           </p>
-          {!kbStarted && (
-            <button type="button" onClick={onBuildKb} disabled={building}
-              className="mt-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 hover:bg-teal-200 disabled:opacity-50 transition-colors">
-              {building ? 'Starting…' : '📖 Build the Knowledge Base'}
-            </button>
-          )}
+          <button type="button" onClick={onBuildKb} disabled={building}
+            className="mt-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 hover:bg-teal-200 disabled:opacity-50 transition-colors">
+            {building ? 'Starting…' : kbStarted ? '↻ Retry — run the Architect' : '📖 Build the Knowledge Base'}
+          </button>
         </div>
       ) : (
         <div className="flex-1 flex min-h-0">
