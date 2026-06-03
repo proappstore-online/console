@@ -4,6 +4,7 @@ import { RolesManager } from './RolesManager'
 import { DbBrowser } from './DbBrowser'
 import { WebhooksManager } from './WebhooksManager'
 import { CodeHealth } from './CodeHealth'
+import { TestResults } from './TestResults'
 import { AppAgents } from './AppAgents'
 import type { AppTab } from './nav'
 import {
@@ -54,7 +55,16 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab }: Props) {
         <AppAgents appId={appId} appName={appName} getToken={getToken} tab={tab} />
       )}
 
-      {tab === 'test' && <QaTab appName={appName ?? appId} />}
+      {tab === 'test' && (
+        <div className="max-w-3xl space-y-3">
+          <h2 className="display-font text-lg font-bold text-[var(--ink)]">{appName ?? appId} — Tests</h2>
+          <p className="text-sm text-[var(--muted)]">
+            Automated end-to-end tests (Playwright) the QA agent wrote, run against the live app on
+            every deploy. A failing test sends the ticket back to Dev. Live — this refreshes itself.
+          </p>
+          <TestResults appId={appId} live />
+        </div>
+      )}
 
       {tab === 'control' && (
         <div className="max-w-4xl space-y-3">
@@ -138,28 +148,6 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab }: Props) {
         </aside>
       </div>
       )}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// QA tab — automated QA is a future feature; this is the placeholder for now.
-// ---------------------------------------------------------------------------
-
-function QaTab({ appName }: { appName: string }) {
-  return (
-    <div className="max-w-2xl mx-auto py-16 text-center space-y-4">
-      <span className="text-4xl">🧪</span>
-      <h2 className="display-font text-xl font-bold text-[var(--ink)]">Tests</h2>
-      <p className="text-sm text-[var(--muted)] max-w-lg mx-auto">
-        Live end-to-end test results for <strong>{appName}</strong> — with visual-regression
-        and accessibility checks — surfaced here. Coming soon.
-      </p>
-      <p className="text-xs text-[var(--muted)]">
-        Today the QA agent already writes Playwright end-to-end tests that run against the
-        live app on every deploy (a failing test sends the ticket back to Dev). Code-health
-        scans live under <strong>Control</strong>.
-      </p>
     </div>
   )
 }
