@@ -10,6 +10,7 @@ export interface Ticket {
   title: string
   rawIdea: string
   status: TicketStatus
+  kind?: 'build' | 'research'
   assigneeRole: string | null
   iterations: number
   costSpentUsd: number

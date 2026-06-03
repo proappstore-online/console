@@ -454,6 +454,20 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
     } catch (err) { setError((err as Error).message) }
   }
 
+  // Brainstorm-first: founder triggers the one-time Architect KB build when ready.
+  const [buildingKb, setBuildingKb] = useState(false)
+  const buildKB = async () => {
+    if (!token) return
+    setBuildingKb(true)
+    try {
+      await api(`/projects/${appId}/research`, token, { method: 'POST' })
+      loadProject(true)
+    } catch (err) { setError((err as Error).message) }
+    finally { setBuildingKb(false) }
+  }
+  // KB exists once a research ticket is on the board (any status).
+  const kbStarted = tickets.some(t => t.kind === 'research')
+
   const sendMessage = async () => {
     if (!token || !input.trim()) return
     const text = input.trim()
@@ -620,6 +634,14 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
                       : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200'
                   }`}>
                   {project.status === 'running' ? (<><span>&#9646;&#9646;</span> Pause</>) : (<><span>&#9654;</span> Play</>)}
+                </button>
+              )}
+              {/* Brainstorm-first: build the KB once, when the founder is ready. */}
+              {project && !kbStarted && (
+                <button type="button" onClick={buildKB} disabled={buildingKb}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 hover:bg-teal-200 disabled:opacity-50 transition-colors"
+                  title="Have the Architect research the app + write the Knowledge Base (once). Brainstorm in chat first; building starts when you ask the PO to build.">
+                  {buildingKb ? 'Starting…' : '📖 Build KB'}
                 </button>
               )}
               {/* Live working/idle indicator — so the founder knows whether an agent
