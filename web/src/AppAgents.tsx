@@ -682,7 +682,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
               )}
               {/* Live working/idle indicator — so the founder knows whether an agent
                   is actively running vs the team being idle/done. */}
-              {project && (agentWork ? (
+              {project && (agentWork && agentWork.role !== 'Architect' ? (
                 <span className="flex items-center gap-1.5 text-xs font-medium text-green-600 dark:text-green-400" title={`${agentWork.role} is running right now`}>
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-60"></span>
