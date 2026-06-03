@@ -43,6 +43,9 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
   const { limit: actLimit, more: actMore } = useWindowedLimit(50)
   const { limit: msgLimit, more: msgMore, reset: msgReset } = useWindowedLimit(20)
   const { limit: fileLimit, more: fileMore } = useWindowedLimit(50)
+  // Live "an agent is working right now" signal — set by run/heartbeat/tool WS
+  // events, auto-cleared by a staleness check (see effect below). null = idle.
+  const [agentWork, setAgentWork] = useState<{ role: string; at: number } | null>(null)
   const token = getToken()
 
   // Best-practice chat scroll: auto-stick to bottom only when already there,
@@ -320,9 +323,19 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
           case 'play-state':
             setProject(prev => prev ? { ...prev, status: d.status as 'running' | 'paused' } : prev)
             break
+          // Live "agent working" signals → drive the working/idle indicator.
+          case 'agent-run-started':
+          case 'agent-heartbeat':
+          case 'agent-text':
+          case 'agent-tool-call':
+          case 'agent-tool-result':
+            setAgentWork({ role: String(d.role ?? 'Agent'), at: Date.now() })
+            break
           case 'activity': {
             const e = d.entry as { id: string; type: string; detail: string; createdAt: number; meta?: string } | undefined
             if (e) setActivity(prev => prev.some(a => a.id === e.id) ? prev : [...prev.slice(-300), { id: e.id, type: e.type, detail: e.detail, timestamp: e.createdAt, meta: e.meta }])
+            // A tool/transition row arriving also means an agent is active — keep the indicator alive.
+            if (e && (e.type === 'tool' || e.type === 'transition')) setAgentWork(w => ({ role: w?.role ?? 'Agent', at: Date.now() }))
             break
           }
           case 'activity-meta': {
@@ -382,6 +395,14 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
       try { ws?.close() } catch { /* noop */ }
     }
   }, [token, appId, notStarted, syncLive, loadMemory, loadFileList])
+
+  // Clear the "agent working" indicator after ~20s of silence. There's no
+  // explicit run-finished event (agents heartbeat while active), so staleness is
+  // the signal. Functional update reads the latest value + no-ops when idle.
+  useEffect(() => {
+    const t = setInterval(() => setAgentWork(w => (w && Date.now() - w.at > 20000 ? null : w)), 4000)
+    return () => clearInterval(t)
+  }, [])
 
   // Polling safety net so the page is always interactive even if the WebSocket
   // silently drops. WS is the instant path; this guarantees freshness. It's cheap
@@ -601,6 +622,19 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
                   {project.status === 'running' ? (<><span>&#9646;&#9646;</span> Pause</>) : (<><span>&#9654;</span> Play</>)}
                 </button>
               )}
+              {/* Live working/idle indicator — so the founder knows whether an agent
+                  is actively running vs the team being idle/done. */}
+              {project && (agentWork ? (
+                <span className="flex items-center gap-1.5 text-xs font-medium text-green-600 dark:text-green-400" title={`${agentWork.role} is running right now`}>
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-60"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                  </span>
+                  {agentWork.role} working…
+                </span>
+              ) : project.status === 'running' ? (
+                <span className="text-xs text-[var(--muted)]" title="Agents are on and waiting for work">Idle — waiting for work</span>
+              ) : null)}
             </div>
             <div className="flex items-center gap-2">
               <button type="button" onClick={() => setShowAgentCfg(true)}
