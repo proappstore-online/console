@@ -16,7 +16,7 @@ describe('parseHash', () => {
 
   it('parses an app-detail route with a deep-linked tab', () => {
     expect(parseHash('#/apps/interns/research')).toEqual({ view: 'app-detail', param: 'interns', tab: 'research' })
-    expect(parseHash('#/apps/interns/devops')).toEqual({ view: 'app-detail', param: 'interns', tab: 'devops' })
+    expect(parseHash('#/apps/interns/control')).toEqual({ view: 'app-detail', param: 'interns', tab: 'control' })
     expect(parseHash('#/apps/interns/settings')).toEqual({ view: 'app-detail', param: 'interns', tab: 'settings' })
   })
 
@@ -47,10 +47,10 @@ describe('hashFor', () => {
   })
 
   it('appends the tab for app-detail routes that carry one', () => {
-    expect(hashFor('app-detail', 'interns', 'devops')).toBe('#/apps/interns/devops')
+    expect(hashFor('app-detail', 'interns', 'control')).toBe('#/apps/interns/control')
     expect(hashFor('app-detail', 'interns', null)).toBe('#/apps/interns')
     // a tab without a param is meaningless — no app route, no tab
-    expect(hashFor('dashboard', null, 'devops')).toBe('#/')
+    expect(hashFor('dashboard', null, 'control')).toBe('#/')
   })
 
   it('round-trips a parsed app-detail route (with + without tab)', () => {

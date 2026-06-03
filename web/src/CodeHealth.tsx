@@ -25,7 +25,7 @@ interface VcqaReport {
 
 interface Props {
   appId: string
-  /** When true, render as a full Dev Ops tab: poll for fresh scans + refresh control. */
+  /** When true, render as a full Control tab: poll for fresh scans + refresh control. */
   live?: boolean
 }
 

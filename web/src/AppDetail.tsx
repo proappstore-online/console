@@ -54,11 +54,11 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab }: Props) {
         <AppAgents appId={appId} appName={appName} getToken={getToken} tab={tab} />
       )}
 
-      {tab === 'qa' && <QaTab appName={appName ?? appId} />}
+      {tab === 'test' && <QaTab appName={appName ?? appId} />}
 
-      {tab === 'devops' && (
+      {tab === 'control' && (
         <div className="max-w-4xl space-y-3">
-          <h2 className="display-font text-lg font-bold text-[var(--ink)]">{appName ?? appId} — Dev Ops</h2>
+          <h2 className="display-font text-lg font-bold text-[var(--ink)]">{appName ?? appId} — Control</h2>
           <p className="text-sm text-[var(--muted)]">
             Automated code-health scan (<a href="https://vibecodeqa.online" target="_blank" rel="noopener noreferrer" className="text-[var(--accent)]">VCQA</a>),
             re-run on every deploy. Live — this refreshes itself.
@@ -150,14 +150,15 @@ function QaTab({ appName }: { appName: string }) {
   return (
     <div className="max-w-2xl mx-auto py-16 text-center space-y-4">
       <span className="text-4xl">🧪</span>
-      <h2 className="display-font text-xl font-bold text-[var(--ink)]">Automated QA</h2>
+      <h2 className="display-font text-xl font-bold text-[var(--ink)]">Tests</h2>
       <p className="text-sm text-[var(--muted)] max-w-lg mx-auto">
-        Hands-off quality gates for <strong>{appName}</strong> — automated end-to-end runs,
-        visual regression, and accessibility checks on every deploy. Coming soon.
+        Live end-to-end test results for <strong>{appName}</strong> — with visual-regression
+        and accessibility checks — surfaced here. Coming soon.
       </p>
       <p className="text-xs text-[var(--muted)]">
-        Today, the QA agent reviews each build inside the <strong>Build</strong> tab, and
-        code-health scans live under <strong>Dev Ops</strong>.
+        Today the QA agent already writes Playwright end-to-end tests that run against the
+        live app on every deploy (a failing test sends the ticket back to Dev). Code-health
+        scans live under <strong>Control</strong>.
       </p>
     </div>
   )
