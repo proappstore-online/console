@@ -235,7 +235,11 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
       if (m.ok === false) parts.push('// ⚠ tool reported an error')
       if (m.result !== undefined) parts.push(`// output\n${m.result || '(no output)'}`)
       content = parts.join('\n\n')
-    } catch { /* show raw meta */ }
+    } catch {
+      // Meta is capped at 20KB for the audit log, so a large batch write is
+      // truncated and won't parse. Be honest + point at the live file links.
+      content = `⚠ This tool's captured output exceeded the 20KB audit cap and was truncated, so it can't be parsed cleanly.\nClick the [file] links in the activity row to view the full, live version.\n\n${entry.meta}`
+    }
     setFilePreview({ path: entry.detail, content, loading: false })
   }, [])
 
@@ -698,29 +702,32 @@ export function AppAgents({ appId, appName, getToken }: { appId: string; appName
                     <span className="flex-shrink-0 font-bold" style={{
                       color: entry.type === 'ticket' ? '#f59e0b' : entry.type === 'tool' ? '#3b82f6' : entry.type === 'transition' ? '#8b5cf6' : entry.type === 'error' ? 'var(--error)' : 'var(--muted)',
                     }}>{entry.type}</span>
-                    {entry.meta ? (
-                      // Tool call with captured output → click to inspect what it returned.
+                    {refs.length > 0 ? (
+                      // File read/write tool → link each file to its LIVE working-tree
+                      // content (full + syntax-highlighted), which is never truncated
+                      // unlike the captured meta. `raw ↗` still inspects the meta.
+                      <span className="text-[var(--ink)] break-words min-w-0">
+                        {entry.detail.replace(/:\s.*$/, '')}
+                        <span className="ml-1 inline-flex flex-wrap gap-1 align-middle">
+                          {refs.map(p => (
+                            <button key={p} type="button" onClick={() => openFile(p)}
+                              className="text-[var(--accent)] hover:underline" title={`Preview ${p} (live)`}>[{p.split('/').pop()}]</button>
+                          ))}
+                          {entry.meta && (
+                            <button type="button" onClick={() => openToolResult(entry)}
+                              className="opacity-50 hover:opacity-100 hover:underline" title="Inspect the raw tool call (captured args/output)">raw ↗</button>
+                          )}
+                        </span>
+                      </span>
+                    ) : entry.meta ? (
+                      // Non-file tool with captured output → click to inspect.
                       <button type="button" onClick={() => openToolResult(entry)}
                         className="text-left text-[var(--ink)] break-words min-w-0 hover:text-[var(--accent)] hover:underline"
                         title="View this tool's output">
                         {entry.detail} <span className="opacity-50">↗</span>
                       </button>
-                    ) : refs.length === 1 ? (
-                      <button type="button" onClick={() => openFile(refs[0]!)}
-                        className="text-left text-[var(--ink)] break-words min-w-0 hover:text-[var(--accent)] hover:underline"
-                        title="Preview this file">{entry.detail}</button>
                     ) : (
-                      <span className="text-[var(--ink)] break-words min-w-0">
-                        {entry.detail}
-                        {refs.length > 1 && (
-                          <span className="ml-1 inline-flex flex-wrap gap-1 align-middle">
-                            {refs.map(p => (
-                              <button key={p} type="button" onClick={() => openFile(p)}
-                                className="text-[var(--accent)] hover:underline" title="Preview this file">[{p.split('/').pop()}]</button>
-                            ))}
-                          </span>
-                        )}
-                      </span>
+                      <span className="text-[var(--ink)] break-words min-w-0">{entry.detail}</span>
                     )}
                   </div>
                 )
