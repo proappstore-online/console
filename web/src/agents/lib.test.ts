@@ -33,4 +33,20 @@ describe('mergeServerChat', () => {
     const server = [msg('s1', 'po', 'real')]
     expect(mergeServerChat(prev, server)).toEqual(server)
   })
+
+  it('keeps the 2nd of two identical-text sends until ITS echo arrives (one echo retires one)', () => {
+    const prev = [msg('t1', 'user', 'ok', true), msg('t2', 'user', 'ok', true)]
+    const server = [msg('srv1', 'user', 'ok')] // only the first "ok" persisted so far
+    const merged = mergeServerChat(prev, server)
+    // one echoed copy + one still-pending copy — the 2nd must NOT vanish
+    expect(merged.map(m => m.text)).toEqual(['ok', 'ok'])
+    expect(merged.filter(m => m.pending)).toHaveLength(1)
+  })
+
+  it('retires both identical-text sends once both are echoed', () => {
+    const prev = [msg('t1', 'user', 'ok', true), msg('t2', 'user', 'ok', true)]
+    const server = [msg('srv1', 'user', 'ok'), msg('srv2', 'user', 'ok')]
+    const merged = mergeServerChat(prev, server)
+    expect(merged).toBe(server) // both echoed → no pending left → identity
+  })
 })

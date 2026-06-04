@@ -35,6 +35,10 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   const [previewRaw, setPreviewRaw] = useState(false)
   const [fileList, setFileList] = useState<{ path: string; size: number }[] | null>(null)
   const fileListOpenRef = useRef(false)
+  // Mirrors the selected ticket id so an out-of-order /messages response can be
+  // dropped if the user already switched tickets (avoids showing ticket A's
+  // messages under ticket B). Same staleness guard pattern as KbPreview.loadDoc.
+  const selTicketIdRef = useRef<string | null>(null)
   // Project memory (decisions/facts the team treats as ground truth).
   const [memory, setMemory] = useState<{ id: string; category: string; key: string; value: string }[] | null>(null)
   const memOpenRef = useRef(false)
@@ -221,6 +225,8 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
     if (!token) return
     try {
       const r = await api(`/projects/${appId}/tickets/${ticketId}/messages`, token) as { messages: { id: string; author: string; body: string; createdAt: number }[] }
+      // Drop a stale response if the user switched tickets while this was in flight.
+      if (selTicketIdRef.current !== ticketId) return
       setSelMsgs(r.messages ?? [])
     } catch { /* ignore */ }
   }, [token, appId])
@@ -229,10 +235,15 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   const openTicket = useCallback(async (t: Ticket) => {
     setFilePreview(null) // ticket takes the inspector
     setSelTicket(t)
+    selTicketIdRef.current = t.id // sync immediately so loadMsgs' guard is correct
     setSelMsgs([])
     msgReset()
     await loadMsgs(t.id)
   }, [loadMsgs])
+
+  // Keep the staleness ref in sync with the selected ticket from ALL paths
+  // (close button, WS deletion, live-refresh swap) — not just openTicket.
+  useEffect(() => { selTicketIdRef.current = selTicket?.id ?? null }, [selTicket])
 
   // Preview one of the agents' working-tree files in the right inspector.
   const openFile = useCallback(async (path: string) => {

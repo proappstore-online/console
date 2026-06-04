@@ -16,9 +16,17 @@ import type { ChatMessage } from './types'
  * intentionally NOT preserved here, matching the prior full-replace behavior.)
  */
 export function mergeServerChat(prev: ChatMessage[], server: ChatMessage[]): ChatMessage[] {
-  const pending = prev.filter(
-    (m) => m.pending && !server.some((s) => s.role === 'user' && s.text === m.text),
-  )
+  // Each server-echoed user message retires AT MOST ONE pending optimistic
+  // message (consume the match), so two identical-text sends (e.g. "ok"/"ok")
+  // don't both vanish when only the first echo has arrived.
+  const claimed = new Set<number>()
+  const pending = prev.filter((m) => {
+    if (!m.pending) return false
+    const idx = server.findIndex((s, i) => !claimed.has(i) && s.role === 'user' && s.text === m.text)
+    if (idx === -1) return true // not echoed yet → keep showing the optimistic copy
+    claimed.add(idx)
+    return false // echoed → drop the optimistic duplicate
+  })
   return pending.length ? [...server, ...pending] : server
 }
 
