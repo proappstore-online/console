@@ -305,7 +305,7 @@ export function LegalSection({ appId, listing, update, getToken }: SectionProps)
 
   // Set the URL to the app's own subdomain (CF Pages serves web/public/<file>),
   // then HEAD-probe to surface a friendly warning when the file is missing.
-  async function useRepoFile(kind: 'privacy' | 'terms') {
+  async function applyRepoFile(kind: 'privacy' | 'terms') {
     const file = kind === 'privacy' ? 'privacy.md' : 'terms.md'
     const url = `https://${appId}.proappstore.online/${file}`
     if (kind === 'privacy') set('privacyPolicyUrl', url)
@@ -351,7 +351,7 @@ export function LegalSection({ appId, listing, update, getToken }: SectionProps)
           />
           <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
             <button type="button"
-              onClick={() => useRepoFile('privacy')}
+              onClick={() => applyRepoFile('privacy')}
               className="hover:text-[var(--ink)] underline"
             >
               Use privacy.md from my app
@@ -406,7 +406,7 @@ export function LegalSection({ appId, listing, update, getToken }: SectionProps)
           />
           <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
             <button type="button"
-              onClick={() => useRepoFile('terms')}
+              onClick={() => applyRepoFile('terms')}
               className="hover:text-[var(--ink)] underline"
             >
               Use terms.md from my app

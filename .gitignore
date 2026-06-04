@@ -7,6 +7,9 @@ dist
 # TypeScript incremental build cache
 *.tsbuildinfo
 
+# VibeCode QA report artifacts
+.vibe-check/
+
 # Playwright
 test-results/
 playwright-report/
