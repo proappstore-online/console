@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { API_BASE, authHeaders } from './api'
 import type { DevProfile } from './servicesTypes'
 
@@ -19,13 +19,15 @@ export function DirectoryTab({ token }: { token: string | null }) {
   const [sort, setSort] = useState('quality')
   const [maxRate, setMaxRate] = useState('')
 
-  const search = useCallback(async () => {
+  const [hiringBusy, setHiringBusy] = useState(false)
+
+  const doSearch = useCallback(async (q: string, s: string, mr: string) => {
     setLoading(true)
     setError(null)
     const params = new URLSearchParams()
-    if (query.trim()) params.set('q', query.trim())
-    if (sort !== 'quality') params.set('sort', sort)
-    if (maxRate) params.set('maxRate', String(Math.round(parseFloat(maxRate) * 100)))
+    if (q.trim()) params.set('q', q.trim())
+    if (s !== 'quality') params.set('sort', s)
+    if (mr) params.set('maxRate', String(Math.round(parseFloat(mr) * 100)))
     const qs = params.toString()
     try {
       const res = await fetch(`${API_BASE}/services/developers${qs ? `?${qs}` : ''}`)
@@ -33,12 +35,19 @@ export function DirectoryTab({ token }: { token: string | null }) {
       else setError('Failed to load')
     } catch { setError('Network error') }
     setLoading(false)
-  }, [query, sort, maxRate])
+  }, [])
 
-  useEffect(() => { search() }, [search])
+  // Debounce search: 400ms after last change
+  const timerRef = useRef<ReturnType<typeof setTimeout>>()
+  useEffect(() => {
+    clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => doSearch(query, sort, maxRate), 400)
+    return () => clearTimeout(timerRef.current)
+  }, [query, sort, maxRate, doSearch])
 
   const hire = async (devId: string) => {
-    if (!token) return
+    if (!token || hiringBusy) return
+    setHiringBusy(true)
     setHireStatus(null)
     try {
       const res = await fetch(`${API_BASE}/services/engagements`, {
@@ -56,6 +65,7 @@ export function DirectoryTab({ token }: { token: string | null }) {
         setHireStatus({ type: 'error', msg: err.error })
       }
     } catch (e) { setHireStatus({ type: 'error', msg: (e as Error).message }) }
+    setHiringBusy(false)
   }
 
   return (
@@ -159,8 +169,8 @@ export function DirectoryTab({ token }: { token: string | null }) {
                     aria-label="Project description"
                     className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-2 py-1.5 text-xs" />
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => hire(d.creatorId)}
-                      className="flex-1 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90">Confirm</button>
+                    <button type="button" onClick={() => hire(d.creatorId)} disabled={hiringBusy}
+                      className="flex-1 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50">{hiringBusy ? 'Creating...' : 'Confirm'}</button>
                     <button type="button" onClick={() => { setHiring(null); setHireStatus(null) }}
                       className="rounded-lg border border-[var(--line-strong)] px-3 py-1.5 text-xs text-[var(--muted)] hover:text-[var(--ink)]">Cancel</button>
                   </div>

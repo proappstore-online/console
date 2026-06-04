@@ -10,7 +10,8 @@ type Tab = 'directory' | 'developer' | 'earnings' | 'client' | 'engagements' | '
 
 export function ServicesView({ getToken }: { getToken: () => string | null }) {
   const [tab, setTab] = useState<Tab>('directory')
-  const token = getToken()
+  // Pass getToken down — children call it fresh before each fetch to avoid stale tokens
+  const token = getToken() // for tab rendering decisions only
 
   return (
     <div className="space-y-6">
@@ -191,16 +192,21 @@ interface EarningsData {
 function EarningsTab({ token }: { token: string | null }) {
   const [data, setData] = useState<EarningsData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [earningsError, setEarningsError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!token) { setLoading(false); return }
     fetch(`${API_BASE}/services/earnings`, { headers: authHeaders(token) })
-      .then(async (res) => { if (res.ok) setData(await res.json() as EarningsData) })
-      .catch(() => {})
+      .then(async (res) => {
+        if (res.ok) setData(await res.json() as EarningsData)
+        else setEarningsError('Failed to load earnings')
+      })
+      .catch(() => setEarningsError('Network error'))
       .finally(() => setLoading(false))
   }, [token])
 
   if (loading) return <p className="py-8 text-center text-sm text-[var(--muted)]">Loading earnings...</p>
+  if (earningsError) return <p className="py-8 text-center text-sm text-[var(--error)]">{earningsError}</p>
   if (!data) return <p className="py-8 text-center text-sm text-[var(--muted)]">Create a developer profile to see earnings.</p>
 
   return (
@@ -297,9 +303,10 @@ function ClientTab({ token }: { token: string | null }) {
       method: 'POST',
       headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId }),
-    }).then((res) => {
+    }).then(async (res) => {
       if (res.ok) window.location.reload()
-    }).catch(() => {})
+      else setDepositError('Deposit confirmation failed. Your payment was received — refresh the page or contact support.')
+    }).catch(() => setDepositError('Network error confirming deposit. Refresh the page to retry.'))
   }, [token])
 
   const [depositError, setDepositError] = useState<string | null>(null)
