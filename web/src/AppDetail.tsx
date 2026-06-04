@@ -4,7 +4,7 @@ import { RolesManager } from './RolesManager'
 import { DbBrowser } from './DbBrowser'
 import { WebhooksManager } from './WebhooksManager'
 import { CodeHealth } from './CodeHealth'
-import { TestResults } from './TestResults'
+import { AppTest } from './AppTest'
 import { AgentsView } from './AgentsView'
 import { AppMcpTools } from './AppMcpTools'
 import { AppSecrets } from './AppSecrets'
@@ -72,14 +72,7 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab }: Props) {
       )}
 
       {tab === 'test' && (
-        <div className="max-w-3xl space-y-3">
-          <h2 className="display-font text-lg font-bold text-[var(--ink)]">{appName ?? appId} — Tests</h2>
-          <p className="text-sm text-[var(--muted)]">
-            Automated end-to-end tests (Playwright) the QA agent wrote, run against the live app on
-            every deploy. A failing test sends the ticket back to Dev. Live — this refreshes itself.
-          </p>
-          <TestResults appId={appId} live />
-        </div>
+        <AppTest appId={appId} getToken={getToken} />
       )}
 
       {tab === 'control' && (
