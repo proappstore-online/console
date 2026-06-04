@@ -33,17 +33,23 @@ export interface Engagement {
   clientLogin: string | null
   developerId: string
   devLogin: string | null
+  projectSlug: string | null
+  buildRequestId: string | null
   status: string
   promptRateCents: number
   promptsCount: number
   totalChargedCents: number
+  totalDevEarnedCents: number
+  totalPlatformFeeCents: number
   role: 'client' | 'developer'
   createdAt: number
+  updatedAt: number
 }
 
 export interface ServiceMessage {
   id: string
   senderRole: string
+  senderId: string
   body: string
   charged: boolean
   chargeCents: number
