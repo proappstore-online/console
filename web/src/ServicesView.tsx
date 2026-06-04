@@ -11,6 +11,7 @@ interface DevProfile {
   completedEngagements: number
   avgRating: number | null
   ratingCount: number
+  appCount?: number
   login?: string
   avatarUrl?: string
 }
@@ -139,13 +140,17 @@ function DirectoryTab({ token }: { token: string | null }) {
             <p className="text-xs text-[var(--muted)] line-clamp-2 mb-3">{d.bioServices}</p>
           )}
 
-          <div className="grid grid-cols-3 gap-2 text-center mb-3">
+          <div className="grid grid-cols-4 gap-2 text-center mb-3">
+            <div>
+              <p className="text-xs text-[var(--muted)]">Apps</p>
+              <p className="text-sm font-bold text-[var(--ink)]">{d.appCount ?? 0}</p>
+            </div>
             <div>
               <p className="text-xs text-[var(--muted)]">Quality</p>
               <p className="text-sm font-bold text-[var(--ink)]">{d.qualityScore?.toFixed(1) ?? '—'}</p>
             </div>
             <div>
-              <p className="text-xs text-[var(--muted)]">Done</p>
+              <p className="text-xs text-[var(--muted)]">Jobs</p>
               <p className="text-sm font-bold text-[var(--ink)]">{d.completedEngagements}</p>
             </div>
             <div>
@@ -233,6 +238,22 @@ function EngagementsTab({ token }: { token: string | null }) {
     } catch { /* */ }
     setLoadingMsgs(false)
   }
+
+  // Poll messages when chat is open
+  useEffect(() => {
+    if (!selected || !token) return
+    const poll = setInterval(async () => {
+      if (document.hidden) return
+      try {
+        const res = await fetch(`${API_BASE}/services/engagements/${selected.id}/messages`, { headers: authHeaders(token) })
+        if (res.ok) {
+          const data = (await res.json()) as { messages: ServiceMessage[] }
+          setMessages((prev) => data.messages.length !== prev.length ? data.messages : prev)
+        }
+      } catch { /* */ }
+    }, 5000)
+    return () => clearInterval(poll)
+  }, [selected, token])
 
   const sendMsg = async () => {
     if (!token || !selected || !msgInput.trim()) return
