@@ -1,22 +1,31 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { API_BASE, authHeaders } from './api'
 import type { Engagement, ServiceMessage } from './servicesTypes'
 
 export function EngagementsTab({ token }: { token: string | null }) {
   const [engs, setEngs] = useState<Engagement[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Engagement | null>(null)
   const [messages, setMessages] = useState<ServiceMessage[]>([])
   const [msgInput, setMsgInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
   const [loadingMsgs, setLoadingMsgs] = useState(false)
+  const [confirmCancel, setConfirmCancel] = useState(false)
+  const [statusBusy, setStatusBusy] = useState(false)
+  const [statusError, setStatusError] = useState<string | null>(null)
+  const chatEndRef = useRef<HTMLDivElement>(null)
+
+  const scrollToBottom = () => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
 
   const load = useCallback(async () => {
     if (!token) { setLoading(false); return }
     try {
       const res = await fetch(`${API_BASE}/services/engagements`, { headers: authHeaders(token) })
-      if (res.ok) setEngs(((await res.json()) as { engagements: Engagement[] }).engagements)
-    } catch { /* */ }
+      if (res.ok) { setEngs(((await res.json()) as { engagements: Engagement[] }).engagements); setLoadError(null) }
+      else setLoadError('Failed to load engagements')
+    } catch { setLoadError('Network error') }
     setLoading(false)
   }, [token])
 
@@ -25,28 +34,37 @@ export function EngagementsTab({ token }: { token: string | null }) {
   const openChat = async (eng: Engagement) => {
     if (!token) return
     setSelected(eng)
-    setMessages([]) // clear stale messages from previous engagement
+    setMessages([])
+    setSendError(null)
+    setConfirmCancel(false)
+    setStatusError(null)
     setLoadingMsgs(true)
     try {
       const res = await fetch(`${API_BASE}/services/engagements/${eng.id}/messages`, { headers: authHeaders(token) })
       if (res.ok) setMessages(((await res.json()) as { messages: ServiceMessage[] }).messages)
     } catch { /* */ }
     setLoadingMsgs(false)
+    setTimeout(scrollToBottom, 100)
   }
 
   // Poll messages when chat is open
   useEffect(() => {
-    if (!selected || !token) return
+    if (!selected?.id || !token) return
+    const engId = selected.id
     const poll = setInterval(async () => {
       if (document.hidden) return
       try {
-        const res = await fetch(`${API_BASE}/services/engagements/${selected.id}/messages`, { headers: authHeaders(token) })
+        const res = await fetch(`${API_BASE}/services/engagements/${engId}/messages`, { headers: authHeaders(token) })
         if (res.ok) {
           const data = (await res.json()) as { messages: ServiceMessage[] }
           setMessages((prev) => {
             const lastId = prev.at(-1)?.id
             const newLastId = data.messages.at(-1)?.id
-            return lastId !== newLastId || data.messages.length !== prev.length ? data.messages : prev
+            if (lastId !== newLastId || data.messages.length !== prev.length) {
+              setTimeout(scrollToBottom, 50)
+              return data.messages
+            }
+            return prev
           })
         }
       } catch { /* */ }
@@ -57,6 +75,7 @@ export function EngagementsTab({ token }: { token: string | null }) {
   const sendMsg = async () => {
     if (!token || !selected || !msgInput.trim()) return
     setSending(true)
+    setSendError(null)
     try {
       const res = await fetch(`${API_BASE}/services/engagements/${selected.id}/messages`, {
         method: 'POST',
@@ -68,26 +87,39 @@ export function EngagementsTab({ token }: { token: string | null }) {
         setMessages((prev) => [...prev, msg])
         setMsgInput('')
         load()
+        setTimeout(scrollToBottom, 50)
       } else {
-        const err = await res.json().catch(() => ({ error: 'failed' })) as { error: string }
-        alert(err.error)
+        const err = await res.json().catch(() => ({ error: 'Send failed' })) as { error: string }
+        setSendError(err.error)
       }
-    } catch (e) { alert((e as Error).message) }
+    } catch (e) { setSendError((e as Error).message) }
     setSending(false)
   }
 
   const updateStatus = async (engId: string, status: string) => {
     if (!token) return
-    await fetch(`${API_BASE}/services/engagements/${engId}`, {
-      method: 'PATCH',
-      headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    })
-    load()
-    if (selected?.id === engId) setSelected(null)
+    setStatusBusy(true)
+    setStatusError(null)
+    try {
+      const res = await fetch(`${API_BASE}/services/engagements/${engId}`, {
+        method: 'PATCH',
+        headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      if (res.ok) {
+        load()
+        if (selected?.id === engId) setSelected(null)
+      } else {
+        const err = await res.json().catch(() => ({ error: 'Failed' })) as { error: string }
+        setStatusError(err.error)
+      }
+    } catch (e) { setStatusError((e as Error).message) }
+    setStatusBusy(false)
+    setConfirmCancel(false)
   }
 
   if (loading) return <p className="py-8 text-center text-sm text-[var(--muted)]">Loading engagements...</p>
+  if (loadError) return <p className="py-8 text-center text-sm text-[var(--error)]">{loadError} <button type="button" onClick={load} className="underline ml-1">Retry</button></p>
 
   if (selected) {
     return (
@@ -110,13 +142,30 @@ export function EngagementsTab({ token }: { token: string | null }) {
           </div>
 
           {selected.status === 'active' && (
-            <div className="flex gap-2 mt-3">
-              {selected.role === 'developer' && (
-                <button type="button" onClick={() => updateStatus(selected.id, 'delivered')}
-                  className="rounded-lg bg-[var(--success)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90">Mark Delivered</button>
+            <div className="mt-3 space-y-2">
+              {statusError && <p className="text-xs text-[var(--error)]">{statusError}</p>}
+              {confirmCancel ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-[var(--muted)]">Cancel this engagement?</span>
+                  <button type="button" onClick={() => updateStatus(selected.id, 'cancelled')} disabled={statusBusy}
+                    className="rounded-lg bg-[var(--error)] px-3 py-1 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50">
+                    {statusBusy ? 'Cancelling...' : 'Yes, cancel'}
+                  </button>
+                  <button type="button" onClick={() => setConfirmCancel(false)}
+                    className="text-xs text-[var(--muted)] hover:text-[var(--ink)]">No</button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  {selected.role === 'developer' && (
+                    <button type="button" onClick={() => updateStatus(selected.id, 'delivered')} disabled={statusBusy}
+                      className="rounded-lg bg-[var(--success)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50">
+                      {statusBusy ? 'Saving...' : 'Mark Delivered'}
+                    </button>
+                  )}
+                  <button type="button" onClick={() => setConfirmCancel(true)}
+                    className="rounded-lg border border-[var(--error)]/40 px-3 py-1.5 text-xs font-semibold text-[var(--error)] hover:bg-[var(--error)]/10">Cancel</button>
+                </div>
               )}
-              <button type="button" onClick={() => { if (confirm('Cancel this engagement?')) updateStatus(selected.id, 'cancelled') }}
-                className="rounded-lg border border-[var(--error)]/40 px-3 py-1.5 text-xs font-semibold text-[var(--error)] hover:bg-[var(--error)]/10">Cancel</button>
             </div>
           )}
         </div>
@@ -146,11 +195,13 @@ export function EngagementsTab({ token }: { token: string | null }) {
                 </div>
               </div>
             ))}
+            <div ref={chatEndRef} />
           </div>
           {selected.status === 'active' && (
             <div className="p-3 border-t border-[var(--line)]">
+              {sendError && <p className="text-xs text-[var(--error)] mb-2">{sendError}</p>}
               <div className="flex gap-2">
-                <input value={msgInput} onChange={(e) => setMsgInput(e.target.value)}
+                <input value={msgInput} onChange={(e) => { setMsgInput(e.target.value); setSendError(null) }}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg() } }}
                   placeholder={selected.role === 'developer' ? `Send (charges client $${(selected.promptRateCents / 100).toFixed(2)})` : 'Send a message (free)'}
                   disabled={sending}

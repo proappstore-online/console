@@ -54,12 +54,13 @@ function DeveloperTab({ token }: { token: string | null }) {
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
   const [loaded, setLoaded] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!token) { setLoaded(true); return }
     fetch(`${API_BASE}/services/profile`, { headers: authHeaders(token) })
       .then(async (res) => {
-        if (!res.ok) return
+        if (!res.ok) { setLoadError('Failed to load profile'); return }
         const data = await res.json() as DevProfile & { exists: boolean }
         if (data.exists) {
           setProfile(data)
@@ -68,7 +69,7 @@ function DeveloperTab({ token }: { token: string | null }) {
           setAvailable(data.available)
         }
       })
-      .catch(() => {})
+      .catch(() => setLoadError('Network error'))
       .finally(() => setLoaded(true))
   }, [token])
 
@@ -100,6 +101,7 @@ function DeveloperTab({ token }: { token: string | null }) {
   }
 
   if (!loaded) return <p className="py-8 text-center text-sm text-[var(--muted)]">Loading...</p>
+  if (loadError) return <p className="py-8 text-center text-sm text-[var(--error)]">{loadError}</p>
 
   return (
     <div className="space-y-4 max-w-xl">
@@ -205,11 +207,14 @@ function ClientTab({ token }: { token: string | null }) {
     }).catch(() => {})
   }, [token])
 
+  const [depositError, setDepositError] = useState<string | null>(null)
+
   const deposit = async () => {
     if (!token) return
     const cents = Math.round(parseFloat(depositAmount) * 100)
     if (cents < 1000) return
     setDepositing(true)
+    setDepositError(null)
     try {
       const res = await fetch(`${API_BASE}/services/balance/deposit`, {
         method: 'POST',
@@ -217,7 +222,11 @@ function ClientTab({ token }: { token: string | null }) {
         body: JSON.stringify({ amountCents: cents, successUrl: window.location.href, cancelUrl: window.location.href }),
       })
       if (res.ok) window.location.href = ((await res.json()) as { url: string }).url
-    } catch { /* */ }
+      else {
+        const err = await res.json().catch(() => ({ error: 'Deposit failed' })) as { error: string }
+        setDepositError(err.error)
+      }
+    } catch (e) { setDepositError((e as Error).message) }
     setDepositing(false)
   }
 
@@ -244,6 +253,7 @@ function ClientTab({ token }: { token: string | null }) {
             {depositing ? 'Redirecting...' : 'Top Up'}
           </button>
         </div>
+        {depositError && <p className="text-xs text-[var(--error)] mt-2">{depositError}</p>}
         <p className="text-xs text-[var(--muted)] mt-2">Min $10 via Stripe. Used when a developer works on your project.</p>
       </div>
 

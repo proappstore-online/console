@@ -5,17 +5,21 @@ import type { BuildRequest } from './servicesTypes'
 export function RequestsTab({ token }: { token: string | null }) {
   const [requests, setRequests] = useState<BuildRequest[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [showNew, setShowNew] = useState(false)
   const [title, setTitle] = useState('')
   const [desc, setDesc] = useState('')
   const [budget, setBudget] = useState('')
   const [posting, setPosting] = useState(false)
+  const [postError, setPostError] = useState<string | null>(null)
+  const [acceptStatus, setAcceptStatus] = useState<{ id: string; type: 'ok' | 'error'; msg: string } | null>(null)
 
   const load = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/services/requests`)
-      if (res.ok) setRequests(((await res.json()) as { requests: BuildRequest[] }).requests)
-    } catch { /* */ }
+      if (res.ok) { setRequests(((await res.json()) as { requests: BuildRequest[] }).requests); setLoadError(null) }
+      else setLoadError('Failed to load requests')
+    } catch { setLoadError('Network error') }
     setLoading(false)
   }, [])
 
@@ -24,6 +28,7 @@ export function RequestsTab({ token }: { token: string | null }) {
   const post = async () => {
     if (!token || !title.trim() || !desc.trim()) return
     setPosting(true)
+    setPostError(null)
     try {
       const res = await fetch(`${API_BASE}/services/requests`, {
         method: 'POST',
@@ -35,31 +40,42 @@ export function RequestsTab({ token }: { token: string | null }) {
         }),
       })
       if (res.ok) { setShowNew(false); setTitle(''); setDesc(''); setBudget(''); load() }
-      else { const err = await res.json().catch(() => ({ error: 'failed' })) as { error: string }; alert(err.error) }
-    } catch (e) { alert((e as Error).message) }
+      else { const err = await res.json().catch(() => ({ error: 'failed' })) as { error: string }; setPostError(err.error) }
+    } catch (e) { setPostError((e as Error).message) }
     setPosting(false)
   }
 
   const accept = async (reqId: string) => {
     if (!token) return
-    const res = await fetch(`${API_BASE}/services/requests/${reqId}/accept`, {
-      method: 'POST',
-      headers: authHeaders(token),
-    })
-    if (res.ok) { alert('Accepted! Check the Engagements tab.'); load() }
-    else { const err = await res.json().catch(() => ({ error: 'failed' })) as { error: string }; alert(err.error) }
+    setAcceptStatus(null)
+    try {
+      const res = await fetch(`${API_BASE}/services/requests/${reqId}/accept`, {
+        method: 'POST',
+        headers: authHeaders(token),
+      })
+      if (res.ok) {
+        setAcceptStatus({ id: reqId, type: 'ok', msg: 'Accepted! Check the Engagements tab.' })
+        load()
+      } else {
+        const err = await res.json().catch(() => ({ error: 'failed' })) as { error: string }
+        setAcceptStatus({ id: reqId, type: 'error', msg: err.error })
+      }
+    } catch (e) { setAcceptStatus({ id: reqId, type: 'error', msg: (e as Error).message }) }
   }
 
   if (loading) return <p className="py-8 text-center text-sm text-[var(--muted)]">Loading requests...</p>
+  if (loadError) return <p className="py-8 text-center text-sm text-[var(--error)]">{loadError} <button type="button" onClick={load} className="underline ml-1">Retry</button></p>
 
   return (
     <div className="max-w-2xl space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="display-font text-lg font-bold text-[var(--ink)]">Build Requests</h3>
-        <button type="button" onClick={() => setShowNew(!showNew)}
-          className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90">
-          {showNew ? 'Cancel' : '+ Post Request'}
-        </button>
+        {token && (
+          <button type="button" onClick={() => { setShowNew(!showNew); setPostError(null) }}
+            className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90">
+            {showNew ? 'Cancel' : '+ Post Request'}
+          </button>
+        )}
       </div>
 
       {showNew && (
@@ -77,10 +93,17 @@ export function RequestsTab({ token }: { token: string | null }) {
               placeholder="—" aria-label="Budget amount"
               className="w-24 rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm" />
           </div>
+          {postError && <p className="text-xs text-[var(--error)]">{postError}</p>}
           <button type="button" onClick={post} disabled={posting || !title.trim() || !desc.trim()}
             className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
             {posting ? 'Posting...' : 'Post Request'}
           </button>
+        </div>
+      )}
+
+      {acceptStatus && (
+        <div className={`rounded-lg px-4 py-2 text-sm font-medium ${acceptStatus.type === 'ok' ? 'bg-[var(--success)]/10 text-[var(--success)]' : 'bg-[var(--error)]/10 text-[var(--error)]'}`}>
+          {acceptStatus.msg}
         </div>
       )}
 
@@ -102,10 +125,12 @@ export function RequestsTab({ token }: { token: string | null }) {
                 <span>{new Date(r.createdAt).toLocaleDateString()}</span>
               </div>
             </div>
-            <button type="button" onClick={() => accept(r.id)}
-              className="flex-shrink-0 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90">
-              Accept
-            </button>
+            {token && (
+              <button type="button" onClick={() => accept(r.id)}
+                className="flex-shrink-0 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90">
+                Accept
+              </button>
+            )}
           </div>
         </div>
       ))}
