@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { API_BASE, authHeaders } from './api'
 import type { DevProfile } from './servicesTypes'
 import { DirectoryTab } from './ServicesDirectory'
@@ -185,12 +185,17 @@ function ClientTab({ token }: { token: string | null }) {
     }).catch(() => {}).finally(() => setLoading(false))
   }, [token])
 
-  // Confirm deposit on return from Stripe
+  // Confirm deposit on return from Stripe. The session_id is in the query
+  // string (before the hash) because the backend constructs the URL that way.
+  const confirmedRef = useRef(false)
   useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search)
-    const sessionId = searchParams.get('session_id')
+    if (confirmedRef.current) return
+    const sessionId = new URLSearchParams(window.location.search).get('session_id')
     if (!sessionId || !token) return
-    window.history.replaceState({}, '', window.location.pathname + window.location.hash)
+    confirmedRef.current = true
+    // Strip the query param, keep the hash
+    const clean = window.location.pathname + window.location.hash
+    window.history.replaceState({}, '', clean)
     fetch(`${API_BASE}/services/balance/confirm`, {
       method: 'POST',
       headers: { ...authHeaders(token), 'Content-Type': 'application/json' },

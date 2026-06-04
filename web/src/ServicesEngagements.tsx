@@ -25,6 +25,7 @@ export function EngagementsTab({ token }: { token: string | null }) {
   const openChat = async (eng: Engagement) => {
     if (!token) return
     setSelected(eng)
+    setMessages([]) // clear stale messages from previous engagement
     setLoadingMsgs(true)
     try {
       const res = await fetch(`${API_BASE}/services/engagements/${eng.id}/messages`, { headers: authHeaders(token) })
@@ -42,12 +43,16 @@ export function EngagementsTab({ token }: { token: string | null }) {
         const res = await fetch(`${API_BASE}/services/engagements/${selected.id}/messages`, { headers: authHeaders(token) })
         if (res.ok) {
           const data = (await res.json()) as { messages: ServiceMessage[] }
-          setMessages((prev) => data.messages.length !== prev.length ? data.messages : prev)
+          setMessages((prev) => {
+            const lastId = prev.at(-1)?.id
+            const newLastId = data.messages.at(-1)?.id
+            return lastId !== newLastId || data.messages.length !== prev.length ? data.messages : prev
+          })
         }
       } catch { /* */ }
     }, 5000)
     return () => clearInterval(poll)
-  }, [selected, token])
+  }, [selected?.id, token])
 
   const sendMsg = async () => {
     if (!token || !selected || !msgInput.trim()) return
