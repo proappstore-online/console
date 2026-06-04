@@ -42,9 +42,12 @@ function Badge({ kind }: { kind: 'default' | 'custom' | 'templated' }) {
   return <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border ${map.cls}`}>{map.label}</span>
 }
 
+interface ProjectCost { costCapMonthlyUsd?: number; costSpentMonthlyUsd?: number }
+
 export function AgentsView({ appId, appName, getToken }: { appId: string; appName: string | null; getToken: () => string | null }) {
   const [agents, setAgents] = useState<AgentDescriptor[] | null>(null)
   const [roles, setRoles] = useState<RoleCfg[] | null>(null)
+  const [cost, setCost] = useState<ProjectCost | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<string | null>(null)
@@ -56,12 +59,14 @@ export function AgentsView({ appId, appName, getToken }: { appId: string; appNam
     if (!token) return
     setError(null)
     try {
-      const [a, r] = await Promise.all([
+      const [a, r, p] = await Promise.all([
         api(`/projects/${appId}/agents`, token) as Promise<{ agents: AgentDescriptor[] }>,
         api(`/projects/${appId}/roles`, token) as Promise<{ roles: RoleCfg[] }>,
+        api(`/projects/${appId}`, token).catch(() => null) as Promise<ProjectCost | null>,
       ])
       setAgents(a.agents)
       setRoles(r.roles)
+      setCost(p)
     } catch (e) {
       setError((e as Error).message)
     }
@@ -130,6 +135,8 @@ export function AgentsView({ appId, appName, getToken }: { appId: string; appNam
       </div>
 
       {error && <p className="text-sm text-[var(--error)]">{error}</p>}
+
+      {cost && <BudgetCard appId={appId} getToken={getToken} cost={cost} onSaved={load} setError={setError} />}
 
       <div className="space-y-3">
         {agents?.map((agent) => {
@@ -286,6 +293,64 @@ function EditPanel({ draft, setDraft, toggleTool, onSave, onCancel, saving }: {
           className="rounded-lg bg-[var(--accent)] px-4 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
           {saving ? 'Saving…' : 'Save'}
         </button>
+      </div>
+    </div>
+  )
+}
+
+// Monthly budget for the team — the cost cap that auto-pauses the loop when the
+// month's spend reaches it. Reads cap + spend from GET /projects/:slug; saves via
+// PUT /projects/:slug/budget.
+function BudgetCard({ appId, getToken, cost, onSaved, setError }: {
+  appId: string
+  getToken: () => string | null
+  cost: ProjectCost
+  onSaved: () => Promise<void>
+  setError: (s: string | null) => void
+}) {
+  const [cap, setCap] = useState<number>(cost.costCapMonthlyUsd ?? 50)
+  const [saving, setSaving] = useState(false)
+  const spent = cost.costSpentMonthlyUsd ?? 0
+  const pct = cap > 0 ? Math.min(100, Math.round((spent / cap) * 100)) : 0
+
+  const save = async () => {
+    const token = getToken()
+    if (!token) return
+    if (!(cap >= 1 && cap <= 1000)) { setError('Budget must be between $1 and $1000'); return }
+    setSaving(true); setError(null)
+    try {
+      await api(`/projects/${appId}/budget`, token, { method: 'PUT', body: { costCapMonthlyUsd: cap } })
+      await onSaved()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+    setSaving(false)
+  }
+
+  return (
+    <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div>
+          <h4 className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Monthly budget</h4>
+          <p className="text-xs text-[var(--muted)] mt-0.5">
+            ${spent.toFixed(2)} spent of ${(cost.costCapMonthlyUsd ?? cap).toFixed(0)} this month. The loop auto-pauses when the cap is reached.
+          </p>
+        </div>
+        <div className="flex items-end gap-2">
+          <label className="text-[11px] text-[var(--muted)]">
+            Cap (USD/mo)
+            <input type="number" min={1} max={1000} step={5} value={cap}
+              onChange={(e) => setCap(Number(e.target.value) || 0)}
+              className="mt-1 w-24 rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-2 py-1 text-sm text-[var(--ink)]" />
+          </label>
+          <button type="button" onClick={save} disabled={saving}
+            className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+      <div className="mt-2 h-1.5 rounded-full bg-[var(--paper)] overflow-hidden">
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: pct >= 90 ? 'var(--error,#dc2626)' : 'var(--accent)' }} />
       </div>
     </div>
   )
