@@ -72,11 +72,12 @@ export function AppTest({ appId, getToken }: { appId: string; getToken: () => st
     setSending(false)
   }
 
+  const [confirmClear, setConfirmClear] = useState(false)
   const clearChat = async () => {
     if (!token) return
-    if (!confirm('Clear QA chat history?')) return
     try { await api(`/projects/${appId}/chat/history?thread=test`, token, { method: 'DELETE' }); setChat([]) }
     catch { /* ignore */ }
+    setConfirmClear(false)
   }
 
   if (loading) return <p className="py-12 text-center text-sm text-[var(--muted)]">Loading QA agent...</p>
@@ -89,8 +90,18 @@ export function AppTest({ appId, getToken }: { appId: string; getToken: () => st
           <h3 className="text-sm font-bold text-[var(--ink)]">QA Agent</h3>
           <div className="flex items-center gap-1">
             <InlineCopy title="Copy chat" text={JSON.stringify(chat.map(m => ({ role: m.role, text: m.text })), null, 2)} />
-            <button type="button" onClick={clearChat} title="Clear chat"
-              className="text-[10px] text-[var(--muted)] hover:text-[var(--error)] px-1.5 py-0.5 rounded border border-[var(--line)] hover:border-[var(--error)] transition-colors">Clear</button>
+            {confirmClear ? (
+              <>
+                <span className="text-[10px] text-[var(--muted)]">Clear?</span>
+                <button type="button" onClick={clearChat}
+                  className="text-[10px] text-[var(--error)] font-semibold px-1">Yes</button>
+                <button type="button" onClick={() => setConfirmClear(false)}
+                  className="text-[10px] text-[var(--muted)] px-1">No</button>
+              </>
+            ) : (
+              <button type="button" onClick={() => setConfirmClear(true)} title="Clear chat"
+                className="text-[10px] text-[var(--muted)] hover:text-[var(--error)] px-1.5 py-0.5 rounded border border-[var(--line)] hover:border-[var(--error)] transition-colors">Clear</button>
+            )}
           </div>
         </div>
         <div className="relative flex-1 min-h-0">

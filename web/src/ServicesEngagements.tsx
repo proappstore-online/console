@@ -139,7 +139,8 @@ export function EngagementsTab({ token }: { token: string | null }) {
         headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
         body: JSON.stringify({ score: ratingScore, comment: ratingComment || undefined }),
       })
-      if (res.ok) {
+      if (res.ok || res.status === 409) {
+        // 409 = already rated (on remount). Treat as success.
         setRatingDone(true)
       } else {
         const err = await res.json().catch(() => ({ error: 'failed' })) as { error: string }
