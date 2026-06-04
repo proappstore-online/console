@@ -11,8 +11,8 @@ importers:
   web:
     dependencies:
       '@proappstore/sdk':
-        specifier: ^1.15.0
-        version: 1.15.0(react@19.2.6)
+        specifier: ^1.16.8
+        version: 1.16.8(react@19.2.6)
       highlight.js:
         specifier: ^11.11.1
         version: 11.11.1
@@ -651,14 +651,6 @@ packages:
       '@noble/hashes':
         optional: true
 
-  '@freeappstore/sdk@0.8.0':
-    resolution: {integrity: sha512-eyA70zz0o+q4yPUFeYbQQEz0eAkmwkjyBMexXIM5YM8FT+AiEKZ8UmS7WpHgit2mtnKVWMI5YXUNSr/QY2Vd2w==}
-    peerDependencies:
-      react: ^18.0.0 || ^19.0.0
-    peerDependenciesMeta:
-      react:
-        optional: true
-
   '@isaacs/cliui@9.0.0':
     resolution: {integrity: sha512-AokJm4tuBHillT+FpMtxQ60n8ObyXBatq7jD2/JA9dxbDDokKQm8KMht5ibGzLVU9IJDIKK4TPKgMHEYMn3lMg==}
     engines: {node: '>=18'}
@@ -696,8 +688,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  '@proappstore/sdk@1.15.0':
-    resolution: {integrity: sha512-xKRjjBXD3b4h2Y/EyFj+QB/hQz+BhwFgNsOT7XIuNnRvKCt3vBvZyrESrKK28irg0bkWZoMjSrAysNY5hqv08A==}
+  '@proappstore/sdk@1.16.8':
+    resolution: {integrity: sha512-Dg7EGTZrzo9SGJliZWXD6Qt5ppvUOrye75cHEeT/VolwiZFyhBPABSc4zzX4t1+Khyi8jbr6G5B7vQFpm6MpLw==}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
     peerDependenciesMeta:
@@ -3481,10 +3473,6 @@ snapshots:
 
   '@exodus/bytes@1.15.1': {}
 
-  '@freeappstore/sdk@0.8.0(react@19.2.6)':
-    optionalDependencies:
-      react: 19.2.6
-
   '@isaacs/cliui@9.0.0': {}
 
   '@jridgewell/gen-mapping@0.3.13':
@@ -3524,9 +3512,7 @@ snapshots:
     dependencies:
       playwright: 1.60.0
 
-  '@proappstore/sdk@1.15.0(react@19.2.6)':
-    dependencies:
-      '@freeappstore/sdk': 0.8.0(react@19.2.6)
+  '@proappstore/sdk@1.16.8(react@19.2.6)':
     optionalDependencies:
       react: 19.2.6
 

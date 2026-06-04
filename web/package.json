@@ -13,7 +13,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@proappstore/sdk": "^1.15.0",
+    "@proappstore/sdk": "^1.16.8",
     "highlight.js": "^11.11.1",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
