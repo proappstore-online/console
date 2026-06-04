@@ -12,6 +12,7 @@ export function EngagementsTab({ token }: { token: string | null }) {
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [loadingMsgs, setLoadingMsgs] = useState(false)
+  const justSentRef = useRef(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [statusBusy, setStatusBusy] = useState(false)
   const [statusError, setStatusError] = useState<string | null>(null)
@@ -48,7 +49,8 @@ export function EngagementsTab({ token }: { token: string | null }) {
     try {
       const res = await fetch(`${API_BASE}/services/engagements/${eng.id}/messages`, { headers: authHeaders(token) })
       if (res.ok) setMessages(((await res.json()) as { messages: ServiceMessage[] }).messages)
-    } catch { /* */ }
+      else setSendError('Failed to load messages')
+    } catch { setSendError('Network error loading messages') }
     setLoadingMsgs(false)
     setTimeout(scrollToBottom, 100)
   }
@@ -59,6 +61,8 @@ export function EngagementsTab({ token }: { token: string | null }) {
     const engId = selected.id
     const poll = setInterval(async () => {
       if (document.hidden) return
+      // Skip one poll cycle after a send to avoid replacing the optimistic message
+      if (justSentRef.current) { justSentRef.current = false; return }
       try {
         const res = await fetch(`${API_BASE}/services/engagements/${engId}/messages`, { headers: authHeaders(token) })
         if (res.ok) {
@@ -92,6 +96,7 @@ export function EngagementsTab({ token }: { token: string | null }) {
         const msg = await res.json() as ServiceMessage
         setMessages((prev) => [...prev, msg])
         setMsgInput('')
+        justSentRef.current = true // skip next poll to avoid replacing optimistic message
         load()
         setTimeout(scrollToBottom, 50)
       } else {
