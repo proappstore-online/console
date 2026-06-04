@@ -43,6 +43,9 @@ export function KbPreview({
 }) {
   const [files, setFiles] = useState<KbFile[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
+  // 'docs' = live markdown render (updates as the Architect writes, pre-publish);
+  // 'site' = iframe of the real published Zensical site (exactly what visitors see).
+  const [view, setView] = useState<'docs' | 'site'>('docs')
   const [selected, setSelected] = useState<string>('KNOWLEDGE.md')
   const [content, setContent] = useState<string>('')
   // The doc that `content` currently belongs to. When it differs from `selected`
@@ -121,6 +124,20 @@ export function KbPreview({
           )}
         </div>
         <div className="flex items-center gap-1.5">
+          {hasKb && (
+            <div className="flex items-center rounded-md border border-[var(--line)] overflow-hidden" role="tablist" aria-label="Knowledge Base view">
+              <button type="button" role="tab" aria-selected={view === 'docs'} onClick={() => setView('docs')}
+                className={`text-[10px] font-semibold px-2 py-0.5 ${view === 'docs' ? 'bg-[var(--accent)] text-white' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}
+                title="Live markdown — updates as the Architect writes (before publish)">
+                Docs
+              </button>
+              <button type="button" role="tab" aria-selected={view === 'site'} onClick={() => setView('site')}
+                className={`text-[10px] font-semibold px-2 py-0.5 ${view === 'site' ? 'bg-[var(--accent)] text-white' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}
+                title="The real published site (exactly what visitors see)">
+                Site
+              </button>
+            </div>
+          )}
           <button type="button" onClick={loadList}
             className="text-[10px] text-[var(--muted)] hover:text-[var(--ink)] px-1.5 py-0.5 rounded border border-[var(--line)] hover:border-[var(--accent)]"
             title="Refresh the Knowledge Base from the repo">
@@ -162,6 +179,16 @@ export function KbPreview({
             {building ? 'Starting…' : kbStarted ? '↻ Retry — run the Architect' : '📖 Build the Knowledge Base'}
           </button>
         </div>
+      ) : view === 'site' ? (
+        // The real published Zensical site — exactly what a visitor sees (branding,
+        // theme, dark-mode toggle). Reflects the LAST publish, not in-flight edits;
+        // switch to Docs for the live view while the Architect is writing.
+        <iframe
+          src={`https://kb.proappstore.online/${appId}/`}
+          title="Published Knowledge Base site"
+          className="flex-1 min-h-0 w-full border-0 bg-white"
+          sandbox="allow-scripts allow-same-origin allow-popups"
+        />
       ) : (
         <div className="flex-1 flex min-h-0">
           {/* File rail */}
