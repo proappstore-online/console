@@ -596,7 +596,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   )
 
   return (
-    <div className="flex flex-col lg:flex-row gap-2 h-[calc(100dvh-120px)] overflow-hidden">
+    <div className="flex flex-col lg:flex-row gap-2 flex-1 min-h-0 overflow-hidden">
       {/* Chat panel — one per tab, bound to its own thread/agent: Research → the
           Architect (KB), Build → the PO (backlog). Rendered for both tabs. */}
       {(tab === 'research' || tab === 'build') && (

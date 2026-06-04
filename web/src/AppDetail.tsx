@@ -62,7 +62,7 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab }: Props) {
   const subdomain = `${appId}.proappstore.online`
 
   return (
-    <div className="space-y-3">
+    <div className="flex-1 flex flex-col gap-2 min-h-0">
       {/* Navbar owns the project switcher / tab switcher / live link.
           Research + Build share ONE AppAgents instance (kept mounted across the
           switch so its WebSocket + state survive) — it just renders chat+KB vs
