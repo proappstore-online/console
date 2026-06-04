@@ -5,7 +5,7 @@ import { DirectoryTab } from './ServicesDirectory'
 import { EngagementsTab } from './ServicesEngagements'
 import { RequestsTab } from './ServicesRequests'
 
-type Tab = 'directory' | 'developer' | 'client' | 'engagements' | 'requests'
+type Tab = 'directory' | 'developer' | 'earnings' | 'client' | 'engagements' | 'requests'
 
 export function ServicesView({ getToken }: { getToken: () => string | null }) {
   const [tab, setTab] = useState<Tab>('directory')
@@ -24,6 +24,7 @@ export function ServicesView({ getToken }: { getToken: () => string | null }) {
           { key: 'engagements' as Tab, label: 'Engagements' },
           { key: 'requests' as Tab, label: 'Requests' },
           { key: 'developer' as Tab, label: 'My Profile' },
+          { key: 'earnings' as Tab, label: 'Earnings' },
           { key: 'client' as Tab, label: 'Balance' },
         ]).map((t) => (
           <button key={t.key} type="button" onClick={() => setTab(t.key)}
@@ -39,6 +40,7 @@ export function ServicesView({ getToken }: { getToken: () => string | null }) {
       {tab === 'engagements' && <EngagementsTab token={token} />}
       {tab === 'requests' && <RequestsTab token={token} />}
       {tab === 'developer' && <DeveloperTab token={token} />}
+      {tab === 'earnings' && <EarningsTab token={token} />}
       {tab === 'client' && <ClientTab token={token} />}
     </div>
   )
@@ -163,6 +165,96 @@ function Stat({ label, value, suffix }: { label: string; value: string; suffix?:
     <div>
       <span className="text-[var(--muted)] text-xs">{label}</span>
       <p className="font-bold text-[var(--ink)]">{value}{suffix}</p>
+    </div>
+  )
+}
+
+// ── Earnings: developer income breakdown ─────────────────────
+
+interface EarningsData {
+  totalEarnedCents: number
+  totalPrompts: number
+  totalEngagements: number
+  deliveredEngagements: number
+  activeEngagements: number
+  payoutsEnabled: boolean
+  connectOnboarded: boolean
+  engagements: {
+    id: string; clientLogin: string | null; status: string; promptRateCents: number;
+    promptsCount: number; earnedCents: number; chargedCents: number; createdAt: number
+  }[]
+}
+
+function EarningsTab({ token }: { token: string | null }) {
+  const [data, setData] = useState<EarningsData | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!token) { setLoading(false); return }
+    fetch(`${API_BASE}/services/earnings`, { headers: authHeaders(token) })
+      .then(async (res) => { if (res.ok) setData(await res.json() as EarningsData) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [token])
+
+  if (loading) return <p className="py-8 text-center text-sm text-[var(--muted)]">Loading earnings...</p>
+  if (!data) return <p className="py-8 text-center text-sm text-[var(--muted)]">Create a developer profile to see earnings.</p>
+
+  return (
+    <div className="space-y-4 max-w-2xl">
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4">
+          <p className="text-xs text-[var(--muted)] uppercase tracking-wide">Total earned</p>
+          <p className="display-font text-2xl font-bold text-[var(--success)]">${(data.totalEarnedCents / 100).toFixed(2)}</p>
+        </div>
+        <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4">
+          <p className="text-xs text-[var(--muted)] uppercase tracking-wide">Prompts</p>
+          <p className="display-font text-2xl font-bold text-[var(--ink)]">{data.totalPrompts}</p>
+        </div>
+        <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4">
+          <p className="text-xs text-[var(--muted)] uppercase tracking-wide">Active</p>
+          <p className="display-font text-2xl font-bold text-[var(--ink)]">{data.activeEngagements}</p>
+        </div>
+        <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4">
+          <p className="text-xs text-[var(--muted)] uppercase tracking-wide">Delivered</p>
+          <p className="display-font text-2xl font-bold text-[var(--ink)]">{data.deliveredEngagements}</p>
+        </div>
+      </div>
+
+      {/* Payout status */}
+      <div className={`rounded-lg px-4 py-3 text-sm ${data.payoutsEnabled ? 'bg-[var(--success)]/10 text-[var(--success)]' : 'bg-[var(--warning)]/10 text-[var(--warning)]'}`}>
+        {data.payoutsEnabled
+          ? 'Stripe Connect active — payouts will be transferred at month end.'
+          : data.connectOnboarded
+            ? 'Stripe Connect onboarding complete, but payouts are not yet enabled. Check your Stripe dashboard.'
+            : 'Set up Stripe Connect in the Payouts tab to receive your earnings.'}
+      </div>
+
+      {/* Per-engagement breakdown */}
+      <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-5">
+        <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide mb-3">Engagements</h3>
+        {data.engagements.length === 0 ? (
+          <p className="text-sm text-[var(--muted)]">No engagements yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {data.engagements.map((e) => (
+              <div key={e.id} className="flex items-center justify-between text-sm py-2 border-b border-[var(--line)] last:border-0">
+                <div>
+                  <span className="font-semibold text-[var(--ink)]">{e.clientLogin ?? 'Client'}</span>
+                  <span className={`ml-2 text-xs font-semibold px-1.5 py-0.5 rounded-full ${
+                    e.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                    : e.status === 'delivered' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                    : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                  }`}>{e.status}</span>
+                  <span className="text-xs text-[var(--muted)] ml-2">{e.promptsCount} prompts @ ${(e.promptRateCents / 100).toFixed(2)}</span>
+                </div>
+                <span className="font-bold text-[var(--success)]">${(e.earnedCents / 100).toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
