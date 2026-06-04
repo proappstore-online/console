@@ -8,6 +8,7 @@ import { TestResults } from './TestResults'
 import { AgentsView } from './AgentsView'
 import { AppMcpTools } from './AppMcpTools'
 import { AppSecrets } from './AppSecrets'
+import { AppPublishing } from './AppPublishing'
 import { AppAgents } from './AppAgents'
 import type { AppTab } from './nav'
 import {
@@ -28,7 +29,7 @@ interface Props {
 // Sub-navigation within the Settings tab — all per-app configuration lives here.
 const SETTINGS_TABS = [
   { key: 'storefront', label: 'Storefront' },
-  { key: 'domains', label: 'Domains' },
+  { key: 'publishing', label: 'Publishing' },
   { key: 'agents', label: 'Agents' },
   { key: 'integrations', label: 'Integrations' },
   { key: 'access', label: 'Access & Data' },
@@ -139,8 +140,11 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab }: Props) {
             </>
           )}
 
-          {settingsTab === 'domains' && (
-            <div className="max-w-3xl"><DomainsSection appId={appId} getToken={getToken} /></div>
+          {settingsTab === 'publishing' && (
+            <div className="max-w-3xl space-y-6">
+              <AppPublishing appId={appId} />
+              <DomainsSection appId={appId} getToken={getToken} />
+            </div>
           )}
 
           {settingsTab === 'agents' && (
