@@ -15,6 +15,12 @@ export function EngagementsTab({ token }: { token: string | null }) {
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [statusBusy, setStatusBusy] = useState(false)
   const [statusError, setStatusError] = useState<string | null>(null)
+  // Rating
+  const [ratingScore, setRatingScore] = useState(0)
+  const [ratingComment, setRatingComment] = useState('')
+  const [ratingBusy, setRatingBusy] = useState(false)
+  const [ratingDone, setRatingDone] = useState(false)
+  const [ratingError, setRatingError] = useState<string | null>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -118,6 +124,26 @@ export function EngagementsTab({ token }: { token: string | null }) {
     setConfirmCancel(false)
   }
 
+  const submitRating = async () => {
+    if (!token || !selected || ratingScore < 1) return
+    setRatingBusy(true)
+    setRatingError(null)
+    try {
+      const res = await fetch(`${API_BASE}/services/engagements/${selected.id}/rate`, {
+        method: 'POST',
+        headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ score: ratingScore, comment: ratingComment || undefined }),
+      })
+      if (res.ok) {
+        setRatingDone(true)
+      } else {
+        const err = await res.json().catch(() => ({ error: 'failed' })) as { error: string }
+        setRatingError(err.error)
+      }
+    } catch (e) { setRatingError((e as Error).message) }
+    setRatingBusy(false)
+  }
+
   if (loading) return <p className="py-8 text-center text-sm text-[var(--muted)]">Loading engagements...</p>
   if (loadError) return <p className="py-8 text-center text-sm text-[var(--error)]">{loadError} <button type="button" onClick={load} className="underline ml-1">Retry</button></p>
 
@@ -169,6 +195,36 @@ export function EngagementsTab({ token }: { token: string | null }) {
             </div>
           )}
         </div>
+
+        {/* Rating — shown to clients after delivery */}
+        {selected.status === 'delivered' && selected.role === 'client' && !ratingDone && (
+          <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-5">
+            <h3 className="text-sm font-bold text-[var(--ink)] mb-3">Rate this developer</h3>
+            <div className="flex items-center gap-1 mb-3">
+              {[1, 2, 3, 4, 5].map((s) => (
+                <button key={s} type="button" onClick={() => setRatingScore(s)}
+                  className={`text-2xl transition-colors ${s <= ratingScore ? 'text-amber-400' : 'text-[var(--line-strong)] hover:text-amber-300'}`}>
+                  {s <= ratingScore ? '\u2605' : '\u2606'}
+                </button>
+              ))}
+              {ratingScore > 0 && <span className="text-sm text-[var(--muted)] ml-2">{ratingScore}/5</span>}
+            </div>
+            <textarea rows={2} value={ratingComment} onChange={(e) => setRatingComment(e.target.value)}
+              placeholder="Optional comment — what was the experience like?"
+              aria-label="Rating comment"
+              className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm mb-3" />
+            {ratingError && <p className="text-xs text-[var(--error)] mb-2">{ratingError}</p>}
+            <button type="button" onClick={submitRating} disabled={ratingBusy || ratingScore < 1}
+              className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
+              {ratingBusy ? 'Submitting...' : 'Submit Rating'}
+            </button>
+          </div>
+        )}
+        {ratingDone && (
+          <div className="rounded-lg bg-[var(--success)]/10 text-[var(--success)] px-4 py-2 text-sm font-medium">
+            Rating submitted — thank you!
+          </div>
+        )}
 
         {/* Chat */}
         <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">

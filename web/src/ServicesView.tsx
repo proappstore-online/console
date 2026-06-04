@@ -4,8 +4,9 @@ import type { DevProfile } from './servicesTypes'
 import { DirectoryTab } from './ServicesDirectory'
 import { EngagementsTab } from './ServicesEngagements'
 import { RequestsTab } from './ServicesRequests'
+import { MyRequestsTab } from './ServicesMyRequests'
 
-type Tab = 'directory' | 'developer' | 'earnings' | 'client' | 'engagements' | 'requests'
+type Tab = 'directory' | 'developer' | 'earnings' | 'client' | 'engagements' | 'requests' | 'my-requests'
 
 export function ServicesView({ getToken }: { getToken: () => string | null }) {
   const [tab, setTab] = useState<Tab>('directory')
@@ -25,6 +26,7 @@ export function ServicesView({ getToken }: { getToken: () => string | null }) {
           { key: 'requests' as Tab, label: 'Requests' },
           { key: 'developer' as Tab, label: 'My Profile' },
           { key: 'earnings' as Tab, label: 'Earnings' },
+          { key: 'my-requests' as Tab, label: 'My Requests' },
           { key: 'client' as Tab, label: 'Balance' },
         ]).map((t) => (
           <button key={t.key} type="button" onClick={() => setTab(t.key)}
@@ -41,6 +43,7 @@ export function ServicesView({ getToken }: { getToken: () => string | null }) {
       {tab === 'requests' && <RequestsTab token={token} />}
       {tab === 'developer' && <DeveloperTab token={token} />}
       {tab === 'earnings' && <EarningsTab token={token} />}
+      {tab === 'my-requests' && <MyRequestsTab token={token} />}
       {tab === 'client' && <ClientTab token={token} />}
     </div>
   )
