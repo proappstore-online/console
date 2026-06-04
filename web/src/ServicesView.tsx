@@ -5,13 +5,26 @@ import { DirectoryTab } from './ServicesDirectory'
 import { EngagementsTab } from './ServicesEngagements'
 import { RequestsTab } from './ServicesRequests'
 import { MyRequestsTab } from './ServicesMyRequests'
+import { ServicesOnboarding } from './ServicesOnboarding'
 
 type Tab = 'directory' | 'developer' | 'earnings' | 'client' | 'engagements' | 'requests' | 'my-requests'
 
+const ONBOARDING_KEY = 'pas:services-onboarded'
+
 export function ServicesView({ getToken }: { getToken: () => string | null }) {
   const [tab, setTab] = useState<Tab>('directory')
+  const [onboarded, setOnboarded] = useState(() => localStorage.getItem(ONBOARDING_KEY) === '1')
   // Pass getToken down — children call it fresh before each fetch to avoid stale tokens
   const token = getToken() // for tab rendering decisions only
+
+  if (!onboarded) {
+    return (
+      <ServicesOnboarding onDismiss={() => {
+        localStorage.setItem(ONBOARDING_KEY, '1')
+        setOnboarded(true)
+      }} />
+    )
+  }
 
   return (
     <div className="space-y-6">
