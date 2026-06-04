@@ -92,14 +92,17 @@ export function KbPreview({
     return () => { cancelled = true }
   }, [selected, version, loadDoc])
 
-  // Slow poll as a safety net (WS push is the instant path). Paused when hidden.
-  useEffect(() => {
-    const id = setInterval(() => { if (!document.hidden) loadList() }, 6000)
-    return () => clearInterval(id)
-  }, [loadList])
-
   const hasKb = (files?.length ?? 0) > 0
   const architectWorking = working?.role === 'Architect'
+
+  // Poll ONLY while the Architect is actively writing — to catch its live writes.
+  // When idle, the KB is static, so we don't background-poll: the `files-synced`
+  // WS push (version bump) and the manual Refresh button cover any later change.
+  useEffect(() => {
+    if (!architectWorking) return
+    const id = setInterval(() => { if (!document.hidden) loadList() }, 4000)
+    return () => clearInterval(id)
+  }, [architectWorking, loadList])
 
   return (
     <div className="flex-1 flex flex-col min-w-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
