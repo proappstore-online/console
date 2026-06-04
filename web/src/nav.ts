@@ -2,7 +2,7 @@
 
 export type View =
   | 'dashboard' | 'app-detail' | 'publish' | 'payouts'
-  | 'subscription' | 'admin' | 'profile' | 'ui-library'
+  | 'subscription' | 'services' | 'admin' | 'profile' | 'ui-library'
 
 // Per-app workspace tabs, shown next to the project switcher in the navbar.
 //  - research: brainstorm chat + live Knowledge Base preview
@@ -36,7 +36,7 @@ export interface AppEntry {
 }
 
 const VALID_VIEWS: View[] = [
-  'dashboard', 'app-detail', 'publish', 'payouts', 'subscription', 'admin', 'profile', 'ui-library',
+  'dashboard', 'app-detail', 'publish', 'payouts', 'subscription', 'services', 'admin', 'profile', 'ui-library',
 ]
 
 /** Parse a location hash into a view + optional app slug + optional app tab.

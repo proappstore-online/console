@@ -40,6 +40,7 @@ const TABS: { key: View; label: string }[] = [
   { key: 'publish', label: 'Publish' },
   { key: 'payouts', label: 'Payouts' },
   { key: 'subscription', label: 'Subscription' },
+  { key: 'services', label: 'Services' },
   { key: 'ui-library', label: 'UI Library' },
 ]
 

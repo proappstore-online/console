@@ -7,6 +7,7 @@ import { PayoutsView } from './PayoutsView'
 import { AppDetail } from './AppDetail'
 import { AdminView } from './AdminView'
 import { UILibraryView } from './UILibraryView'
+import { ServicesView } from './ServicesView'
 
 import { type View, type AppEntry, type AppTab, parseHash as parseHashString, hashFor, deriveSlug, mergeApps } from './nav'
 import { fetchApps, fetchAgentProjects, deleteAppApi, fetchIsAdmin } from './appsApi'
@@ -188,6 +189,7 @@ export default function App() {
         {view === 'publish' && <PublishView getToken={() => pro.auth.token} />}
         {view === 'payouts' && <PayoutsView getToken={() => pro.auth.token} />}
         {view === 'subscription' && <SubscriptionView />}
+        {view === 'services' && <ServicesView getToken={() => pro.auth.token} />}
         {view === 'admin' && isAdmin && <AdminView getToken={() => pro.auth.token} />}
         {view === 'profile' && <ProfileView user={user} />}
         {view === 'ui-library' && <UILibraryView />}
