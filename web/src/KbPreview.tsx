@@ -42,6 +42,7 @@ export function KbPreview({
   working: { role: string; at: number } | null
 }) {
   const [files, setFiles] = useState<KbFile[] | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [selected, setSelected] = useState<string>('KNOWLEDGE.md')
   const [content, setContent] = useState<string>('')
   // The doc that `content` currently belongs to. When it differs from `selected`
@@ -54,9 +55,15 @@ export function KbPreview({
       const r = await api(`/projects/${appId}/files`, token) as { files: KbFile[] }
       const kb = r.files.filter(f => isKbFile(f.path)).sort(sortKb)
       setFiles(kb)
+      setLoadError(null)
       // If the current selection vanished (or none yet), fall back to the first KB doc.
       setSelected(prev => kb.some(f => f.path === prev) ? prev : (kb[0]?.path ?? 'KNOWLEDGE.md'))
-    } catch { setFiles([]) }
+    } catch (err) {
+      // Record the error and DON'T wipe a KB we've already shown — a transient
+      // fetch failure must not falsely display "No Knowledge Base yet".
+      setLoadError((err as Error).message)
+      setFiles(prev => prev ?? [])
+    }
   }, [token, appId])
 
   const loadDoc = useCallback(async (path: string, isStale: () => boolean) => {
@@ -135,8 +142,13 @@ export function KbPreview({
 
       {!hasKb ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center p-8 gap-3">
-          <span className="text-3xl">📖</span>
-          <p className="text-sm text-[var(--ink)] font-semibold">No Knowledge Base yet</p>
+          <span className="text-3xl">{loadError ? '⚠️' : '📖'}</span>
+          <p className="text-sm text-[var(--ink)] font-semibold">{loadError ? "Couldn't load the Knowledge Base" : 'No Knowledge Base yet'}</p>
+          {loadError && (
+            <p className="text-xs text-[var(--error)] max-w-sm">
+              {loadError}. If you just signed in, sign out and back in, then hard-refresh. The KB may already exist — this is a load error, not an empty KB.
+            </p>
+          )}
           <p className="text-xs text-[var(--muted)] max-w-sm">
             {kbStarted
               ? 'The Architect is researching your app and writing KNOWLEDGE.md + docs/ — this panel updates live as it writes. If nothing appears after a minute, press Retry to re-run it.'

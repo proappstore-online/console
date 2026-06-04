@@ -80,7 +80,9 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
 
   // Load this app's project (slug = appId)
   const loadProject = useCallback(async (silent = false) => {
-    if (!token) return
+    // No token (signed out / session not restored yet) — don't hang on the
+    // "Loading agents…" spinner forever; clear it so the UI can react.
+    if (!token) { if (!silent) setLoading(false); return }
     if (!silent) setLoading(true)
     try {
       const data = await api(`/projects/${appId}`, token) as Project
