@@ -143,6 +143,7 @@ export function AppTest({ appId, getToken }: { appId: string; getToken: () => st
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
               placeholder="Ask QA to generate tests, check coverage..."
               disabled={sending}
+              aria-label="Message the QA agent"
               className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3 py-2.5 text-sm text-[var(--ink)] disabled:opacity-50"
             />
             <button type="button" onClick={sendMessage} disabled={sending || !input.trim()}
