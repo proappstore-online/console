@@ -117,10 +117,10 @@ export function AgentsView({ appId, appName, getToken }: { appId: string; appNam
     <div className="max-w-4xl space-y-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
-          <h2 className="display-font text-lg font-bold text-[var(--ink)]">{appName ?? appId} — Team</h2>
-          <p className="text-sm text-[var(--muted)]">
-            Every agent that builds this app. See each one's identity, prompt, skills, and model — and tune the
-            build roles. The platform gives you the framework; you tune the textual parts.
+          <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide">Agent team</h3>
+          <p className="text-sm text-[var(--muted)] mt-0.5">
+            Every agent that builds {appName ?? appId}. See each one's identity, prompt, skills, and model — and
+            tune the build roles. The platform gives you the framework; you tune the textual parts.
           </p>
         </div>
         <button type="button" onClick={load}

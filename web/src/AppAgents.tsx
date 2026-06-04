@@ -4,7 +4,7 @@ import { KbPreview } from './KbPreview'
 import { CodeView } from './CodeView'
 import { useStickToBottom } from './useStickToBottom'
 import { api, fileRefsFromActivity, prettyForDisplay, mergeServerChat } from './agents/lib'
-import { CopyBtn, InlineCopy, ScreenCopyBtn, AgentsInfoModal, AgentSettingsModal, MemoryPanel } from './agents/components'
+import { CopyBtn, InlineCopy, ScreenCopyBtn, AgentsInfoModal, MemoryPanel } from './agents/components'
 import { COLUMNS, ROLE_COLOR } from './agents/types'
 import { useWindowedLimit } from './agents/useWindowedLimit'
 import type { Ticket, Project, ChatMessage, ActivityEntry } from './agents/types'
@@ -29,7 +29,6 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   const [selTicket, setSelTicket] = useState<Ticket | null>(null)
   const [selMsgs, setSelMsgs] = useState<{ id: string; author: string; body: string; createdAt: number }[]>([])
   const [showInfo, setShowInfo] = useState(false)
-  const [showAgentCfg, setShowAgentCfg] = useState(false)
   // File preview (right inspector). Takes priority over the ticket panel.
   const [filePreview, setFilePreview] = useState<{ path: string; content: string; loading: boolean; truncated?: boolean } | null>(null)
   // Preview view mode: 'pretty' (rendered Markdown / pretty JSON / highlighted) or 'raw' source.
@@ -695,9 +694,9 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
               ) : null)}
             </div>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => setShowAgentCfg(true)}
+              <button type="button" onClick={() => { window.location.hash = `#/apps/${appId}/settings` }}
                 className="flex items-center gap-1.5 rounded-lg border border-[var(--line-strong)] px-2.5 py-1 text-[11px] font-semibold text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--accent)] transition-colors"
-                title="Configure the agents' model and token limits">
+                title="Configure the agents (identity, prompt, skills, model) in Settings">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 Agents
               </button>
@@ -997,7 +996,6 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
       )}
 
       {showInfo && <AgentsInfoModal onClose={() => setShowInfo(false)} />}
-      {showAgentCfg && token && <AgentSettingsModal appId={appId} token={token} onClose={() => setShowAgentCfg(false)} />}
 
       {error && (
         <div className="fixed bottom-4 right-4 bg-red-600 text-white text-sm px-4 py-2 rounded-lg shadow-lg z-50">

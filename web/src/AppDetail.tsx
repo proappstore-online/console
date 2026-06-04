@@ -56,10 +56,6 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab }: Props) {
         <AppAgents appId={appId} appName={appName} getToken={getToken} tab={tab} />
       )}
 
-      {tab === 'team' && (
-        <AgentsView appId={appId} appName={appName} getToken={getToken} />
-      )}
-
       {tab === 'test' && (
         <div className="max-w-3xl space-y-3">
           <h2 className="display-font text-lg font-bold text-[var(--ink)]">{appName ?? appId} — Tests</h2>
@@ -84,6 +80,14 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab }: Props) {
 
       {showSettings && (
         <h2 className="display-font text-lg font-bold text-[var(--ink)]">{appName ?? appId} — Settings</h2>
+      )}
+
+      {/* Agent team configuration lives in Settings (always available, even
+          before the app has a storefront listing). */}
+      {showSettings && (
+        <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-5">
+          <AgentsView appId={appId} appName={appName} getToken={getToken} />
+        </div>
       )}
 
       {showSettings && loading && (
