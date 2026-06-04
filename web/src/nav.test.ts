@@ -16,6 +16,7 @@ describe('parseHash', () => {
 
   it('parses an app-detail route with a deep-linked tab', () => {
     expect(parseHash('#/apps/interns/research')).toEqual({ view: 'app-detail', param: 'interns', tab: 'research' })
+    expect(parseHash('#/apps/interns/team')).toEqual({ view: 'app-detail', param: 'interns', tab: 'team' })
     expect(parseHash('#/apps/interns/control')).toEqual({ view: 'app-detail', param: 'interns', tab: 'control' })
     expect(parseHash('#/apps/interns/settings')).toEqual({ view: 'app-detail', param: 'interns', tab: 'settings' })
   })

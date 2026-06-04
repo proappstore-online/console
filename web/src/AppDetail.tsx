@@ -5,6 +5,7 @@ import { DbBrowser } from './DbBrowser'
 import { WebhooksManager } from './WebhooksManager'
 import { CodeHealth } from './CodeHealth'
 import { TestResults } from './TestResults'
+import { AgentsView } from './AgentsView'
 import { AppAgents } from './AppAgents'
 import type { AppTab } from './nav'
 import {
@@ -53,6 +54,10 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab }: Props) {
           kanban+activity based on `tab`. */}
       {(tab === 'research' || tab === 'build') && (
         <AppAgents appId={appId} appName={appName} getToken={getToken} tab={tab} />
+      )}
+
+      {tab === 'team' && (
+        <AgentsView appId={appId} appName={appName} getToken={getToken} />
       )}
 
       {tab === 'test' && (
