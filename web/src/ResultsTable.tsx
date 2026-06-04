@@ -27,9 +27,9 @@ export function ResultsTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, i) => (
+          {rows.map((row, rowIdx) => (
             <tr
-              key={i}
+              key={row[0] != null ? String(row[0]) : rowIdx}
               className="border-b border-[var(--line)] last:border-0 hover:bg-[var(--panel-hover)]"
             >
               {columns.map((col) => (

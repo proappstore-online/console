@@ -25,7 +25,7 @@ export function RankedList({
       </>
     )
     return (
-      <li key={i} className="text-xs">
+      <li key={r.label} className="text-xs">
         {onPick ? (
           <button type="button"
             onClick={() => onPick(r.label)}

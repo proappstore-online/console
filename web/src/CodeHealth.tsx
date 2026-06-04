@@ -181,8 +181,8 @@ export function CodeHealth({ appId, live = false }: Props) {
                 </button>
                 {isOpen && issues.length > 0 && (
                   <div className="ml-8 mb-2 rounded-lg border border-[var(--line)] bg-[var(--paper)] overflow-hidden">
-                    {issues.slice(0, 20).map((issue, i) => (
-                      <div key={i} className="flex items-start gap-2 px-3 py-1.5 border-b border-[var(--line)] last:border-0 text-xs">
+                    {issues.slice(0, 20).map((issue, idx) => (
+                      <div key={`${issue.rule}-${issue.file}-${idx}`} className="flex items-start gap-2 px-3 py-1.5 border-b border-[var(--line)] last:border-0 text-xs">
                         <span className={`flex-shrink-0 font-semibold ${issue.severity === 'error' ? 'text-[var(--error,#dc2626)]' : 'text-[var(--warning,#ca8a04)]'}`}>
                           {issue.severity === 'error' ? '!' : '~'}
                         </span>

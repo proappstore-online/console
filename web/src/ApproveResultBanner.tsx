@@ -52,8 +52,8 @@ export function ApproveResultBanner({
           </button>
           {open && (
             <ul className="mt-2 space-y-1">
-              {steps.map((step, i) => (
-                <ProvisionStepRow key={i} step={step} />
+              {steps.map((step) => (
+                <ProvisionStepRow key={step.name} step={step} />
               ))}
             </ul>
           )}

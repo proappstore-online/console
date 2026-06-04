@@ -48,7 +48,7 @@ export function DailyViewsChart({
           const h = (v / maxViews) * (H - 2)
           return (
             <rect
-              key={i}
+              key={series[i].t}
               x={i * slot}
               y={H - h}
               width={barW}

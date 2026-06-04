@@ -103,8 +103,8 @@ export function TestResults({ appId, live = false }: { appId: string; live?: boo
       </div>
 
       <div className="grid gap-0.5">
-        {data.specs.map((s, i) => (
-          <div key={i} className="flex items-start gap-2 py-1 text-sm">
+        {data.specs.map((s) => (
+          <div key={s.title} className="flex items-start gap-2 py-1 text-sm">
             <span className={`flex-shrink-0 font-bold ${s.ok ? 'text-[var(--success,#16a34a)]' : 'text-[var(--error,#dc2626)]'}`}>
               {s.ok ? '✓' : '✗'}
             </span>

@@ -187,8 +187,8 @@ export function UsageSkeleton() {
   return (
     <div className="space-y-5 animate-pulse">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4">
+        {['a', 'b', 'c'].map((k) => (
+          <div key={k} className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4">
             <div className="h-3 w-20 rounded bg-[var(--line)]" />
             <div className="mt-2 h-6 w-24 rounded bg-[var(--line)]" />
           </div>
@@ -196,8 +196,8 @@ export function UsageSkeleton() {
       </div>
       <div className="h-32 rounded-xl border border-[var(--line)] bg-[var(--panel)]" />
       <div className="grid grid-cols-7 gap-2">
-        {Array.from({ length: 7 }).map((_, i) => (
-          <div key={i} className="h-14 rounded-lg border border-[var(--line)] bg-[var(--panel)]" />
+        {['mo', 'tu', 'we', 'th', 'fr', 'sa', 'su'].map((d) => (
+          <div key={d} className="h-14 rounded-lg border border-[var(--line)] bg-[var(--panel)]" />
         ))}
       </div>
     </div>

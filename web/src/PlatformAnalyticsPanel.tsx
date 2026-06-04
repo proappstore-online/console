@@ -138,7 +138,7 @@ function PlatformSeriesChart({
           const h = (d.views / maxV) * (H - 2)
           return (
             <rect
-              key={i}
+              key={d.t}
               x={i * slot}
               y={H - h}
               width={barW}
@@ -179,8 +179,8 @@ function PlatformRankedList({
         <p className="text-xs text-[var(--muted)]">No data.</p>
       ) : (
         <ul className="space-y-1">
-          {rows.slice(0, 10).map((r, i) => (
-            <li key={i} className="text-xs">
+          {rows.slice(0, 10).map((r) => (
+            <li key={r.label} className="text-xs">
               <div className="flex justify-between mb-0.5">
                 <span className={`text-[var(--ink)] truncate ${monospace ? 'font-mono' : ''}`}>{r.label}</span>
                 <span className="text-[var(--muted)] tabular-nums">{formatViewCount(r.value)}</span>
