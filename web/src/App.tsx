@@ -164,7 +164,7 @@ export default function App() {
         onAppTab={changeAppTab}
       />
       <main className={view === 'app-detail'
-        ? 'flex-1 flex flex-col w-full px-3 py-2 sm:px-4 min-h-0'
+        ? 'flex-1 flex flex-col w-full px-1.5 py-2 sm:px-2 min-h-0'
         : 'flex-1 mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8'}>
         {view === 'dashboard' && (
           <Dashboard
