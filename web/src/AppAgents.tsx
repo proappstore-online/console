@@ -5,7 +5,7 @@ import { CodeView } from './CodeView'
 import { useStickToBottom } from './useStickToBottom'
 import { api, fileRefsFromActivity, prettyForDisplay, mergeServerChat } from './agents/lib'
 import { CopyBtn, InlineCopy, ScreenCopyBtn, AgentsInfoModal, MemoryPanel } from './agents/components'
-import { COLUMNS, ROLE_COLOR } from './agents/types'
+import { COLUMNS, LIST_SECTIONS, ROLE_COLOR } from './agents/types'
 import { useWindowedLimit } from './agents/useWindowedLimit'
 import type { Ticket, Project, ChatMessage, ActivityEntry } from './agents/types'
 
@@ -50,6 +50,16 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   // Bumped on every `files-synced` event so the live KB preview (Research tab)
   // refetches as the Architect writes — without holding the file list in memory here.
   const [filesVersion, setFilesVersion] = useState(0)
+  // Board view: Kanban (wide) or List (compact / small screens). Remembered in
+  // local prefs; first-run default follows the viewport so phones open in List.
+  const [boardView, setBoardView] = useState<'kanban' | 'list'>(() => {
+    const saved = localStorage.getItem('pas:agents:boardView')
+    if (saved === 'kanban' || saved === 'list') return saved
+    return typeof window !== 'undefined' && window.innerWidth < 1024 ? 'list' : 'kanban'
+  })
+  useEffect(() => { localStorage.setItem('pas:agents:boardView', boardView) }, [boardView])
+  // List view caps "Recently done" to the latest few, with "load more".
+  const [doneShown, setDoneShown] = useState(3)
   const token = getToken()
 
   // Two separate chat threads with two separate agents: Research → the Architect
@@ -489,8 +499,9 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
     } catch (err) { setError((err as Error).message) }
     finally { setBuildingKb(false) }
   }
-  // KB exists once a research ticket is on the board (any status).
-  const kbStarted = tickets.some(t => t.kind === 'research')
+  // KB is a conversation, not a ticket: it's "started" once the Research thread
+  // has any messages (the founder or the Architect has spoken).
+  const kbStarted = kbChat.length > 0
 
   const sendMessage = async () => {
     if (!token || !input.trim()) return
@@ -550,8 +561,31 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
 
   // ── Workspace: Chat | Kanban + Activity ─────────────────────
 
+  // The board shows build work only — the KB is a conversation, never a ticket.
+  const buildTickets = tickets.filter(t => t.kind !== 'research')
+  // One ticket card, shared by the Kanban columns and the List sections.
+  const ticketCard = (ticket: Ticket) => (
+    <div key={ticket.id} role="button" tabIndex={0} onClick={() => openTicket(ticket)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTicket(ticket) } }}
+      className={`w-full text-left rounded-lg border p-2 text-xs transition-colors cursor-pointer ${
+        selTicket?.id === ticket.id ? 'border-[var(--accent)] bg-[var(--accent)]/5' : 'border-[var(--line)] hover:border-[var(--accent)]'
+      }`} title={ticket.rawIdea}>
+      <div className="flex items-center gap-1 mb-0.5">
+        <span className="font-mono font-bold text-[var(--accent)]" style={{ fontSize: '10px' }}>#{ticket.seq}</span>
+        <InlineCopy text={`#${ticket.seq}`} title={`Copy ticket #${ticket.seq} to quote in chat`} />
+      </div>
+      <p className="font-medium text-[var(--ink)] line-clamp-2 leading-tight">{ticket.title}</p>
+      <div className="flex items-center gap-1 mt-1">
+        {ticket.assigneeRole && (
+          <span className="font-bold" style={{ color: ROLE_COLOR[ticket.assigneeRole] ?? 'var(--muted)', fontSize: '10px' }}>{ticket.assigneeRole}</span>
+        )}
+        {ticket.iterations > 0 && <span className="text-[var(--muted)]" style={{ fontSize: '10px' }}>i:{ticket.iterations}</span>}
+      </div>
+    </div>
+  )
+
   return (
-    <div className="flex flex-col lg:flex-row gap-3 h-[calc(100dvh-120px)]">
+    <div className="flex flex-col lg:flex-row gap-2 h-[calc(100dvh-120px)] overflow-hidden">
       {/* Chat panel — one per tab, bound to its own thread/agent: Research → the
           Architect (KB), Build → the PO (backlog). Rendered for both tabs. */}
       {(tab === 'research' || tab === 'build') && (
@@ -666,9 +700,9 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
 
       {/* BUILD: Kanban + Activity */}
       {tab === 'build' && (
-      <div className="flex-1 flex flex-col gap-3 min-w-0">
-        <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
-          <div className="flex items-center justify-between mb-3">
+      <div className="flex-1 flex flex-col gap-2 min-w-0 min-h-0">
+        <div className="flex-[2] min-h-0 flex flex-col rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
+          <div className="flex items-center justify-between mb-2 flex-shrink-0 gap-2 flex-wrap">
             <div className="flex items-center gap-3">
               <h3 className="text-sm font-bold text-[var(--ink)]">Board</h3>
               {project && (
@@ -696,6 +730,16 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
               ) : null)}
             </div>
             <div className="flex items-center gap-2">
+              {/* Kanban ↔ List view — remembered in local prefs; List is the
+                  small-screen default. */}
+              <div className="flex items-center rounded-lg border border-[var(--line-strong)] overflow-hidden" role="tablist" aria-label="Board view">
+                <button type="button" role="tab" aria-selected={boardView === 'kanban'} onClick={() => setBoardView('kanban')}
+                  className={`px-2 py-1 text-[11px] font-semibold transition-colors ${boardView === 'kanban' ? 'bg-[var(--accent)] text-white' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}
+                  title="Kanban board">Board</button>
+                <button type="button" role="tab" aria-selected={boardView === 'list'} onClick={() => setBoardView('list')}
+                  className={`px-2 py-1 text-[11px] font-semibold transition-colors ${boardView === 'list' ? 'bg-[var(--accent)] text-white' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}
+                  title="List view">List</button>
+              </div>
               <button type="button" onClick={() => { window.location.hash = `#/apps/${appId}/settings` }}
                 className="flex items-center gap-1.5 rounded-lg border border-[var(--line-strong)] px-2.5 py-1 text-[11px] font-semibold text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--accent)] transition-colors"
                 title="Configure the agents (identity, prompt, skills, model) in Settings">
@@ -711,44 +755,63 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
               )}
             </div>
           </div>
-          <div className="grid grid-cols-4 lg:grid-cols-8 gap-2">
-            {COLUMNS.map(col => {
-              const colTickets = tickets.filter(t => (col.keys as string[]).includes(t.status))
-              return (
-                <div key={col.label}>
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: col.color }} />
-                    <span className="text-[11px] font-semibold text-[var(--ink)]">{col.label}</span>
-                    {colTickets.length > 0 && <span className="text-[11px] text-[var(--muted)]">{colTickets.length}</span>}
-                  </div>
-                  <div className="space-y-1.5 min-h-[60px]">
-                    {colTickets.map(ticket => (
-                      <div key={ticket.id} role="button" tabIndex={0} onClick={() => openTicket(ticket)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTicket(ticket) } }}
-                        className={`w-full text-left rounded-lg border p-2 text-xs transition-colors cursor-pointer ${
-                          selTicket?.id === ticket.id ? 'border-[var(--accent)] bg-[var(--accent)]/5' : 'border-[var(--line)] hover:border-[var(--accent)]'
-                        }`} title={ticket.rawIdea}>
-                        <div className="flex items-center gap-1 mb-0.5">
-                          <span className="font-mono font-bold text-[var(--accent)]" style={{ fontSize: '10px' }}>#{ticket.seq}</span>
-                          <InlineCopy text={`#${ticket.seq}`} title={`Copy ticket #${ticket.seq} to quote in chat`} />
-                        </div>
-                        <p className="font-medium text-[var(--ink)] line-clamp-2 leading-tight">{ticket.title}</p>
-                        <div className="flex items-center gap-1 mt-1">
-                          {ticket.assigneeRole && (
-                            <span className="font-bold" style={{ color: ROLE_COLOR[ticket.assigneeRole] ?? 'var(--muted)', fontSize: '10px' }}>{ticket.assigneeRole}</span>
-                          )}
-                          {ticket.iterations > 0 && <span className="text-[var(--muted)]" style={{ fontSize: '10px' }}>i:{ticket.iterations}</span>}
-                        </div>
+          {/* Scrolls internally so the page itself never scrolls. */}
+          <div className="flex-1 min-h-0 overflow-y-auto -mr-1 pr-1">
+            {boardView === 'kanban' ? (
+              <div className="grid grid-cols-4 lg:grid-cols-8 gap-2">
+                {COLUMNS.map(col => {
+                  const colTickets = buildTickets.filter(t => (col.keys as string[]).includes(t.status))
+                  return (
+                    <div key={col.label}>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: col.color }} />
+                        <span className="text-[11px] font-semibold text-[var(--ink)]">{col.label}</span>
+                        {colTickets.length > 0 && <span className="text-[11px] text-[var(--muted)]">{colTickets.length}</span>}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
+                      <div className="space-y-1.5 min-h-[60px]">
+                        {colTickets.map(ticketCard)}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {LIST_SECTIONS.map(sec => {
+                  const isDone = (sec.keys as string[]).includes('done')
+                  const matched = buildTickets
+                    .filter(t => (sec.keys as string[]).includes(t.status))
+                    .sort((a, b) => b.updatedAt - a.updatedAt)
+                  if (matched.length === 0) return null
+                  const shown = isDone ? matched.slice(0, doneShown) : matched
+                  return (
+                    <div key={sec.label}>
+                      <div className="flex items-center gap-1.5 mb-1.5 sticky top-0 z-[1] bg-[var(--panel)] py-0.5">
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: sec.color }} />
+                        <span className="text-[11px] font-semibold text-[var(--ink)]">{sec.label}</span>
+                        <span className="text-[11px] text-[var(--muted)]">{matched.length}</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {shown.map(ticketCard)}
+                      </div>
+                      {isDone && matched.length > doneShown && (
+                        <button type="button" onClick={() => setDoneShown(n => n + 10)}
+                          className="mt-1.5 text-[11px] font-semibold text-[var(--accent)] hover:underline">
+                          Load {Math.min(10, matched.length - doneShown)} more ({matched.length - doneShown} older)
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+                {buildTickets.length === 0 && (
+                  <p className="text-xs text-[var(--muted)] text-center py-8">No tickets yet — chat with the PO to build the backlog.</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="flex-1 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4 flex flex-col min-h-[200px]">
+        <div className="flex-[1] min-h-[120px] rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3 flex flex-col">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-bold text-[var(--ink)]">Activity</h3>
             <div className="flex items-center gap-1">

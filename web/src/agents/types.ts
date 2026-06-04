@@ -1,7 +1,7 @@
 // Shared types + constants for the agent-teams console view (AppAgents).
 
 export type TicketStatus =
-  | 'inbox' | 'architect-active' | 'ba-refining' | 'awaiting-approval' | 'ready'
+  | 'inbox' | 'ba-refining' | 'awaiting-approval' | 'ready'
   | 'dev-active' | 'qa-active' | 'qa-failed' | 'deploying' | 'needs-input' | 'done' | 'failed' | 'cancelled'
 
 export interface Ticket {
@@ -58,9 +58,11 @@ export interface RoleCfg {
   systemPromptOverride?: string
 }
 
+// The Kanban is build work only. The Knowledge Base is NOT a ticket — it's the
+// Research-tab conversation with the Architect (see KbPreview), so there is no
+// Research column here.
 export const COLUMNS: { keys: TicketStatus[]; label: string; color: string }[] = [
-  { keys: ['inbox'], label: 'Inbox', color: '#94a3b8' },
-  { keys: ['architect-active'], label: 'Research', color: '#14b8a6' },
+  { keys: ['inbox'], label: 'Backlog', color: '#94a3b8' },
   { keys: ['ba-refining', 'awaiting-approval'], label: 'BA', color: '#f59e0b' },
   { keys: ['ready', 'dev-active'], label: 'Dev', color: '#3b82f6' },
   { keys: ['qa-active', 'qa-failed'], label: 'QA', color: '#8b5cf6' },
@@ -70,13 +72,25 @@ export const COLUMNS: { keys: TicketStatus[]; label: string; color: string }[] =
   { keys: ['failed', 'cancelled'], label: 'Failed', color: '#b91c1c' },
 ]
 
+// List view (compact / small-screen) ordering — most relevant first: recent wins
+// at the top, then anything needing attention, down through the pipeline to the
+// backlog. 'done' is capped to the most-recent few in the UI (with "load more").
+export const LIST_SECTIONS: { keys: TicketStatus[]; label: string; color: string }[] = [
+  { keys: ['done'], label: 'Recently done', color: '#22c55e' },
+  { keys: ['needs-input', 'failed', 'cancelled'], label: 'Blocked / failed', color: '#ef4444' },
+  { keys: ['qa-active', 'qa-failed'], label: 'QA', color: '#8b5cf6' },
+  { keys: ['ready', 'dev-active', 'deploying'], label: 'Dev', color: '#3b82f6' },
+  { keys: ['ba-refining', 'awaiting-approval'], label: 'BA', color: '#f59e0b' },
+  { keys: ['inbox'], label: 'Backlog', color: '#94a3b8' },
+]
+
 export const ROLE_COLOR: Record<string, string> = {
   po: '#6366f1', Architect: '#14b8a6', BA: '#f59e0b', Dev: '#3b82f6', QA: '#8b5cf6', system: '#94a3b8', user: 'var(--ink)',
 }
 
 export const ROLE_INFO: { role: string; title: string; blurb: string }[] = [
   { role: 'po', title: 'PO — Product Owner', blurb: 'Reads your chat and turns it into tickets. Decides what gets built and in what order. This is who you talk to.' },
-  { role: 'Architect', title: 'Architect — Research & Knowledge Base', blurb: 'Before building, researches the app and writes its Knowledge Base (KNOWLEDGE.md + docs/) — the source of truth the rest of the team builds from. Runs in its own lane, alongside the build.' },
+  { role: 'Architect', title: 'Architect — Research & Knowledge Base', blurb: 'Lives in the Research tab (not the Kanban). Chat with it to research the app — it has live web access — and it writes the Knowledge Base (KNOWLEDGE.md + docs/), the source of truth the rest of the team builds from.' },
   { role: 'BA', title: 'BA — Business Analyst', blurb: 'Refines a ticket into a clear spec with acceptance criteria. Pushes back on vague requests instead of guessing.' },
   { role: 'Dev', title: 'Dev — Developer', blurb: 'Implements the approved spec — writes and edits the app’s files, then deploys.' },
   { role: 'QA', title: 'QA — Quality Assurance', blurb: 'Writes automated end-to-end tests from the acceptance criteria. They run against the live app on every deploy and gate it — a failing test sends the ticket back to Dev. Real QA: it drives the app, not just reads the code.' },
