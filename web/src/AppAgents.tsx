@@ -847,25 +847,31 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
                   const isDone = (sec.keys as string[]).includes('done')
                   const matched = buildTickets
                     .filter(t => (sec.keys as string[]).includes(t.status))
-                    .sort((a, b) => b.updatedAt - a.updatedAt)
+                    .sort((a, b) => isDone
+                      ? a.updatedAt - b.updatedAt  // done: oldest first, newest at bottom
+                      : b.updatedAt - a.updatedAt)  // active: newest first
                   if (matched.length === 0) return null
-                  const shown = isDone ? matched.slice(0, doneShown) : matched
+                  const shown = isDone ? matched.slice(-doneShown) : matched
                   return (
                     <div key={sec.label}>
                       <div className="flex items-center gap-1.5 mb-1.5 sticky top-0 z-[1] bg-[var(--panel)] py-0.5">
                         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: sec.color }} />
                         <span className="text-[11px] font-semibold text-[var(--ink)]">{sec.label}</span>
                         <span className="text-[11px] text-[var(--muted)]">{matched.length}</span>
+                        {isDone && (
+                          <select value={doneShown} onChange={(e) => setDoneShown(Number(e.target.value))}
+                            aria-label="Number of recently done tickets to show"
+                            className="ml-1 text-[10px] text-[var(--muted)] bg-transparent border border-[var(--line)] rounded px-1 py-0 cursor-pointer">
+                            {[3, 5, 10, 20, 50].map(n => (
+                              <option key={n} value={n}>Show {n}</option>
+                            ))}
+                            <option value={9999}>All</option>
+                          </select>
+                        )}
                       </div>
                       <div className="space-y-1.5">
                         {shown.map(ticketCard)}
                       </div>
-                      {isDone && matched.length > doneShown && (
-                        <button type="button" onClick={() => setDoneShown(n => n + 10)}
-                          className="mt-1.5 text-[11px] font-semibold text-[var(--accent)] hover:underline">
-                          Load {Math.min(10, matched.length - doneShown)} more ({matched.length - doneShown} older)
-                        </button>
-                      )}
                     </div>
                   )
                 })}
