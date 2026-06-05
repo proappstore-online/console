@@ -53,6 +53,10 @@ export function EngagementsTab({ token }: { token: string | null }) {
     } catch { setSendError('Network error loading messages') }
     setLoadingMsgs(false)
     setTimeout(scrollToBottom, 100)
+    // Mark as read
+    fetch(`${API_BASE}/services/engagements/${eng.id}/read`, {
+      method: 'POST', headers: authHeaders(token),
+    }).catch(() => {})
   }
 
   // Poll messages when chat is open
@@ -78,7 +82,7 @@ export function EngagementsTab({ token }: { token: string | null }) {
           })
         }
       } catch { /* */ }
-    }, 5000)
+    }, 2000) // 2s poll for near-real-time chat
     return () => clearInterval(poll)
   }, [selected?.id, token])
 
@@ -201,6 +205,21 @@ export function EngagementsTab({ token }: { token: string | null }) {
             </div>
           )}
         </div>
+
+        {/* Workspace link — both client and dev can see the build progress */}
+        {selected.projectSlug && (
+          <a href={`/app/#/apps/${selected.projectSlug}/build`}
+            className="flex items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4 hover:border-[var(--accent)] transition-colors"
+            title={selected.role === 'client' ? 'Watch the developer build your app' : 'Open the workspace'}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--accent)]"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <div>
+              <p className="text-sm font-semibold text-[var(--ink)]">
+                {selected.role === 'client' ? 'Watch progress' : 'Open workspace'}
+              </p>
+              <p className="text-xs text-[var(--muted)]">{selected.projectSlug}.proappstore.online</p>
+            </div>
+          </a>
+        )}
 
         {/* Rating — shown to clients after delivery */}
         {selected.status === 'delivered' && selected.role === 'client' && !ratingDone && (

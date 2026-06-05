@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { API_BASE, authHeaders } from './api'
 import type { DevProfile } from './servicesTypes'
 import { DirectoryTab } from './ServicesDirectory'
@@ -14,8 +14,26 @@ const ONBOARDING_KEY = 'pas:services-onboarded'
 export function ServicesView({ getToken }: { getToken: () => string | null }) {
   const [tab, setTab] = useState<Tab>('directory')
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem(ONBOARDING_KEY) === '1')
-  // Pass getToken down — children call it fresh before each fetch to avoid stale tokens
-  const token = getToken() // for tab rendering decisions only
+  const [unreadTotal, setUnreadTotal] = useState(0)
+  const token = getToken()
+
+  // Poll unread count every 10s
+  const pollUnread = useCallback(async () => {
+    if (!token) return
+    try {
+      const res = await fetch(`${API_BASE}/services/unread`, { headers: authHeaders(token) })
+      if (res.ok) {
+        const data = await res.json() as { total: number }
+        setUnreadTotal(data.total)
+      }
+    } catch { /* */ }
+  }, [token])
+
+  useEffect(() => {
+    pollUnread()
+    const id = setInterval(() => { if (!document.hidden) pollUnread() }, 10000)
+    return () => clearInterval(id)
+  }, [pollUnread])
 
   if (!onboarded) {
     return (
@@ -36,18 +54,23 @@ export function ServicesView({ getToken }: { getToken: () => string | null }) {
       <div className="flex items-center gap-0.5 rounded-lg border border-[var(--line-strong)] p-0.5 w-fit">
         {([
           { key: 'directory' as Tab, label: 'Developers' },
-          { key: 'engagements' as Tab, label: 'Engagements' },
+          { key: 'engagements' as Tab, label: 'Engagements', badge: unreadTotal },
           { key: 'requests' as Tab, label: 'Requests' },
           { key: 'developer' as Tab, label: 'My Profile' },
           { key: 'earnings' as Tab, label: 'Earnings' },
           { key: 'my-requests' as Tab, label: 'My Requests' },
           { key: 'client' as Tab, label: 'Balance' },
-        ]).map((t) => (
+        ] as { key: Tab; label: string; badge?: number }[]).map((t) => (
           <button key={t.key} type="button" onClick={() => setTab(t.key)}
-            className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-colors ${
+            className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-colors relative ${
               tab === t.key ? 'bg-[var(--accent)] text-white' : 'text-[var(--muted)] hover:text-[var(--ink)]'
             }`}>
             {t.label}
+            {(t.badge ?? 0) > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1">
+                {t.badge! > 99 ? '99+' : t.badge}
+              </span>
+            )}
           </button>
         ))}
       </div>
