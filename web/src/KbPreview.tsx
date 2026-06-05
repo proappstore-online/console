@@ -166,20 +166,7 @@ export function KbPreview({
           )}
         </div>
         <div className="flex items-center gap-1.5">
-          {hasKb && (
-            <div className="flex items-center rounded-md border border-[var(--line)] overflow-hidden" role="tablist" aria-label="Knowledge Base view">
-              <button type="button" role="tab" aria-selected={view === 'docs'} onClick={() => setView('docs')}
-                className={`text-[10px] font-semibold px-2 py-0.5 ${view === 'docs' ? 'bg-[var(--accent)] text-white' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}
-                title="Live markdown — updates as the Architect writes (before publish)">
-                Docs
-              </button>
-              <button type="button" role="tab" aria-selected={view === 'site'} onClick={() => setView('site')}
-                className={`text-[10px] font-semibold px-2 py-0.5 ${view === 'site' ? 'bg-[var(--accent)] text-white' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}
-                title="The real published site (exactly what visitors see)">
-                Site
-              </button>
-            </div>
-          )}
+          {/* Docs/Site toggle removed — KB is private, no public site. Share links serve content directly. */}
           <button type="button" onClick={loadList}
             className="text-[10px] text-[var(--muted)] hover:text-[var(--ink)] px-1.5 py-0.5 rounded border border-[var(--line)] hover:border-[var(--accent)]"
             title="Refresh the Knowledge Base from the repo">
