@@ -378,14 +378,24 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
           case 'agent-tool-result': {
             const role = String(d.role ?? 'Agent')
             setAgentWork({ role, at: Date.now() })
-            // Per-ticket live status line
+            // Per-ticket live status line — accumulate text deltas into a rolling buffer
             if (d.ticketId) {
-              const line = d.type === 'agent-text' ? String(d.text ?? '').replace(/\n/g, ' ').slice(-120)
-                : d.type === 'agent-tool-call' ? `${role}: ${d.name}()`
-                : d.type === 'agent-tool-result' ? `${role}: ${d.ok ? '✓' : '✗'} tool result`
-                : d.type === 'agent-run-started' ? `${role} starting...`
-                : `${role} working...`
-              setTicketLive(prev => ({ ...prev, [String(d.ticketId)]: { text: line, role, at: Date.now() } }))
+              const tid = String(d.ticketId)
+              if (d.type === 'agent-text') {
+                // Append delta to existing text (agent streams token by token)
+                setTicketLive(prev => {
+                  const existing = prev[tid]?.text ?? ''
+                  const appended = (existing + String(d.text ?? '')).replace(/\n/g, ' ')
+                  return { ...prev, [tid]: { text: appended.slice(-200), role, at: Date.now() } }
+                })
+              } else {
+                // Tool calls and transitions replace the text entirely
+                const line = d.type === 'agent-tool-call' ? `${role}: ${d.name}()`
+                  : d.type === 'agent-tool-result' ? `${role}: ${d.ok ? '✓' : '✗'} tool done`
+                  : d.type === 'agent-run-started' ? `${role} starting...`
+                  : `${role} working...`
+                setTicketLive(prev => ({ ...prev, [tid]: { text: line, role, at: Date.now() } }))
+              }
             }
             break
           }
