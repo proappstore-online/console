@@ -475,12 +475,15 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   useEffect(() => {
     const t = setInterval(() => {
       setAgentWork(w => (w && Date.now() - w.at > 20000 ? null : w))
+      // Keep ticket live text for 2 minutes (was 30s — too short, agents
+      // finish and the text disappears before the user reads it). The text
+      // persists as the "last thing the agent said" until the next run or timeout.
       setTicketLive(prev => {
         const now = Date.now()
         const next: typeof prev = {}
         let changed = false
         for (const [k, v] of Object.entries(prev)) {
-          if (now - v.at < 30000) next[k] = v
+          if (now - v.at < 120000) next[k] = v
           else changed = true
         }
         return changed ? next : prev
@@ -627,18 +630,14 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
       </div>
       <p className="font-medium text-[var(--ink)] line-clamp-2 leading-tight">{ticket.title}</p>
       {ticketLive[ticket.id] ? (
-        <div className="mt-1 overflow-hidden h-[26px] relative">
-          <div className="absolute inset-0 flex items-center">
-            <div className="flex items-center gap-1 min-w-0">
-              <span className="relative flex h-1.5 w-1.5 flex-shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ background: ROLE_COLOR[ticketLive[ticket.id].role] ?? 'var(--accent)' }}></span>
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5" style={{ background: ROLE_COLOR[ticketLive[ticket.id].role] ?? 'var(--accent)' }}></span>
-              </span>
-              <p className="text-[10px] text-[var(--muted)] truncate leading-tight animate-marquee" title={ticketLive[ticket.id].text}>
-                {ticketLive[ticket.id].text}
-              </p>
-            </div>
-          </div>
+        <div className="mt-1 flex items-start gap-1">
+          <span className="relative flex h-1.5 w-1.5 flex-shrink-0 mt-0.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ background: ROLE_COLOR[ticketLive[ticket.id].role] ?? 'var(--accent)' }}></span>
+            <span className="relative inline-flex rounded-full h-1.5 w-1.5" style={{ background: ROLE_COLOR[ticketLive[ticket.id].role] ?? 'var(--accent)' }}></span>
+          </span>
+          <p className="text-[10px] text-[var(--muted)] leading-tight line-clamp-2 break-words" title={ticketLive[ticket.id].text}>
+            {ticketLive[ticket.id].text}
+          </p>
         </div>
       ) : (
         <div className="flex items-center gap-1 mt-1">
