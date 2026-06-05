@@ -29,7 +29,7 @@ describe('parseHash', () => {
   })
 
   it('parses known top-level views', () => {
-    for (const v of ['publish', 'payouts', 'subscription', 'admin', 'profile', 'ui-library'] as const) {
+    for (const v of ['publish', 'payouts', 'subscription', 'services', 'admin', 'profile', 'ui-library'] as const) {
       expect(parseHash(`#/${v}`)).toEqual({ view: v, param: null, tab: null })
     }
   })
