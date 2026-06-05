@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { Markdown } from './Markdown'
 import { api } from './agents/lib'
 
+interface KbShare { id: string; accessType: string; label: string | null; viewCount: number; createdAt: number }
+
 // Live Knowledge Base preview for the Research tab. Shows the Architect's
 // KNOWLEDGE.md + docs/*.md rendered as markdown, GitHub/Copilot-style — a file
 // rail on the left, the rendered doc on the right — and refreshes itself as the
@@ -51,6 +53,13 @@ export function KbPreview({
   // The doc that `content` currently belongs to. When it differs from `selected`
   // (a fresh click), we show a loading state instead of the previous doc's body.
   const [loadedPath, setLoadedPath] = useState<string | null>(null)
+  // Share link management
+  const [showShare, setShowShare] = useState(false)
+  const [shares, setShares] = useState<KbShare[]>([])
+  const [shareLoading, setShareLoading] = useState(false)
+  const [shareLabel, setShareLabel] = useState('')
+  const [shareCreated, setShareCreated] = useState<string | null>(null)
+  const [shareError, setShareError] = useState<string | null>(null)
 
   const loadList = useCallback(async () => {
     if (!token) return
@@ -96,6 +105,39 @@ export function KbPreview({
   }, [selected, version, loadDoc])
 
   const hasKb = (files?.length ?? 0) > 0
+
+  // Load share links when panel opens
+  useEffect(() => {
+    if (!showShare || !token) return
+    setShareLoading(true)
+    api(`/projects/${appId}/shares`, token)
+      .then((r) => setShares((r as { shares: KbShare[] }).shares))
+      .catch(() => {})
+      .finally(() => setShareLoading(false))
+  }, [showShare, token, appId])
+
+  const createShare = async () => {
+    if (!token) return
+    setShareError(null)
+    try {
+      const r = await api(`/projects/${appId}/shares`, token, {
+        method: 'POST', body: { accessType: 'open', label: shareLabel || undefined },
+      }) as { id: string; url: string }
+      setShareCreated(r.url)
+      setShareLabel('')
+      // Refresh list
+      const list = await api(`/projects/${appId}/shares`, token) as { shares: KbShare[] }
+      setShares(list.shares)
+    } catch (e) { setShareError((e as Error).message) }
+  }
+
+  const revokeShare = async (shareId: string) => {
+    if (!token) return
+    try {
+      await api(`/projects/${appId}/shares/${shareId}`, token, { method: 'DELETE' })
+      setShares((prev) => prev.filter((s) => s.id !== shareId))
+    } catch { /* */ }
+  }
   const architectWorking = working?.role === 'Architect'
 
   // Poll ONLY while the Architect is actively writing — to catch its live writes.
@@ -144,11 +186,11 @@ export function KbPreview({
             Refresh
           </button>
           {hasKb && (
-            <a href={`https://kb.proappstore.online/${appId}/`} target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-1 text-[10px] font-semibold text-[var(--accent)] hover:underline px-1.5 py-0.5 rounded border border-[var(--line)] hover:border-[var(--accent)]"
-              title="Open the published KB site (shareable URL — send it to anyone)">
-              Open site ↗
-            </a>
+            <button type="button" onClick={() => setShowShare(!showShare)}
+              className={`flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border transition-colors ${showShare ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--accent)]'}`}
+              title="Create a share link for this Knowledge Base">
+              Share
+            </button>
           )}
           {!hasKb && (
             <button type="button" onClick={onBuildKb} disabled={building}
@@ -159,6 +201,52 @@ export function KbPreview({
           )}
         </div>
       </div>
+
+      {/* Share panel */}
+      {showShare && (
+        <div className="border-b border-[var(--line)] p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <input type="text" value={shareLabel} onChange={(e) => setShareLabel(e.target.value)}
+              placeholder="Label (optional, e.g. 'For investors')"
+              aria-label="Share link label"
+              className="flex-1 rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-2 py-1.5 text-xs" />
+            <button type="button" onClick={createShare}
+              className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90">
+              Create link
+            </button>
+          </div>
+          {shareCreated && (
+            <div className="rounded-lg bg-[var(--success)]/10 p-2 flex items-center gap-2">
+              <input type="text" readOnly value={shareCreated}
+                className="flex-1 text-xs font-mono bg-transparent border-none outline-none text-[var(--ink)]"
+                onFocus={(e) => e.target.select()} />
+              <button type="button" onClick={() => { navigator.clipboard.writeText(shareCreated); }}
+                className="text-[10px] font-semibold text-[var(--accent)] hover:underline">Copy</button>
+            </div>
+          )}
+          {shareError && <p className="text-xs text-[var(--error)]">{shareError}</p>}
+          {shareLoading && <p className="text-xs text-[var(--muted)]">Loading shares...</p>}
+          {!shareLoading && shares.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[10px] text-[var(--muted)] uppercase tracking-wide font-semibold">Active links</p>
+              {shares.map((s) => (
+                <div key={s.id} className="flex items-center justify-between text-xs py-1 border-b border-[var(--line)] last:border-0">
+                  <div className="min-w-0">
+                    <span className="font-mono text-[var(--ink)]">.../{s.id}</span>
+                    {s.label && <span className="text-[var(--muted)] ml-2">{s.label}</span>}
+                    <span className="text-[var(--muted)] ml-2">{s.viewCount} views</span>
+                  </div>
+                  <button type="button" onClick={() => revokeShare(s.id)}
+                    className="text-[10px] text-[var(--error)] hover:underline flex-shrink-0 ml-2">Revoke</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {!shareLoading && shares.length === 0 && (
+            <p className="text-xs text-[var(--muted)]">No share links yet. Create one above.</p>
+          )}
+        </div>
+      )}
 
       {!hasKb ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center p-8 gap-3">
