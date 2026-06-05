@@ -59,14 +59,14 @@ test.describe('PAS API: /v1/apps/:appId/domains — auth + validation', () => {
     const res = await request.fetch(`${API_URL}/v1/apps/meetup/domains`, {
       method: 'OPTIONS',
       headers: {
-        Origin: 'https://console.proappstore.online',
+        Origin: 'https://proappstore.online/app',
         'Access-Control-Request-Method': 'POST',
         'Access-Control-Request-Headers': 'authorization,content-type',
       },
     });
     expect(res.status()).toBe(204);
     expect(res.headers()['access-control-allow-origin']).toBe(
-      'https://console.proappstore.online',
+      'https://proappstore.online/app',
     );
     expect(res.headers()['access-control-allow-methods']).toMatch(/POST/);
   });

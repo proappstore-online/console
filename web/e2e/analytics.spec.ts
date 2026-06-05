@@ -24,7 +24,7 @@ test.describe('Analytics dashboard — UI shell (public)', () => {
     // _headers ships via HTTP, not <meta>. Verify CF Pages applied it by
     // reading the response header directly. This catches regressions where
     // the public/_headers file is missing or accidentally narrowed.
-    const res = await request.get('https://console.proappstore.online/', {
+    const res = await request.get('https://proappstore.online/app/', {
       headers: { 'cache-control': 'no-cache' },
     });
     const csp = res.headers()['content-security-policy'] ?? '';

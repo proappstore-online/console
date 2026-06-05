@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test';
 // just verifies the console loads and that Agents is NOT a top-level tab. The
 // per-app Agents tab needs auth; the API contract is covered below.
 
-const CONSOLE_URL = 'https://console.proappstore.online';
+const CONSOLE_URL = 'https://proappstore.online/app';
 
 test.describe('Agent Teams — UI shell', () => {
   test('Console loads; Agents is not a top-level nav tab (it lives inside each app)', async ({ page }) => {
@@ -95,10 +95,10 @@ test.describe('Agent Teams — security', () => {
 
   test('CORS allows proappstore.online origins', async ({ request }) => {
     const res = await request.get('https://agents.proappstore.online/health', {
-      headers: { Origin: 'https://console.proappstore.online' },
+      headers: { Origin: 'https://proappstore.online/app' },
     });
     const corsHeader = res.headers()['access-control-allow-origin'] ?? '';
-    expect(corsHeader).toBe('https://console.proappstore.online');
+    expect(corsHeader).toBe('https://proappstore.online/app');
   });
 
   test('invalid project slug rejected', async ({ request }) => {
