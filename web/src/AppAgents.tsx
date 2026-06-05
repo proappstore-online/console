@@ -923,7 +923,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
       )}
 
       {tab === 'build' && filePreview && (
-        <div className="flex flex-col lg:w-[460px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
+        <div className="flex flex-col lg:w-[460px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden min-h-0">
           <div className="px-4 py-2.5 border-b border-[var(--line)] flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 min-w-0">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--muted)] flex-shrink-0"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
@@ -958,7 +958,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
       )}
 
       {tab === 'build' && !filePreview && fileList && (
-        <div className="flex flex-col lg:w-[300px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
+        <div className="flex flex-col lg:w-[300px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden min-h-0">
           <div className="px-4 py-2.5 border-b border-[var(--line)] flex items-center justify-between">
             <h3 className="text-sm font-bold text-[var(--ink)]">Files {fileList.length > 0 && <span className="text-[var(--muted)] font-normal">({fileList.length})</span>}</h3>
             <div className="flex items-center gap-1">
@@ -994,8 +994,8 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
 
       {/* DETAIL: ticket panel (right of the board) */}
       {tab === 'build' && !filePreview && !fileList && selTicket && (
-        <div className="flex flex-col lg:w-[380px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
-          <div className="px-4 py-3 border-b border-[var(--line)] flex items-start justify-between gap-2">
+        <div className="flex flex-col lg:w-[380px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden min-h-0">
+          <div className="px-4 py-3 border-b border-[var(--line)] flex items-start justify-between gap-2 flex-shrink-0">
             <div className="min-w-0">
               <div className="flex items-center gap-1 mb-0.5">
                 <span className="font-mono font-bold text-[var(--accent)] text-[11px]">#{selTicket.seq}</span>
