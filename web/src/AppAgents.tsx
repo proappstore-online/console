@@ -51,6 +51,10 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   // Live "an agent is working right now" signal — set by run/heartbeat/tool WS
   // events, auto-cleared by a staleness check (see effect below). null = idle.
   const [agentWork, setAgentWork] = useState<{ role: string; at: number } | null>(null)
+  // Per-ticket live status line — shows what the agent is doing right now on each ticket.
+  // Keyed by ticketId. Updated by agent-text, agent-tool-call, activity WS events.
+  // Auto-cleared after 30s of no updates (agent finished or idle).
+  const [ticketLive, setTicketLive] = useState<Record<string, { text: string; role: string; at: number }>>({})
   // Bumped on every `files-synced` event so the live KB preview (Research tab)
   // refetches as the Architect writes — without holding the file list in memory here.
   const [filesVersion, setFilesVersion] = useState(0)
@@ -366,19 +370,34 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
           case 'play-state':
             setProject(prev => prev ? { ...prev, status: d.status as 'running' | 'paused' } : prev)
             break
-          // Live "agent working" signals → drive the working/idle indicator.
+          // Live "agent working" signals → drive the working/idle indicator + per-ticket status.
           case 'agent-run-started':
           case 'agent-heartbeat':
           case 'agent-text':
           case 'agent-tool-call':
-          case 'agent-tool-result':
-            setAgentWork({ role: String(d.role ?? 'Agent'), at: Date.now() })
+          case 'agent-tool-result': {
+            const role = String(d.role ?? 'Agent')
+            setAgentWork({ role, at: Date.now() })
+            // Per-ticket live status line
+            if (d.ticketId) {
+              const line = d.type === 'agent-text' ? String(d.text ?? '').replace(/\n/g, ' ').slice(-120)
+                : d.type === 'agent-tool-call' ? `${role}: ${d.name}()`
+                : d.type === 'agent-tool-result' ? `${role}: ${d.ok ? '✓' : '✗'} tool result`
+                : d.type === 'agent-run-started' ? `${role} starting...`
+                : `${role} working...`
+              setTicketLive(prev => ({ ...prev, [String(d.ticketId)]: { text: line, role, at: Date.now() } }))
+            }
             break
+          }
           case 'activity': {
-            const e = d.entry as { id: string; type: string; detail: string; createdAt: number; meta?: string } | undefined
+            const e = d.entry as { id: string; ticketId?: string; type: string; detail: string; createdAt: number; meta?: string } | undefined
             if (e) setActivity(prev => prev.some(a => a.id === e.id) ? prev : [...prev.slice(-300), { id: e.id, type: e.type, detail: e.detail, timestamp: e.createdAt, meta: e.meta }])
             // A tool/transition row arriving also means an agent is active — keep the indicator alive.
             if (e && (e.type === 'tool' || e.type === 'transition')) setAgentWork(w => ({ role: w?.role ?? 'Agent', at: Date.now() }))
+            // Per-ticket live status from activity
+            if (e?.ticketId && (e.type === 'tool' || e.type === 'transition')) {
+              setTicketLive(prev => ({ ...prev, [e.ticketId!]: { text: e.detail.slice(-120), role: e.detail.split(':')[0] ?? 'Agent', at: Date.now() } }))
+            }
             break
           }
           case 'activity-meta': {
@@ -441,11 +460,22 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
     }
   }, [token, appId, notStarted, syncLive, loadMemory, loadFileList])
 
-  // Clear the "agent working" indicator after ~20s of silence. There's no
-  // explicit run-finished event (agents heartbeat while active), so staleness is
-  // the signal. Functional update reads the latest value + no-ops when idle.
+  // Clear stale indicators after silence. No explicit run-finished event —
+  // staleness is the signal. Global: 20s. Per-ticket: 30s.
   useEffect(() => {
-    const t = setInterval(() => setAgentWork(w => (w && Date.now() - w.at > 20000 ? null : w)), 4000)
+    const t = setInterval(() => {
+      setAgentWork(w => (w && Date.now() - w.at > 20000 ? null : w))
+      setTicketLive(prev => {
+        const now = Date.now()
+        const next: typeof prev = {}
+        let changed = false
+        for (const [k, v] of Object.entries(prev)) {
+          if (now - v.at < 30000) next[k] = v
+          else changed = true
+        }
+        return changed ? next : prev
+      })
+    }, 4000)
     return () => clearInterval(t)
   }, [])
 
@@ -586,12 +616,29 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
         <InlineCopy text={`#${ticket.seq}`} title={`Copy ticket #${ticket.seq} to quote in chat`} />
       </div>
       <p className="font-medium text-[var(--ink)] line-clamp-2 leading-tight">{ticket.title}</p>
-      <div className="flex items-center gap-1 mt-1">
-        {ticket.assigneeRole && (
-          <span className="font-bold" style={{ color: ROLE_COLOR[ticket.assigneeRole] ?? 'var(--muted)', fontSize: '10px' }}>{ticket.assigneeRole}</span>
-        )}
-        {ticket.iterations > 0 && <span className="text-[var(--muted)]" style={{ fontSize: '10px' }}>i:{ticket.iterations}</span>}
-      </div>
+      {ticketLive[ticket.id] ? (
+        <div className="mt-1 overflow-hidden h-[26px] relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="flex items-center gap-1 min-w-0">
+              <span className="relative flex h-1.5 w-1.5 flex-shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ background: ROLE_COLOR[ticketLive[ticket.id].role] ?? 'var(--accent)' }}></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5" style={{ background: ROLE_COLOR[ticketLive[ticket.id].role] ?? 'var(--accent)' }}></span>
+              </span>
+              <p className="text-[10px] text-[var(--muted)] truncate leading-tight animate-marquee" title={ticketLive[ticket.id].text}>
+                {ticketLive[ticket.id].text}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-1 mt-1">
+          {ticket.assigneeRole && (
+            <span className="font-bold" style={{ color: ROLE_COLOR[ticket.assigneeRole] ?? 'var(--muted)', fontSize: '10px' }}>{ticket.assigneeRole}</span>
+          )}
+          {ticket.iterations > 0 && <span className="text-[var(--muted)]" style={{ fontSize: '10px' }}>i:{ticket.iterations}</span>}
+          {ticket.stuckReason && <span className="text-[var(--error)]" style={{ fontSize: '10px' }}>blocked</span>}
+        </div>
+      )}
     </div>
   )
 
