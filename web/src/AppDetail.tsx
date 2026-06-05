@@ -79,10 +79,10 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab }: Props) {
         <div className="max-w-4xl space-y-3">
           <h2 className="display-font text-lg font-bold text-[var(--ink)]">{appName ?? appId} — Control</h2>
           <p className="text-sm text-[var(--muted)]">
-            Automated code-health scan (<a href="https://vibecodeqa.online" target="_blank" rel="noopener noreferrer" className="text-[var(--accent)]">VCQA</a>),
-            re-run on every deploy. Live — this refreshes itself.
+            Interactive code-health dashboard (<a href="https://vibecodeqa.online" target="_blank" rel="noopener noreferrer" className="text-[var(--accent)]">VCQA</a>).
+            Click "Fix" on any issue to send it to the Dev agent.
           </p>
-          <CodeHealth appId={appId} live />
+          <CodeHealth appId={appId} live getToken={getToken} />
         </div>
       )}
 
