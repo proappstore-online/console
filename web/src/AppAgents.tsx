@@ -656,7 +656,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
       {/* Chat panel — one per tab, bound to its own thread/agent: Research → the
           Architect (KB), Build → the PO (backlog). Rendered for both tabs. */}
       {(tab === 'research' || tab === 'build') && (
-      <div className="flex flex-col lg:w-[360px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
+      <div className="flex flex-col lg:w-[360px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden min-h-0">
         <div className="px-3 py-2 border-b border-[var(--line)] flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <h3 className="text-sm font-bold text-[var(--ink)]">{activeThread === 'research' ? 'KB chat · Architect' : 'Chat · PO'}</h3>

@@ -166,7 +166,7 @@ export default function App() {
   const selected = apps.find((a) => a.id === selectedAppId)
 
   return (
-    <div className="min-h-[100dvh] flex flex-col">
+    <div className="h-[100dvh] flex flex-col overflow-hidden">
       <Header
         user={user}
         view={view}
