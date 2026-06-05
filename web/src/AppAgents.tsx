@@ -378,6 +378,10 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
           case 'agent-tool-result': {
             const role = String(d.role ?? 'Agent')
             setAgentWork({ role, at: Date.now() })
+            // Debug: log agent events to verify WS delivery
+            if (d.type === 'agent-text' || d.type === 'agent-tool-call') {
+              console.log(`[ticket-live] ${d.type} tid=${d.ticketId} role=${d.role} text=${String(d.text ?? d.name ?? '').slice(0, 50)}`)
+            }
             // Per-ticket live status line — accumulate text deltas into a rolling buffer
             if (d.ticketId) {
               const tid = String(d.ticketId)
