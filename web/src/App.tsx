@@ -1,20 +1,28 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import type { User } from '@proappstore/sdk'
 import { pro } from './sdk'
-import { ProfileView } from './ProfileView'
-import { PublishView } from './PublishView'
-import { PayoutsView } from './PayoutsView'
-import { AppDetail } from './AppDetail'
-import { AdminView } from './AdminView'
-import { UILibraryView } from './UILibraryView'
-import { ServicesView } from './ServicesView'
 
 import { type View, type AppEntry, type AppTab, parseHash as parseHashString, hashFor, deriveSlug, mergeApps } from './nav'
 import { fetchApps, fetchAgentProjects, deleteAppApi, fetchIsAdmin } from './appsApi'
+import { syncTokenToCookie, restoreFromCookie } from './authSync'
 import { Landing, Header } from './Header'
 import { Dashboard } from './Dashboard'
-import { SubscriptionView } from './SubscriptionView'
 import { NewAppModal } from './NewAppModal'
+
+// Lazy-loaded routes — only downloaded when the user navigates there.
+// Dashboard + Header stay eager (they are the landing experience).
+const AppDetail = lazy(() => import('./AppDetail').then(m => ({ default: m.AppDetail })))
+const PublishView = lazy(() => import('./PublishView').then(m => ({ default: m.PublishView })))
+const PayoutsView = lazy(() => import('./PayoutsView').then(m => ({ default: m.PayoutsView })))
+const SubscriptionView = lazy(() => import('./SubscriptionView').then(m => ({ default: m.SubscriptionView })))
+const ServicesView = lazy(() => import('./ServicesView').then(m => ({ default: m.ServicesView })))
+const AdminView = lazy(() => import('./AdminView').then(m => ({ default: m.AdminView })))
+const ProfileView = lazy(() => import('./ProfileView').then(m => ({ default: m.ProfileView })))
+const UILibraryView = lazy(() => import('./UILibraryView').then(m => ({ default: m.UILibraryView })))
+
+function RouteSpinner() {
+  return <p className="py-12 text-center text-[var(--muted)]">Loading...</p>
+}
 
 // ---------------------------------------------------------------------------
 // App
@@ -66,8 +74,14 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    // Restore session from cross-subdomain cookie if localStorage is empty
+    restoreFromCookie()
     pro.auth.init().then(() => setReady(true))
-    return pro.auth.onChange(setUser)
+    return pro.auth.onChange((u) => {
+      setUser(u)
+      // Mirror token to cross-subdomain cookie so storefront can detect sign-in
+      syncTokenToCookie(pro.auth.token)
+    })
   }, [])
 
   const reloadApps = useCallback(async () => {
@@ -176,23 +190,25 @@ export default function App() {
             onNewApp={() => setShowNewApp(true)}
           />
         )}
-        {view === 'app-detail' && selectedAppId && (
-          <AppDetail
-            key={selectedAppId}
-            appId={selectedAppId}
-            appName={selected?.name ?? null}
-            getToken={() => pro.auth.token}
-            onDelete={deleteSelectedApp}
-            tab={appTab}
-          />
-        )}
-        {view === 'publish' && <PublishView getToken={() => pro.auth.token} />}
-        {view === 'payouts' && <PayoutsView getToken={() => pro.auth.token} />}
-        {view === 'subscription' && <SubscriptionView />}
-        {view === 'services' && <ServicesView getToken={() => pro.auth.token} />}
-        {view === 'admin' && isAdmin && <AdminView getToken={() => pro.auth.token} />}
-        {view === 'profile' && <ProfileView user={user} />}
-        {view === 'ui-library' && <UILibraryView />}
+        <Suspense fallback={<RouteSpinner />}>
+          {view === 'app-detail' && selectedAppId && (
+            <AppDetail
+              key={selectedAppId}
+              appId={selectedAppId}
+              appName={selected?.name ?? null}
+              getToken={() => pro.auth.token}
+              onDelete={deleteSelectedApp}
+              tab={appTab}
+            />
+          )}
+          {view === 'publish' && <PublishView getToken={() => pro.auth.token} />}
+          {view === 'payouts' && <PayoutsView getToken={() => pro.auth.token} />}
+          {view === 'subscription' && <SubscriptionView />}
+          {view === 'services' && <ServicesView getToken={() => pro.auth.token} />}
+          {view === 'admin' && isAdmin && <AdminView getToken={() => pro.auth.token} />}
+          {view === 'profile' && <ProfileView user={user} />}
+          {view === 'ui-library' && <UILibraryView />}
+        </Suspense>
       </main>
       {showNewApp && <NewAppModal onClose={() => setShowNewApp(false)} onCreate={createApp} />}
     </div>
