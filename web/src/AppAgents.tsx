@@ -378,10 +378,6 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
           case 'agent-tool-result': {
             const role = String(d.role ?? 'Agent')
             setAgentWork({ role, at: Date.now() })
-            // Debug: log agent events to verify WS delivery
-            if (d.type === 'agent-text' || d.type === 'agent-tool-call') {
-              console.log(`[ticket-live] ${d.type} tid=${d.ticketId} role=${d.role} text=${String(d.text ?? d.name ?? '').slice(0, 50)}`)
-            }
             // Per-ticket live status line — accumulate text deltas into a rolling buffer
             if (d.ticketId) {
               const tid = String(d.ticketId)
@@ -408,8 +404,8 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
             if (e) setActivity(prev => prev.some(a => a.id === e.id) ? prev : [...prev.slice(-300), { id: e.id, type: e.type, detail: e.detail, timestamp: e.createdAt, meta: e.meta }])
             // A tool/transition row arriving also means an agent is active — keep the indicator alive.
             if (e && (e.type === 'tool' || e.type === 'transition')) setAgentWork(w => ({ role: w?.role ?? 'Agent', at: Date.now() }))
-            // Per-ticket live status from activity
-            if (e?.ticketId && (e.type === 'tool' || e.type === 'transition')) {
+            // Per-ticket live status from activity (tool calls, transitions, deploys)
+            if (e?.ticketId) {
               setTicketLive(prev => ({ ...prev, [e.ticketId!]: { text: e.detail.slice(-120), role: e.detail.split(':')[0] ?? 'Agent', at: Date.now() } }))
             }
             break
@@ -479,15 +475,14 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   useEffect(() => {
     const t = setInterval(() => {
       setAgentWork(w => (w && Date.now() - w.at > 20000 ? null : w))
-      // Keep ticket live text for 2 minutes (was 30s — too short, agents
-      // finish and the text disappears before the user reads it). The text
-      // persists as the "last thing the agent said" until the next run or timeout.
+      // Keep ticket live text for 5 minutes — agents finish fast (~30s) but
+      // the user needs time to read what happened. Clears only on timeout.
       setTicketLive(prev => {
         const now = Date.now()
         const next: typeof prev = {}
         let changed = false
         for (const [k, v] of Object.entries(prev)) {
-          if (now - v.at < 120000) next[k] = v
+          if (now - v.at < 300000) next[k] = v
           else changed = true
         }
         return changed ? next : prev
