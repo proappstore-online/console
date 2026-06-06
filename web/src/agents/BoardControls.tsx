@@ -114,8 +114,8 @@ export function BoardConfig({ appId, project, roles, getToken, onUpdateProject, 
   const saveBudget = async (body: { maxRunMinutes?: number; costCapMonthlyUsd?: number }) => {
     const token = getToken()
     if (!token) return
-    if (body.maxRunMinutes) onUpdateProject(prev => prev ? { ...prev, maxRunMinutes: body.maxRunMinutes! } : prev)
-    if (body.costCapMonthlyUsd) onUpdateProject(prev => prev ? { ...prev, costCapMonthlyUsd: body.costCapMonthlyUsd! } : prev)
+    if (body.maxRunMinutes !== undefined) onUpdateProject(prev => prev ? { ...prev, maxRunMinutes: body.maxRunMinutes! } : prev)
+    if (body.costCapMonthlyUsd !== undefined) onUpdateProject(prev => prev ? { ...prev, costCapMonthlyUsd: body.costCapMonthlyUsd! } : prev)
     try { await api(`/projects/${appId}/budget`, token, { method: 'PUT', body }) } catch { /* rollback handled by next refresh */ }
   }
 
