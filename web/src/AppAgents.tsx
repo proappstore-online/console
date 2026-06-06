@@ -1132,49 +1132,81 @@ function ElapsedTimer({ startedAt }: { startedAt: number }) {
 
 /** Compact model + runtime selector on the board header. Shows current Dev model
  *  with a dropdown grouped by runtime (Anthropic / OpenAI). Saves immediately. */
+/** Per-role model selector — compact inline display with popover for per-role changes. */
 function ModelSelector({ appId, roles, getToken, onUpdate }: {
   appId: string; roles: RoleCfg[]; getToken: () => string | null;
   onUpdate: (fn: (prev: RoleCfg[]) => RoleCfg[]) => void;
 }) {
-  const devRole = roles.find(r => r.role === 'Dev')
-  if (!devRole) return null
-  const runtime = devRole.runtime
-  const model = devRole.model
-  // Build grouped options: Anthropic models, then OpenAI models
-  const options = Object.entries(MODEL_SUGGESTIONS).flatMap(([rt, models]) =>
-    models.map(m => ({ runtime: rt as RoleCfg['runtime'], model: m, label: m }))
-  )
-  const save = async (value: string) => {
-    const [rt, m] = value.split('|') as [string, string]
+  const [open, setOpen] = useState(false)
+  const buildRoles = roles.filter(r => ['BA', 'Dev', 'QA'].includes(r.role))
+  if (!buildRoles.length) return null
+
+  // Short model label for inline display
+  const short = (m: string) => m.replace('claude-', '').replace('openai-', '')
+  const devModel = buildRoles.find(r => r.role === 'Dev')?.model ?? '?'
+
+  const saveRole = async (role: string, runtime: string, model: string) => {
     const token = getToken()
-    if (!token || !m) return
-    // Snapshot BEFORE the optimistic update so rollback reverts to the right state.
+    if (!token) return
     const snapshot = [...roles]
-    const next = roles.map(r => (['BA', 'Dev', 'QA'].includes(r.role) ? { ...r, runtime: rt as RoleCfg['runtime'], model: m } : r))
+    const next = roles.map(r => r.role === role ? { ...r, runtime: runtime as RoleCfg['runtime'], model } : r)
     onUpdate(() => next)
     try { await api(`/projects/${appId}/roles`, token, { method: 'PUT', body: { roles: next } }) }
     catch { onUpdate(() => snapshot) }
   }
+
+  const setAll = async (runtime: string, model: string) => {
+    const token = getToken()
+    if (!token) return
+    const snapshot = [...roles]
+    const next = roles.map(r => ['BA', 'Dev', 'QA'].includes(r.role) ? { ...r, runtime: runtime as RoleCfg['runtime'], model } : r)
+    onUpdate(() => next)
+    try { await api(`/projects/${appId}/roles`, token, { method: 'PUT', body: { roles: next } }) }
+    catch { onUpdate(() => snapshot) }
+  }
+
+  const allSame = buildRoles.every(r => r.model === devModel)
+
   return (
-    <select value={`${runtime}|${model}`} onChange={e => save(e.target.value)}
-      aria-label="Agent model"
-      title="Model for BA/Dev/QA agents"
-      className="text-[11px] text-[var(--muted)] bg-transparent border border-[var(--line)] rounded px-1 py-0.5 cursor-pointer hover:border-[var(--accent)] max-w-[140px] truncate">
-      {/* Current model if not in suggestions */}
-      {!options.some(o => o.runtime === runtime && o.model === model) && (
-        <option value={`${runtime}|${model}`}>{model}</option>
+    <div className="relative">
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className={`text-[11px] font-mono px-1.5 py-0.5 rounded border transition-colors cursor-pointer max-w-[160px] truncate ${
+          open ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-[var(--line)] text-[var(--muted)] hover:border-[var(--accent)]'
+        }`}
+        title="Click to configure model per agent role">
+        {allSame ? short(devModel) : buildRoles.map(r => `${r.role[0]}:${short(r.model).split('-')[0]}`).join(' ')}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 rounded-xl border border-[var(--line)] bg-[var(--panel)] shadow-lg p-3 min-w-[260px]"
+          onMouseLeave={() => setOpen(false)}>
+          <p className="text-[10px] font-semibold text-[var(--muted)] uppercase tracking-wide mb-2">Model per role</p>
+          {buildRoles.map(r => (
+            <div key={r.role} className="flex items-center gap-2 mb-1.5">
+              <span className="text-[11px] font-bold w-6" style={{ color: ROLE_COLOR[r.role] }}>{r.role}</span>
+              <select value={`${r.runtime}|${r.model}`}
+                onChange={e => { const [rt, m] = e.target.value.split('|'); saveRole(r.role, rt!, m!) }}
+                aria-label={`Model for ${r.role}`}
+                className="flex-1 text-[11px] text-[var(--ink)] bg-transparent border border-[var(--line)] rounded px-1.5 py-1 cursor-pointer hover:border-[var(--accent)]">
+                <optgroup label="Anthropic">
+                  {MODEL_SUGGESTIONS['cf-native'].map(m => <option key={`cf|${m}`} value={`cf-native|${m}`}>{m}</option>)}
+                </optgroup>
+                <optgroup label="OpenAI">
+                  {MODEL_SUGGESTIONS['openai-responses'].map(m => <option key={`oa|${m}`} value={`openai-responses|${m}`}>{m}</option>)}
+                </optgroup>
+              </select>
+            </div>
+          ))}
+          <div className="border-t border-[var(--line)] mt-2 pt-2 flex gap-1.5">
+            <button type="button" onClick={() => { setAll('cf-native', 'claude-haiku-4-5'); setOpen(false) }}
+              className="text-[10px] px-2 py-0.5 rounded bg-green-500/10 text-green-600 font-semibold hover:bg-green-500/20">Cheap</button>
+            <button type="button" onClick={() => { setAll('cf-native', 'claude-sonnet-4-6'); setOpen(false) }}
+              className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 font-semibold hover:bg-blue-500/20">Balanced</button>
+            <button type="button" onClick={() => { setAll('cf-native', 'claude-opus-4-8'); setOpen(false) }}
+              className="text-[10px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 font-semibold hover:bg-purple-500/20">Smart</button>
+          </div>
+        </div>
       )}
-      <optgroup label="Anthropic">
-        {MODEL_SUGGESTIONS['cf-native'].map(m => (
-          <option key={`cf-native|${m}`} value={`cf-native|${m}`}>{m}</option>
-        ))}
-      </optgroup>
-      <optgroup label="OpenAI">
-        {MODEL_SUGGESTIONS['openai-responses'].map(m => (
-          <option key={`openai-responses|${m}`} value={`openai-responses|${m}`}>{m}</option>
-        ))}
-      </optgroup>
-    </select>
+    </div>
   )
 }
 
