@@ -713,7 +713,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
         <div className="flex-[2] min-h-0 flex flex-col rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
           <div className="flex items-center justify-between mb-2 flex-shrink-0 gap-2 flex-wrap">
             <div className="flex items-center gap-3">
-              <h3 className="text-sm font-bold text-[var(--ink)]">Board</h3>
+              <h3 className="text-sm font-bold text-[var(--ink)]">Tasks</h3>
               {project && (
                 <button type="button" onClick={togglePlay}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
@@ -744,7 +744,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
               <div className="flex items-center rounded-lg border border-[var(--line-strong)] overflow-hidden" role="tablist" aria-label="Board view">
                 <button type="button" role="tab" aria-selected={boardView === 'kanban'} onClick={() => setBoardView('kanban')}
                   className={`px-2 py-1 text-[11px] font-semibold transition-colors ${boardView === 'kanban' ? 'bg-[var(--accent)] text-white' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}
-                  title="Kanban board">Board</button>
+                  title="Kanban board">Cards</button>
                 <button type="button" role="tab" aria-selected={boardView === 'list'} onClick={() => setBoardView('list')}
                   className={`px-2 py-1 text-[11px] font-semibold transition-colors ${boardView === 'list' ? 'bg-[var(--accent)] text-white' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}
                   title="List view">List</button>
@@ -827,7 +827,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
 
         <div className="flex-[1] min-h-[120px] rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3 flex flex-col">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-bold text-[var(--ink)]">Activity</h3>
+            <h3 className="text-sm font-bold text-[var(--ink)]">Agent Activity</h3>
             <div className="flex items-center gap-1">
               <button type="button" onClick={toggleMemory}
                 className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
