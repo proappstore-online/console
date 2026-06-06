@@ -7,6 +7,7 @@ import { api, fileRefsFromActivity, prettyForDisplay, mergeServerChat } from './
 import { useAgentWebSocket } from './agents/useAgentWebSocket'
 import { CopyBtn, InlineCopy, ScreenCopyBtn, AgentsInfoModal, MemoryPanel, Collapsible } from './agents/components'
 import { BoardConfig, ProjectCostBadge, ElapsedTimer } from './agents/BoardControls'
+import { DeployBanner } from './agents/DeployBanner'
 import { COLUMNS, LIST_SECTIONS, ROLE_COLOR } from './agents/types'
 import { useWindowedLimit } from './agents/useWindowedLimit'
 import type { Ticket, Project, ChatMessage, ActivityEntry, RoleCfg } from './agents/types'
@@ -760,6 +761,8 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
               {project && <ProjectCostBadge project={project} ticketLive={ticketLive} />}
             </div>
           </div>
+          {/* Deploy status banner — shows progress + history */}
+          <DeployBanner tickets={buildTickets} activity={activity} />
           {/* Scrolls internally so the page itself never scrolls. */}
           <div className="flex-1 min-h-0 overflow-y-auto -mr-1 pr-1">
             {boardView === 'kanban' ? (
