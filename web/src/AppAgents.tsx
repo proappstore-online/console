@@ -512,6 +512,10 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
 
   // The board shows build work only — the KB is a conversation, never a ticket.
   const buildTickets = tickets.filter(t => t.kind !== 'research')
+  // Build tab: exclude Architect and test-only activity
+  const buildActivity = activity.filter(e =>
+    !e.detail.startsWith('Architect:') && !e.detail.startsWith('Architect ') && e.type !== 'test'
+  )
   // One ticket card, shared by the Kanban columns and the List sections.
   // In board view, the assignee is redundant (column header shows it).
   // In list view, show the assignee since there are no columns.
@@ -694,17 +698,41 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
       </div>
       )}
 
-      {/* RESEARCH: live Knowledge Base preview (Architect's KNOWLEDGE.md + docs/) */}
+      {/* RESEARCH: live Knowledge Base preview + Architect activity */}
       {tab === 'research' && (
-        <KbPreview
-          appId={appId}
-          token={token}
-          version={filesVersion}
-          kbStarted={kbStarted}
-          building={buildingKb}
-          onBuildKb={buildKB}
-          working={agentWork}
-        />
+        <div className="flex-1 flex flex-col gap-2 min-w-0 min-h-0">
+          <div className="flex-[3] min-h-0">
+            <KbPreview
+              appId={appId}
+              token={token}
+              version={filesVersion}
+              kbStarted={kbStarted}
+              building={buildingKb}
+              onBuildKb={buildKB}
+              working={agentWork}
+            />
+          </div>
+          {/* Architect activity */}
+          <div className="flex-[1] min-h-[80px] rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3 flex flex-col">
+            <h3 className="text-sm font-bold text-[var(--ink)] mb-1">Architect Activity</h3>
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-1 text-xs font-mono">
+              {(() => {
+                const archActivity = activity.filter(e =>
+                  e.detail.startsWith('Architect:') || e.detail.startsWith('Architect ') || e.type === 'memory'
+                )
+                return archActivity.length === 0
+                  ? <p className="text-[var(--muted)] py-2 text-center font-sans text-xs">Architect tool calls and KB writes appear here.</p>
+                  : archActivity.slice(-30).map(e => (
+                    <div key={e.id} className="flex gap-2 text-[var(--muted)] leading-snug">
+                      <span className="flex-shrink-0 opacity-50 tabular-nums">{new Date(e.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                      <span className="flex-shrink-0 font-bold" style={{ color: e.type === 'memory' ? '#14b8a6' : '#3b82f6' }}>{e.type}</span>
+                      <span className="text-[var(--ink)] break-words min-w-0">{e.detail.replace('Architect: ', '')}</span>
+                    </div>
+                  ))
+              })()}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* BUILD: Kanban + Activity */}
@@ -866,16 +894,16 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
           </div>
           <div className="relative flex-1 min-h-0">
             <div ref={actScroll.ref} onScroll={actScroll.onScroll} className="absolute inset-0 overflow-y-auto space-y-1 text-xs font-mono">
-              {activity.length === 0 && (
-                <p className="text-[var(--muted)] py-4 text-center font-sans text-xs">Agent activity, tool calls, and ticket transitions appear here.</p>
+              {buildActivity.length === 0 && (
+                <p className="text-[var(--muted)] py-4 text-center font-sans text-xs">Build agent activity appears here (BA, Dev, QA, deploy).</p>
               )}
-              {activity.length > actLimit && (
+              {buildActivity.length > actLimit && (
                 <button type="button" onClick={actMore}
                   className="block mx-auto mb-1 text-[11px] font-sans text-[var(--accent)] hover:underline">
-                  Load previous 50 ({activity.length - actLimit} older)
+                  Load previous 50 ({buildActivity.length - actLimit} older)
                 </button>
               )}
-              {activity.slice(-actLimit).map(entry => {
+              {buildActivity.slice(-actLimit).map(entry => {
                 const refs = entry.type === 'tool' ? fileRefsFromActivity(entry.detail) : []
                 // Parse tool meta to detect errors (meta.ok === false).
                 const toolFailed = entry.type === 'tool' && entry.meta && (() => {
