@@ -38,7 +38,7 @@ export function DirectoryTab({ token }: { token: string | null }) {
   }, [])
 
   // Debounce search: 400ms after last change
-  const timerRef = useRef<ReturnType<typeof setTimeout>>()
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => {
     clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => doSearch(query, sort, maxRate), 400)

@@ -12,7 +12,7 @@ export function RankedList({
   onPick?: (label: string) => void
 }) {
   const max = Math.max(1, ...rows.map((r) => r.value))
-  const renderRow = (r: { label: string; value: number }, i: number) => {
+  const renderRow = (r: { label: string; value: number }, _i: number) => {
     const inner = (
       <>
         <div className="flex justify-between mb-0.5">

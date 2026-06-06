@@ -47,7 +47,7 @@ export function KbPreview({
   const [loadError, setLoadError] = useState<string | null>(null)
   // 'docs' = live markdown render (updates as the Architect writes, pre-publish);
   // 'site' = iframe of the real published Zensical site (exactly what visitors see).
-  const [view, setView] = useState<'docs' | 'site'>('docs')
+  const [view, _setView] = useState<'docs' | 'site'>('docs')
   const [selected, setSelected] = useState<string>('KNOWLEDGE.md')
   const [content, setContent] = useState<string>('')
   // The doc that `content` currently belongs to. When it differs from `selected`

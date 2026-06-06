@@ -4,6 +4,7 @@ import { KbPreview } from './KbPreview'
 import { CodeView } from './CodeView'
 import { useStickToBottom } from './useStickToBottom'
 import { api, fileRefsFromActivity, prettyForDisplay, mergeServerChat } from './agents/lib'
+import { useAgentWebSocket } from './agents/useAgentWebSocket'
 import { CopyBtn, InlineCopy, ScreenCopyBtn, AgentsInfoModal, MemoryPanel } from './agents/components'
 import { COLUMNS, LIST_SECTIONS, ROLE_COLOR, MODEL_SUGGESTIONS } from './agents/types'
 import { useWindowedLimit } from './agents/useWindowedLimit'
@@ -54,8 +55,6 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   const [agentWork, setAgentWork] = useState<{ role: string; at: number } | null>(null)
   // Per-ticket live status line + real-time cost.
   const [ticketLive, setTicketLive] = useState<Record<string, { text: string; role: string; at: number; startedAt?: number; costUsd?: number; tokensIn?: number; tokensOut?: number }>>({})
-  // WS event counter for debugging — visible on the board so we can verify events arrive.
-  const [wsEvents, setWsEvents] = useState(0)
   // Bumped on every `files-synced` event so the live KB preview (Research tab)
   // refetches as the Architect writes — without holding the file list in memory here.
   const [filesVersion, setFilesVersion] = useState(0)
@@ -351,147 +350,14 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
 
   useEffect(() => { loadProject() }, [loadProject])
 
-  // ── Live updates over WebSocket ───────────────────────────
-  // The DO broadcasts every event (play-state, activity, chat, transitions).
-  // Connect once a project exists; reconnect with backoff; clean up on unmount.
-  useEffect(() => {
-    if (!token || notStarted) return
-    let closed = false
-    let ws: WebSocket | null = null
-    let retry = 0
-    let reconnectTimer: ReturnType<typeof setTimeout> | undefined
-
-    const connect = () => {
-      if (closed) return
-      ws = new WebSocket(`wss://agents.proappstore.online/v1/projects/${appId}/ws?token=${encodeURIComponent(token)}`)
-      ws.onopen = () => { retry = 0; syncLive() } // catch up on anything missed while disconnected
-      ws.onmessage = (ev) => {
-        let d: Record<string, unknown>
-        try { d = JSON.parse(typeof ev.data === 'string' ? ev.data : '') } catch { return }
-        setWsEvents(n => n + 1)
-        switch (d.type) {
-          case 'play-state':
-            setProject(prev => prev ? { ...prev, status: d.status as 'running' | 'paused' } : prev)
-            break
-          // Live "agent working" signals → drive the working/idle indicator + per-ticket status.
-          case 'agent-run-started':
-          case 'agent-heartbeat':
-          case 'agent-text':
-          case 'agent-tool-call':
-          case 'agent-tool-result': {
-            const role = String(d.role ?? 'Agent')
-            if (d.type !== 'agent-text') console.debug('[agent-ws]', d.type, d.ticketId, { cost: d.costUsd, tokIn: d.tokensIn, tokOut: d.tokensOut })
-            setAgentWork({ role, at: Date.now() })
-            // Per-ticket live status line + real-time cost.
-            // IMPORTANT: only `agent-text` builds the running text buffer.
-            // Tool-call/result/heartbeat update cost + timestamp but preserve
-            // the accumulated text so it doesn't get clobbered every few seconds.
-            if (d.ticketId) {
-              const tid = String(d.ticketId)
-              const cost = typeof d.costUsd === 'number' ? d.costUsd : undefined
-              const tokIn = typeof d.tokensIn === 'number' ? d.tokensIn : undefined
-              const tokOut = typeof d.tokensOut === 'number' ? d.tokensOut : undefined
-              if (d.type === 'agent-text') {
-                setTicketLive(prev => {
-                  const existing = prev[tid]?.text ?? ''
-                  const appended = (existing + String(d.text ?? '')).replace(/\n/g, ' ')
-                  return { ...prev, [tid]: { text: appended.slice(-200), role, at: Date.now(), startedAt: prev[tid]?.startedAt,
-                    costUsd: cost ?? prev[tid]?.costUsd, tokensIn: tokIn ?? prev[tid]?.tokensIn, tokensOut: tokOut ?? prev[tid]?.tokensOut } }
-                })
-              } else if (d.type === 'agent-run-started') {
-                // Run start resets the text buffer + starts the elapsed timer
-                setTicketLive(prev => ({ ...prev, [tid]: { text: `${role} starting...`, role, at: Date.now(), startedAt: Date.now(),
-                  costUsd: cost, tokensIn: tokIn, tokensOut: tokOut } }))
-              } else {
-                // Tool call/result/heartbeat: update cost + keep text alive, don't overwrite
-                setTicketLive(prev => {
-                  const existing = prev[tid]
-                  // If no text accumulated yet (no agent-text received), show a tool line
-                  const text = existing?.text || (d.type === 'agent-tool-call' ? `${role}: ${String(d.name ?? 'tool')}()` : `${role} working...`)
-                  return { ...prev, [tid]: { text, role, at: Date.now(), startedAt: existing?.startedAt,
-                    costUsd: cost ?? existing?.costUsd, tokensIn: tokIn ?? existing?.tokensIn, tokensOut: tokOut ?? existing?.tokensOut } }
-                })
-              }
-            }
-            break
-          }
-          case 'activity': {
-            const e = d.entry as { id: string; ticketId?: string; type: string; detail: string; createdAt: number; meta?: string } | undefined
-            if (e) setActivity(prev => prev.some(a => a.id === e.id) ? prev : [...prev.slice(-300), { id: e.id, type: e.type, detail: e.detail, timestamp: e.createdAt, meta: e.meta }])
-            // A tool/transition row arriving also means an agent is active — keep the indicator alive.
-            if (e && (e.type === 'tool' || e.type === 'transition')) setAgentWork(w => ({ role: w?.role ?? 'Agent', at: Date.now() }))
-            // Per-ticket: keep the live text alive (update timestamp) but don't
-            // overwrite the running text buffer with short activity summaries.
-            if (e?.ticketId) {
-              setTicketLive(prev => {
-                const existing = prev[e.ticketId!]
-                // Only set text from activity if there's no accumulated agent text yet
-                const text = existing?.text || e.detail.slice(-120)
-                const role = existing?.role || e.detail.split(':')[0] || 'Agent'
-                return { ...prev, [e.ticketId!]: { ...existing, text, role, at: Date.now() } }
-              })
-            }
-            break
-          }
-          case 'activity-meta': {
-            // Tool output captured after the call — attach it to the row for the audit view.
-            if (d.id) setActivity(prev => prev.map(a => a.id === d.id ? { ...a, meta: d.meta as string } : a))
-            break
-          }
-          case 'chat': {
-            if (d.role === 'user') break // sender already shows it optimistically
-            const id = String(d.id ?? crypto.randomUUID())
-            const setFn = d.thread === 'research' ? setKbChat : setChat // route to the right thread
-            setFn(prev => prev.some(m => m.id === id) ? prev : [...prev, { id, role: d.role as ChatMessage['role'], text: String(d.body ?? ''), timestamp: Date.now(), toolCall: d.toolCall as ChatMessage['toolCall'] }])
-            break
-          }
-          case 'transition':
-          case 'ticket-created':
-          case 'ticket-updated':
-          case 'ticket-failed':
-          case 'message': // agent posted a message → ticket updatedAt bumped
-            refreshTickets()
-            break
-          case 'ticket-deleted':
-            if (d.ticketId) {
-              setTickets(prev => prev.filter(x => x.id !== d.ticketId))
-              setSelTicket(prev => prev?.id === d.ticketId ? null : prev)
-            }
-            break
-          case 'memory-updated':
-            if (memOpenRef.current) loadMemory()
-            break
-          case 'files-synced':
-            setFilesVersion(v => v + 1) // drive the live KB preview (Research tab)
-            if (fileListOpenRef.current) loadFileList()
-            break
-          case 'chat-cleared':
-            (d.thread === 'research' ? setKbChat : setChat)([])
-            break
-          case 'activity-cleared':
-            setActivity([])
-            break
-          case 'cost-cap-reached':
-            setProject(prev => prev ? { ...prev, status: 'paused' } : prev)
-            refreshTickets()
-            break
-        }
-      }
-      ws.onerror = () => { try { ws?.close() } catch { /* noop */ } }
-      ws.onclose = () => {
-        if (closed) return
-        retry += 1
-        reconnectTimer = setTimeout(connect, Math.min(1000 * retry, 10000))
-      }
-    }
-    connect()
-
-    return () => {
-      closed = true
-      if (reconnectTimer) clearTimeout(reconnectTimer)
-      try { ws?.close() } catch { /* noop */ }
-    }
-  }, [token, appId, notStarted, syncLive, loadMemory, loadFileList])
+  // ── Live updates over WebSocket (extracted to useAgentWebSocket) ──────
+  useAgentWebSocket({
+    appId, token, notStarted,
+    setProject, setTickets, setChat, setKbChat, setActivity,
+    setAgentWork, setTicketLive, setSelTicket, setFilesVersion,
+    syncLive, refreshTickets, loadMemory, loadFileList,
+    memOpenRef, fileListOpenRef,
+  })
 
   // Clear stale indicators after silence. No explicit run-finished event —
   // staleness is the signal. Global: 20s. Per-ticket: 30s.
@@ -866,9 +732,6 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
               {roles.length > 0 && <ModelSelector appId={appId} roles={roles} getToken={getToken} onUpdate={setRoles} />}
               {project && <RunTimeoutSelect appId={appId} project={project} getToken={getToken} onUpdate={setProject} />}
               {project && <ProjectCostBadge project={project} ticketLive={ticketLive} />}
-              <span className="text-[9px] text-[var(--muted)] font-mono opacity-50" title={`WS events: ${wsEvents}, live tickets: ${Object.keys(ticketLive).length}, build: 2026-06-06T02:10`}>
-                ws:{wsEvents} live:{Object.keys(ticketLive).length}
-              </span>
             </div>
           </div>
           {/* Scrolls internally so the page itself never scrolls. */}
@@ -920,7 +783,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
                         )}
                       </div>
                       <div className="space-y-1.5">
-                        {shown.map(ticketCard)}
+                        {shown.map(t => ticketCard(t))}
                       </div>
                     </div>
                   )
