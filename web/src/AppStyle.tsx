@@ -164,9 +164,11 @@ export function AppStyle({ appId, getToken }: { appId: string; getToken: () => s
     setSaving(true)
     try {
       const css = generateCss(tokens)
+      // Escape backticks in CSS to prevent breaking the markdown fence
+      const safeCss = css.replace(/`/g, '\\`')
       await api(`/projects/${appId}/chat`, token, {
         method: 'POST',
-        body: { message: `Update the design tokens. Write this exact content to src/index.css:\n\n\`\`\`css\n${css}\n\`\`\``, thread: 'build' },
+        body: { message: `Update the design tokens. Write this exact content to src/index.css:\n\n\`\`\`css\n${safeCss}\n\`\`\``, thread: 'build' },
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)

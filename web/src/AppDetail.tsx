@@ -83,6 +83,13 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab }: Props) {
         </div>
       )}
 
+      {tab === 'analytics' && (
+        <div className="max-w-4xl space-y-4 overflow-y-auto min-h-0 flex-1">
+          <UsageSection appId={appId} getToken={getToken} />
+          <AnalyticsSection appId={appId} getToken={getToken} />
+        </div>
+      )}
+
       {tab === 'spending' && (
         <div className="space-y-3 overflow-y-auto min-h-0 flex-1">
           <AppSpending appId={appId} getToken={getToken} />
@@ -125,8 +132,6 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab }: Props) {
                     <BrandingSection appId={appId} listing={listing} update={update} getToken={getToken} />
                     <ListingCopySection appId={appId} listing={listing} update={update} getToken={getToken} />
                     <ScreenshotsSection appId={appId} listing={listing} update={update} getToken={getToken} />
-                    <UsageSection appId={appId} getToken={getToken} />
-                    <AnalyticsSection appId={appId} getToken={getToken} />
                     <DeveloperSection appId={appId} listing={listing} update={update} getToken={getToken} />
                     <SocialSection appId={appId} listing={listing} update={update} getToken={getToken} />
                     <LegalSection appId={appId} listing={listing} update={update} getToken={getToken} />

@@ -514,7 +514,8 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   const buildTickets = tickets.filter(t => t.kind !== 'research')
   // Build tab: exclude Architect and test-only activity
   const buildActivity = activity.filter(e =>
-    !e.detail.startsWith('Architect:') && !e.detail.startsWith('Architect ') && e.type !== 'test'
+    !e.detail.startsWith('Architect:') && !e.detail.startsWith('Architect ') &&
+    e.type !== 'test' && e.type !== 'memory'
   )
   // One ticket card, shared by the Kanban columns and the List sections.
   // In board view, the assignee is redundant (column header shows it).
