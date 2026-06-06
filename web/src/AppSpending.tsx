@@ -207,7 +207,7 @@ function PricingInfo() {
         i
       </button>
       {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 w-80 rounded-xl border border-[var(--line)] bg-[var(--panel)] shadow-xl p-4 text-xs text-[var(--ink)] space-y-2">
+        <div className="absolute left-0 top-full mt-1 z-50 w-80 rounded-xl border border-[var(--line)] bg-[var(--paper)] shadow-xl p-4 text-xs text-[var(--ink)] space-y-2">
           <p className="font-semibold text-sm">How agent costs work</p>
           <p className="text-[var(--muted)]">Agents use your <strong>BYO API key</strong> (Anthropic or OpenAI). You pay the provider directly — ProAppStore charges nothing on top.</p>
           <table className="w-full text-[11px]">

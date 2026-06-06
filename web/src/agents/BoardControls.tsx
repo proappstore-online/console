@@ -132,7 +132,7 @@ export function BoardConfig({ appId, project, roles, getToken, onUpdateProject, 
         {label} {timeout}m ${cap}
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 rounded-xl border border-[var(--line)] bg-[var(--panel)] shadow-xl p-3 min-w-[290px] space-y-3"
+        <div className="absolute right-0 top-full mt-1 z-50 rounded-xl border border-[var(--line)] bg-[var(--paper)] shadow-xl p-3 min-w-[290px] space-y-3"
           onMouseLeave={() => setOpen(false)}>
           <div>
             <p className="text-[10px] font-semibold text-[var(--muted)] uppercase tracking-wide mb-1.5">Model per role</p>

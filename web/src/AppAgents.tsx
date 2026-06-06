@@ -24,6 +24,8 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   const [activity, setActivity] = useState<ActivityEntry[]>([])
   const [inputByThread, setInputByThread] = useState<{ research: string; build: string }>({ research: '', build: '' })
   const [sending, setSending] = useState(false)
+  // Streaming text from WS agent-text events while an Architect/PO chat call is in flight.
+  const [streamingText, setStreamingText] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notStarted, setNotStarted] = useState(false)
@@ -356,6 +358,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
     appId, token, notStarted,
     setProject, setTickets, setChat, setKbChat, setActivity,
     setAgentWork, setTicketLive, setSelTicket, setFilesVersion,
+    onAgentText: (_role, text) => { if (sending) setStreamingText(prev => prev + text) },
     syncLive, refreshTickets, loadMemory, loadFileList,
     memOpenRef, fileListOpenRef,
   })
@@ -468,6 +471,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
       apply(prev => [...prev, { id: crypto.randomUUID(), role: 'system', text: `Error: ${(err as Error).message}`, timestamp: Date.now() }])
     }
     setSending(false)
+    setStreamingText('')
   }
 
   // ── Not started: offer to start the team for this app ─────────
@@ -637,6 +641,26 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
                 </div>
               </div>
             ))}
+            {/* Live streaming preview while agent is working */}
+            {sending && (
+              <div className="flex justify-start">
+                <div className="max-w-[85%] rounded-xl px-3 py-2 border border-[var(--accent)]/30 bg-[var(--accent)]/5">
+                  <span className="text-xs font-bold block mb-0.5" style={{ color: ROLE_COLOR[activeThread === 'research' ? 'Architect' : 'po'] }}>
+                    {activeThread === 'research' ? 'Architect' : 'PO'}
+                  </span>
+                  {streamingText ? (
+                    <Collapsible maxH={150}>
+                      <Markdown compact>{streamingText}</Markdown>
+                    </Collapsible>
+                  ) : (
+                    <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
+                      <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                      {agentWork ? `${agentWork.role} working...` : 'Thinking...'}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           {!chatScroll.stuck && (
             <button type="button" onClick={chatScroll.jumpToBottom}

@@ -34,6 +34,8 @@ interface UseAgentWebSocketOpts {
   setTicketLive: Dispatch<SetStateAction<Record<string, TicketLiveEntry>>>
   setSelTicket: Dispatch<SetStateAction<Ticket | null>>
   setFilesVersion: Dispatch<SetStateAction<number>>
+  /** Accumulate streaming text from agent-text events (chat live preview). */
+  onAgentText?: (role: string, text: string) => void
   // Callbacks
   syncLive: () => void
   refreshTickets: () => void
@@ -114,6 +116,7 @@ export function handleEvent(d: Record<string, unknown>, opts: UseAgentWebSocketO
         const tokOut = typeof d.tokensOut === 'number' ? d.tokensOut : undefined
 
         if (d.type === 'agent-text') {
+          opts.onAgentText?.(role, String(d.text ?? ''))
           setTicketLive(prev => {
             const existing = prev[tid]?.text ?? ''
             const appended = (existing + String(d.text ?? '')).replace(/\n/g, ' ')
