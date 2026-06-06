@@ -866,7 +866,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
               {roles.length > 0 && <ModelSelector appId={appId} roles={roles} getToken={getToken} onUpdate={setRoles} />}
               {project && <RunTimeoutSelect appId={appId} project={project} getToken={getToken} onUpdate={setProject} />}
               {project && <ProjectCostBadge project={project} ticketLive={ticketLive} />}
-              <span className="text-[9px] text-[var(--muted)] font-mono opacity-50" title={`WS events received: ${wsEvents}, live tickets: ${Object.keys(ticketLive).length}`}>
+              <span className="text-[9px] text-[var(--muted)] font-mono opacity-50" title={`WS events: ${wsEvents}, live tickets: ${Object.keys(ticketLive).length}, build: 2026-06-06T02:10`}>
                 ws:{wsEvents} live:{Object.keys(ticketLive).length}
               </span>
             </div>
