@@ -74,14 +74,22 @@ export function CodeHealth({ appId, live = false, getToken }: Props) {
   // Filter: show all checks or only failing ones
   const [filter, setFilter] = useState<'all' | 'failing'>('failing')
 
+  const [loadError, setLoadError] = useState<string | null>(null)
+
   const load = useCallback(async () => {
     setRefreshing(true)
+    setLoadError(null)
     try {
-      const r = await fetch(`https://${appId}.proappstore.online/.vcqa/report.json?t=${Date.now()}`, { cache: 'no-store' })
-      const data = r.ok ? (await r.json()) as VcqaReport : null
-      if (data) { setReport(data); setBadgeError(false) }
+      const url = `https://${appId}.proappstore.online/.vcqa/report.json?t=${Date.now()}`
+      const r = await fetch(url, { cache: 'no-store' })
+      if (!r.ok) { setLoadError(`HTTP ${r.status}`); setFetchedAt(Date.now()); setRefreshing(false); setLoading(false); return }
+      const text = await r.text()
+      // Guard against SPA fallback (host worker returning index.html for missing files)
+      if (text.startsWith('<!') || text.startsWith('<html')) { setLoadError('Report not found (got HTML fallback)'); setFetchedAt(Date.now()); setRefreshing(false); setLoading(false); return }
+      const data = JSON.parse(text) as VcqaReport
+      setReport(data); setBadgeError(false)
       setFetchedAt(Date.now())
-    } catch { /* keep last */ }
+    } catch (e) { setLoadError(e instanceof Error ? e.message : 'fetch failed') }
     setRefreshing(false)
     setLoading(false)
   }, [appId])
@@ -139,6 +147,7 @@ export function CodeHealth({ appId, live = false, getToken }: Props) {
         <p className="text-sm text-[var(--muted)]">
           No scan data yet. Code health runs automatically on each deploy{live ? ' — checking every 15s.' : '.'}
         </p>
+        {loadError && <p className="text-xs text-[var(--error)] mt-1">{loadError}</p>}
         {live && (
           <button type="button" onClick={load} disabled={refreshing}
             className="mt-3 text-[11px] text-[var(--muted)] hover:text-[var(--ink)] px-2 py-0.5 rounded border border-[var(--line)] hover:border-[var(--accent)] disabled:opacity-50">
