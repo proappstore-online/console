@@ -22,14 +22,8 @@ export {
 } from './sectionPrimitives'
 
 // Listing-editor sections.
-export {
-  BrandingSection,
-  ListingCopySection,
-  ScreenshotsSection,
-  DeveloperSection,
-  SocialSection,
-  LegalSection,
-} from './ListingSections'
+export { BrandingSection, ListingCopySection, ScreenshotsSection } from './ListingSections'
+export { DeveloperSection, SocialSection, LegalSection } from './ListingSectionsExtra'
 
 // Usage analytics section.
 export { UsageSection, UsageSkeleton } from './UsageSection'
