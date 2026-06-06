@@ -5,9 +5,9 @@ import { CodeView } from './CodeView'
 import { useStickToBottom } from './useStickToBottom'
 import { api, fileRefsFromActivity, prettyForDisplay, mergeServerChat } from './agents/lib'
 import { CopyBtn, InlineCopy, ScreenCopyBtn, AgentsInfoModal, MemoryPanel } from './agents/components'
-import { COLUMNS, LIST_SECTIONS, ROLE_COLOR } from './agents/types'
+import { COLUMNS, LIST_SECTIONS, ROLE_COLOR, MODEL_SUGGESTIONS } from './agents/types'
 import { useWindowedLimit } from './agents/useWindowedLimit'
-import type { Ticket, Project, ChatMessage, ActivityEntry } from './agents/types'
+import type { Ticket, Project, ChatMessage, ActivityEntry, RoleCfg } from './agents/types'
 
 // ── Component ───────────────────────────────────────────────
 // The agent team for ONE app. The agent-teams project slug IS the app id, so
@@ -16,6 +16,7 @@ import type { Ticket, Project, ChatMessage, ActivityEntry } from './agents/types
 export function AppAgents({ appId, appName, getToken, tab }: { appId: string; appName?: string | null; getToken: () => string | null; tab: 'research' | 'build' }) {
   const [project, setProject] = useState<Project | null>(null)
   const [tickets, setTickets] = useState<Ticket[]>([])
+  const [roles, setRoles] = useState<RoleCfg[]>([])
   const [chat, setChat] = useState<ChatMessage[]>([])
   const [kbChat, setKbChat] = useState<ChatMessage[]>([]) // 'research' thread (Architect)
   const [activity, setActivity] = useState<ActivityEntry[]>([])
@@ -106,6 +107,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
       setNotStarted(false)
       const t = await api(`/projects/${appId}/tickets`, token) as { tickets: Ticket[] }
       setTickets(t.tickets)
+      try { const r = await api(`/projects/${appId}/roles`, token) as { roles: RoleCfg[] }; setRoles(r.roles) } catch { /* roles not loaded yet */ }
       // Load both chat threads (build = PO, research = Architect/KB).
       await Promise.all((['build', 'research'] as const).map(async (thread) => {
         try {
@@ -857,6 +859,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
               </button>
               <ScreenCopyBtn getData={screenSnapshot} />
               <CopyBtn label="Board" getData={() => JSON.stringify({ slug: appId, status: project?.status, cost: { spent: project?.costSpentMonthlyUsd, cap: project?.costCapMonthlyUsd }, tickets: tickets.map(t => ({ id: t.id, title: t.title, status: t.status, assignee: t.assigneeRole, iterations: t.iterations, cost: t.costSpentUsd })) }, null, 2)} />
+              {roles.length > 0 && <ModelSelector appId={appId} roles={roles} getToken={getToken} onUpdate={setRoles} />}
               {project && <RunTimeoutSelect appId={appId} project={project} getToken={getToken} onUpdate={setProject} />}
               {project && <ProjectCostBadge project={project} ticketLive={ticketLive} />}
             </div>
@@ -1232,6 +1235,53 @@ function ElapsedTimer({ startedAt }: { startedAt: number }) {
   const m = Math.floor(secs / 60)
   const s = secs % 60
   return <span className="text-[var(--muted)] tabular-nums">{m}:{s.toString().padStart(2, '0')}</span>
+}
+
+/** Compact model + runtime selector on the board header. Shows current Dev model
+ *  with a dropdown grouped by runtime (Anthropic / OpenAI). Saves immediately. */
+function ModelSelector({ appId, roles, getToken, onUpdate }: {
+  appId: string; roles: RoleCfg[]; getToken: () => string | null;
+  onUpdate: (fn: (prev: RoleCfg[]) => RoleCfg[]) => void;
+}) {
+  const devRole = roles.find(r => r.role === 'Dev')
+  if (!devRole) return null
+  const runtime = devRole.runtime
+  const model = devRole.model
+  // Build grouped options: Anthropic models, then OpenAI models
+  const options = Object.entries(MODEL_SUGGESTIONS).flatMap(([rt, models]) =>
+    models.map(m => ({ runtime: rt as RoleCfg['runtime'], model: m, label: m }))
+  )
+  const save = async (value: string) => {
+    const [rt, m] = value.split('|') as [string, string]
+    const token = getToken()
+    if (!token || !m) return
+    // Update ALL build roles (BA, Dev, QA) to the same runtime+model for consistency
+    const next = roles.map(r => (['BA', 'Dev', 'QA'].includes(r.role) ? { ...r, runtime: rt as RoleCfg['runtime'], model: m } : r))
+    onUpdate(() => next)
+    try { await api(`/projects/${appId}/roles`, token, { method: 'PUT', body: { roles: next } }) }
+    catch { onUpdate(() => roles) }
+  }
+  return (
+    <select value={`${runtime}|${model}`} onChange={e => save(e.target.value)}
+      aria-label="Agent model"
+      title="Model for BA/Dev/QA agents"
+      className="text-[11px] text-[var(--muted)] bg-transparent border border-[var(--line)] rounded px-1 py-0.5 cursor-pointer hover:border-[var(--accent)] max-w-[140px] truncate">
+      {/* Current model if not in suggestions */}
+      {!options.some(o => o.runtime === runtime && o.model === model) && (
+        <option value={`${runtime}|${model}`}>{model}</option>
+      )}
+      <optgroup label="Anthropic">
+        {MODEL_SUGGESTIONS['cf-native'].map(m => (
+          <option key={`cf-native|${m}`} value={`cf-native|${m}`}>{m}</option>
+        ))}
+      </optgroup>
+      <optgroup label="OpenAI">
+        {MODEL_SUGGESTIONS['openai-responses'].map(m => (
+          <option key={`openai-responses|${m}`} value={`openai-responses|${m}`}>{m}</option>
+        ))}
+      </optgroup>
+    </select>
+  )
 }
 
 /** Inline timeout selector on the board header. */
