@@ -848,12 +848,16 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
               )}
               {activity.slice(-actLimit).map(entry => {
                 const refs = entry.type === 'tool' ? fileRefsFromActivity(entry.detail) : []
+                // Parse tool meta to detect errors (meta.ok === false).
+                const toolFailed = entry.type === 'tool' && entry.meta && (() => {
+                  try { return (JSON.parse(entry.meta!) as { ok?: boolean }).ok === false } catch { return false }
+                })()
                 return (
-                  <div key={entry.id} className="flex gap-2 text-[var(--muted)] leading-snug">
+                  <div key={entry.id} className={`flex gap-2 leading-snug ${toolFailed ? 'text-[var(--error)] bg-[var(--error)]/5 rounded px-1 -mx-1' : 'text-[var(--muted)]'}`}>
                     <span className="flex-shrink-0 opacity-50 tabular-nums">{new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
                     <span className="flex-shrink-0 font-bold" style={{
-                      color: entry.type === 'ticket' ? '#f59e0b' : entry.type === 'tool' ? '#3b82f6' : entry.type === 'transition' ? '#8b5cf6' : entry.type === 'error' ? 'var(--error)' : 'var(--muted)',
-                    }}>{entry.type}</span>
+                      color: toolFailed ? 'var(--error)' : entry.type === 'ticket' ? '#f59e0b' : entry.type === 'tool' ? '#3b82f6' : entry.type === 'transition' ? '#8b5cf6' : entry.type === 'error' ? 'var(--error)' : 'var(--muted)',
+                    }}>{toolFailed ? 'tool ✗' : entry.type}</span>
                     {refs.length > 0 ? (
                       // File read/write tool → link each file to its LIVE working-tree
                       // content (full + syntax-highlighted), which is never truncated
@@ -867,16 +871,26 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
                           ))}
                           {entry.meta && (
                             <button type="button" onClick={() => openToolResult(entry)}
-                              className="opacity-50 hover:opacity-100 hover:underline" title="Inspect the raw tool call (captured args/output)">raw ↗</button>
+                              className={`hover:opacity-100 hover:underline ${toolFailed ? 'text-[var(--error)] opacity-75' : 'opacity-50'}`}
+                              title={toolFailed ? 'Tool failed — click to inspect' : 'Inspect the raw tool call (captured args/output)'}>
+                              {toolFailed ? '✗ error ↗' : 'raw ↗'}
+                            </button>
                           )}
+                          {toolFailed && (() => {
+                            try { const r = (JSON.parse(entry.meta!) as { result?: string }).result; return r ? <span className="text-[var(--error)] opacity-75 text-[9px]">({r.slice(0, 60)})</span> : null } catch { return null }
+                          })()}
                         </span>
                       </span>
                     ) : entry.meta ? (
                       // Non-file tool with captured output → click to inspect.
                       <button type="button" onClick={() => openToolResult(entry)}
-                        className="text-left text-[var(--ink)] break-words min-w-0 hover:text-[var(--accent)] hover:underline"
-                        title="View this tool's output">
-                        {entry.detail} <span className="opacity-50">↗</span>
+                        className={`text-left break-words min-w-0 hover:underline ${toolFailed ? 'text-[var(--error)] hover:text-[var(--error)]' : 'text-[var(--ink)] hover:text-[var(--accent)]'}`}
+                        title={toolFailed ? 'Tool failed — click to inspect' : 'View this tool\'s output'}>
+                        {entry.detail}
+                        {toolFailed && (() => {
+                          try { const r = (JSON.parse(entry.meta!) as { result?: string }).result; return r ? <span className="ml-1 text-[var(--error)] opacity-75">({r.slice(0, 80)})</span> : null } catch { return null }
+                        })()}
+                        <span className="opacity-50 ml-1">↗</span>
                       </button>
                     ) : (
                       <span className="text-[var(--ink)] break-words min-w-0">{entry.detail}</span>
