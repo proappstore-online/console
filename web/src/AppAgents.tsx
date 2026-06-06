@@ -617,7 +617,9 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   // The board shows build work only — the KB is a conversation, never a ticket.
   const buildTickets = tickets.filter(t => t.kind !== 'research')
   // One ticket card, shared by the Kanban columns and the List sections.
-  const ticketCard = (ticket: Ticket) => (
+  // In board view, the assignee is redundant (column header shows it).
+  // In list view, show the assignee since there are no columns.
+  const ticketCard = (ticket: Ticket, hideAssignee = false) => (
     <div key={ticket.id} role="button" tabIndex={0} onClick={() => openTicket(ticket)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTicket(ticket) } }}
       className={`w-full text-left rounded-lg border p-2 text-xs transition-colors cursor-pointer ${
@@ -640,7 +642,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
         </div>
       ) : (
         <div className="flex items-center gap-1 mt-1">
-          {ticket.assigneeRole && (
+          {!hideAssignee && ticket.assigneeRole && (
             <span className="font-bold" style={{ color: ROLE_COLOR[ticket.assigneeRole] ?? 'var(--muted)', fontSize: '10px' }}>{ticket.assigneeRole}</span>
           )}
           {ticket.iterations > 0 && <span className="text-[var(--muted)]" style={{ fontSize: '10px' }}>i:{ticket.iterations}</span>}
@@ -835,7 +837,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
                         {colTickets.length > 0 && <span className="text-[11px] text-[var(--muted)]">{colTickets.length}</span>}
                       </div>
                       <div className="space-y-1.5 min-h-[60px]">
-                        {colTickets.map(ticketCard)}
+                        {colTickets.map(t => ticketCard(t, true))}
                       </div>
                     </div>
                   )
