@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { api } from './agents/lib'
 
 interface VcqaIssue {
@@ -174,7 +174,10 @@ export function CodeHealth({ appId, live = false, getToken }: Props) {
               {report.grade}
             </div>
             <div>
-              <div className="text-3xl font-bold text-[var(--ink)]">{report.score}/100</div>
+              <div className="flex items-center gap-2">
+                <span className="text-3xl font-bold text-[var(--ink)]">{report.score}/100</span>
+                <VcqaInfo />
+              </div>
               <div className="text-xs text-[var(--muted)]">
                 {activeChecks.length} checks · {totalIssues} issues · {failingChecks.length} failing
               </div>
@@ -321,6 +324,42 @@ export function CodeHealth({ appId, live = false, getToken }: Props) {
               </span>
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function VcqaInfo() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+
+  return (
+    <div className="relative" ref={ref}>
+      <button type="button" onClick={() => setOpen(o => !o)} aria-label="What is VCQA?"
+        className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-[var(--line-strong)] text-[var(--muted)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-colors text-[10px] font-bold">
+        i
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1 z-50 w-72 rounded-xl border border-[var(--line)] bg-[var(--paper)] shadow-xl p-4 text-xs text-[var(--ink)] space-y-2">
+          <p className="font-semibold text-sm">Code Health (VCQA)</p>
+          <p className="text-[var(--muted)]">Automated code quality scan powered by <a href="https://vibecodeqa.online" target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] font-semibold hover:underline">VibeCodeQA</a>. Runs on every deploy.</p>
+          <p className="text-[var(--muted)]">Checks {'>'}20 dimensions: types, security, complexity, accessibility, testing, architecture, performance, and more.</p>
+          <div className="border-t border-[var(--line)] pt-2 space-y-1">
+            <p className="font-semibold">How to use</p>
+            <p className="text-[var(--muted)]">Click <strong>Fix</strong> on any issue to send it to the PO, which creates a ticket for the Dev agent. Click <strong>Fix all</strong> on a check to fix all issues at once.</p>
+            <p className="text-[var(--muted)]">Scores update after each deploy. A grade of B+ (80+) is production-ready.</p>
+          </div>
+          <a href="https://vibecodeqa.online" target="_blank" rel="noopener noreferrer"
+            className="block text-center text-[var(--accent)] font-semibold hover:underline text-[11px] pt-1">
+            vibecodeqa.online →
+          </a>
         </div>
       )}
     </div>
