@@ -70,7 +70,7 @@ export function CodeHealth({ appId, live = false, getToken }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [badgeError, setBadgeError] = useState(false)
   const [fixing, setFixing] = useState<string | null>(null) // check name being fixed
-  const [fixResult, setFixResult] = useState<{ type: 'ok' | 'error'; msg: string } | null>(null)
+  const [fixResult, setFixResult] = useState<{ type: 'ok' | 'error'; msg: string; link?: string } | null>(null)
   // Filter: show all checks or only failing ones
   const [filter, setFilter] = useState<'all' | 'failing'>('failing')
 
@@ -103,37 +103,37 @@ export function CodeHealth({ appId, live = false, getToken }: Props) {
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible) }
   }, [live, load])
 
-  /** Create a ticket to fix a specific check's issues. */
-  const createFixTicket = async (check: VcqaCheck) => {
+  /** Send a fix to PO chat and show linked result. */
+  const sendFix = async (message: string, label: string) => {
     const token = getToken?.()
     if (!token) { setFixResult({ type: 'error', msg: 'Not signed in' }); return }
-    setFixing(check.name)
     setFixResult(null)
     try {
-      await api(`/projects/${appId}/chat`, token, {
+      const r = await api(`/projects/${appId}/chat`, token, {
         method: 'POST',
-        body: { message: bulkFixPrompt(check), thread: 'build' },
-      })
-      setFixResult({ type: 'ok', msg: `Sent to PO — ticket will be created for "${check.name}"` })
-      setTimeout(() => setFixResult(null), 5000)
+        body: { message, thread: 'build' },
+      }) as { body?: string }
+      // Extract ticket number from PO response (e.g. "created ticket #7")
+      const match = r.body?.match(/#(\d+)/);
+      if (match) {
+        setFixResult({ type: 'ok', msg: `Ticket #${match[1]} created`, link: `#/apps/${appId}/build` })
+      } else {
+        setFixResult({ type: 'ok', msg: `${label} sent to PO` })
+      }
+      setTimeout(() => setFixResult(null), 8000)
     } catch (e) {
       setFixResult({ type: 'error', msg: (e as Error).message })
     }
+  }
+
+  const createFixTicket = async (check: VcqaCheck) => {
+    setFixing(check.name)
+    await sendFix(bulkFixPrompt(check), `Fix all "${check.name}"`)
     setFixing(null)
   }
 
-  /** Send a single issue fix to the PO chat. */
   const fixSingleIssue = async (check: string, issue: VcqaIssue) => {
-    const token = getToken?.()
-    if (!token) return
-    try {
-      await api(`/projects/${appId}/chat`, token, {
-        method: 'POST',
-        body: { message: fixPrompt(check, issue), thread: 'build' },
-      })
-      setFixResult({ type: 'ok', msg: 'Fix request sent to PO' })
-      setTimeout(() => setFixResult(null), 3000)
-    } catch { /* */ }
+    await sendFix(fixPrompt(check, issue), 'Fix')
   }
 
   if (loading) return live
@@ -212,8 +212,11 @@ export function CodeHealth({ appId, live = false, getToken }: Props) {
 
       {/* Fix result banner */}
       {fixResult && (
-        <div className={`rounded-lg px-4 py-2 text-sm font-medium ${fixResult.type === 'ok' ? 'bg-[var(--success)]/10 text-[var(--success)]' : 'bg-[var(--error)]/10 text-[var(--error)]'}`}>
+        <div className={`rounded-lg px-4 py-2 text-sm font-medium flex items-center gap-2 ${fixResult.type === 'ok' ? 'bg-[var(--success)]/10 text-[var(--success)]' : 'bg-[var(--error)]/10 text-[var(--error)]'}`}>
           {fixResult.msg}
+          {fixResult.link && (
+            <a href={fixResult.link} className="underline font-bold hover:opacity-80">Open in Build →</a>
+          )}
         </div>
       )}
 
