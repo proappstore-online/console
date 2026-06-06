@@ -11,7 +11,7 @@ export type View =
 //  - control:  the live VCQA code-health dashboard (ops/control)
 //  - spending: cost breakdown by role, ticket, and ledger history
 //  - settings: listing / domains / app roles + agent team config / danger zone
-export type AppTab = 'research' | 'build' | 'test' | 'control' | 'spending' | 'settings'
+export type AppTab = 'research' | 'build' | 'test' | 'control' | 'spending' | 'style' | 'settings'
 
 export const APP_TABS: { key: AppTab; label: string }[] = [
   { key: 'research', label: 'Research' },
@@ -19,6 +19,7 @@ export const APP_TABS: { key: AppTab; label: string }[] = [
   { key: 'test', label: 'Test' },
   { key: 'control', label: 'Control' },
   { key: 'spending', label: 'Spending' },
+  { key: 'style', label: 'Style' },
   { key: 'settings', label: 'Settings' },
 ]
 

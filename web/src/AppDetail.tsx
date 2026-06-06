@@ -11,6 +11,7 @@ import { AppSecrets } from './AppSecrets'
 import { AppPublishing } from './AppPublishing'
 import { AppAgents } from './AppAgents'
 import { AppSpending } from './AppSpending'
+import { AppStyle } from './AppStyle'
 import type { AppTab } from './nav'
 import {
   BrandingSection, ListingCopySection, ScreenshotsSection, DeveloperSection,
@@ -85,6 +86,12 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab }: Props) {
       {tab === 'spending' && (
         <div className="space-y-3 overflow-y-auto min-h-0 flex-1">
           <AppSpending appId={appId} getToken={getToken} />
+        </div>
+      )}
+
+      {tab === 'style' && (
+        <div className="overflow-y-auto min-h-0 flex-1 py-2">
+          <AppStyle appId={appId} getToken={getToken} />
         </div>
       )}
 
