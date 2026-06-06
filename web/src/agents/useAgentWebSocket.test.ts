@@ -132,17 +132,46 @@ describe('handleEvent — ticket lifecycle', () => {
     expect(opts.refreshTickets).toHaveBeenCalled()
   })
 
-  it('ticket-deleted removes from list and clears selection', () => {
+  it('ticket-deleted filters the ticket out and clears matching selection', () => {
     const opts = makeOpts()
     handleEvent({ type: 'ticket-deleted', ticketId: 't1' }, opts)
-    expect(opts.setTickets).toHaveBeenCalled()
-    expect(opts.setSelTicket).toHaveBeenCalled()
+    // Verify setTickets filters by id
+    const ticketSetter = opts.setTickets.mock.calls[0][0] as (prev: any[]) => any[]
+    const filtered = ticketSetter([{ id: 't1' }, { id: 't2' }])
+    expect(filtered).toEqual([{ id: 't2' }])
+    // Verify setSelTicket clears only if matching
+    const selSetter = opts.setSelTicket.mock.calls[0][0] as (prev: any) => any
+    expect(selSetter({ id: 't1' })).toBeNull()
+    expect(selSetter({ id: 't2' })).toEqual({ id: 't2' }) // different ticket, keep it
   })
 
-  it('cost-cap-reached pauses project and refreshes tickets', () => {
+  it('cost-cap-reached sets project status to paused', () => {
     const opts = makeOpts()
     handleEvent({ type: 'cost-cap-reached' }, opts)
-    expect(opts.setProject).toHaveBeenCalled()
+    const setter = opts.setProject.mock.calls[0][0] as (prev: any) => any
+    const result = setter({ status: 'running', costCapMonthlyUsd: 50 })
+    expect(result.status).toBe('paused')
     expect(opts.refreshTickets).toHaveBeenCalled()
+  })
+})
+
+describe('handleEvent — agent-tool-result', () => {
+  it('preserves existing text and updates cost', () => {
+    const opts = makeOpts()
+    handleEvent({ type: 'agent-tool-result', ticketId: 't1', role: 'Dev', ok: true, costUsd: 2.0, tokensIn: 5000, tokensOut: 2000 }, opts)
+    const setter = opts.setTicketLive.mock.calls[0][0] as (prev: Record<string, any>) => Record<string, any>
+    const prev = { t1: { text: 'writing code', role: 'Dev', at: 1, costUsd: 0.5 } }
+    const result = setter(prev)
+    expect(result.t1.text).toBe('writing code') // preserved
+    expect(result.t1.costUsd).toBe(2.0) // updated
+  })
+})
+
+describe('handleEvent — onAgentText callback', () => {
+  it('calls onAgentText with role and text', () => {
+    const opts = makeOpts()
+    opts.onAgentText = vi.fn()
+    handleEvent({ type: 'agent-text', ticketId: 't1', role: 'Architect', text: 'writing KB' }, opts)
+    expect(opts.onAgentText).toHaveBeenCalledWith('Architect', 'writing KB')
   })
 })
