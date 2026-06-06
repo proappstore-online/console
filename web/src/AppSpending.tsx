@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { api } from './agents/lib'
 import { ROLE_COLOR } from './agents/types'
 
@@ -79,9 +79,10 @@ export function AppSpending({ appId, getToken }: { appId: string; getToken: () =
     <div className="max-w-4xl space-y-4">
       {/* Header: total project cost */}
       <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-5">
-        <div className="flex items-baseline gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-4">
           <span className="text-3xl font-bold text-[var(--ink)] font-mono">${data.totalUsd.toFixed(2)}</span>
-          <span className="text-sm text-[var(--muted)]">total project spend (all time)</span>
+          <span className="text-sm text-[var(--muted)]">total project spend</span>
+          <PricingInfo />
         </div>
 
         {/* By-role summary bar */}
@@ -185,6 +186,47 @@ export function AppSpending({ appId, getToken }: { appId: string; getToken: () =
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function PricingInfo() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+
+  return (
+    <div className="relative" ref={ref}>
+      <button type="button" onClick={() => setOpen(o => !o)} aria-label="How pricing works"
+        className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-[var(--line-strong)] text-[var(--muted)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-colors text-[10px] font-bold">
+        i
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1 z-50 w-80 rounded-xl border border-[var(--line)] bg-[var(--panel)] shadow-xl p-4 text-xs text-[var(--ink)] space-y-2">
+          <p className="font-semibold text-sm">How agent costs work</p>
+          <p className="text-[var(--muted)]">Agents use your <strong>BYO API key</strong> (Anthropic or OpenAI). You pay the provider directly — ProAppStore charges nothing on top.</p>
+          <table className="w-full text-[11px]">
+            <thead><tr className="text-[var(--muted)] border-b border-[var(--line)]"><th className="text-left py-1">Model</th><th className="text-right py-1">Input</th><th className="text-right py-1">Output</th></tr></thead>
+            <tbody>
+              <tr><td className="py-0.5">claude-opus-4</td><td className="text-right font-mono">$15</td><td className="text-right font-mono">$75</td></tr>
+              <tr><td className="py-0.5">claude-sonnet-4</td><td className="text-right font-mono">$3</td><td className="text-right font-mono">$15</td></tr>
+              <tr><td className="py-0.5">claude-haiku-4.5</td><td className="text-right font-mono">$0.80</td><td className="text-right font-mono">$4</td></tr>
+              <tr><td className="py-0.5">gpt-4o</td><td className="text-right font-mono">$2.50</td><td className="text-right font-mono">$10</td></tr>
+            </tbody>
+          </table>
+          <p className="text-[var(--muted)]">Prices per 1M tokens. A typical Dev run uses 50-200k input + 5-15k output tokens.</p>
+          <div className="border-t border-[var(--line)] pt-2 space-y-1">
+            <p className="font-semibold">Cost tips</p>
+            <p className="text-[var(--muted)]">Use <strong>Haiku</strong> for BA + QA (cheap, formulaic tasks). Use <strong>Sonnet</strong> for Dev (best quality/cost ratio). Reserve <strong>Opus</strong> for complex architecture work.</p>
+            <p className="text-[var(--muted)]">Change models in the config button <span className="font-mono text-[var(--accent)]">[···]</span> on the board header.</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

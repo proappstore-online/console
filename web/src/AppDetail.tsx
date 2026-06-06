@@ -89,10 +89,6 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab }: Props) {
 
       {tab === 'spending' && (
         <div className="space-y-3 overflow-y-auto min-h-0 flex-1">
-          <h2 className="display-font text-lg font-bold text-[var(--ink)]">{appName ?? appId} — Spending</h2>
-          <p className="text-sm text-[var(--muted)]">
-            Cost breakdown by role, ticket, and model. Token counts and dollar spend for every agent action.
-          </p>
           <AppSpending appId={appId} getToken={getToken} />
         </div>
       )}
