@@ -1077,17 +1077,19 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   )
 }
 
-/** Real-time project cost badge that highlights (flash) when the total changes. */
+/** Real-time project cost + token badge that highlights when cost changes. */
 function ProjectCostBadge({ project, ticketLive }: {
   project: Project;
   ticketLive: Record<string, { costUsd?: number; tokensIn?: number; tokensOut?: number }>;
 }) {
-  // Sum live in-flight costs from active ticket heartbeats on top of the persisted project total.
-  const liveDelta = Object.values(ticketLive).reduce((s, t) => s + (t.costUsd ?? 0), 0)
+  const vals = Object.values(ticketLive)
+  const liveDelta = vals.reduce((s, t) => s + (t.costUsd ?? 0), 0)
+  const liveTokIn = vals.reduce((s, t) => s + (t.tokensIn ?? 0), 0)
+  const liveTokOut = vals.reduce((s, t) => s + (t.tokensOut ?? 0), 0)
   const total = (project.costSpentMonthlyUsd ?? 0) + liveDelta
   const cap = project.costCapMonthlyUsd ?? 50
+  const fmtTok = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(0)}k` : String(n)
 
-  // Flash on change: track the last rendered total and toggle a CSS class.
   const prevRef = useRef(total)
   const [flash, setFlash] = useState(false)
   useEffect(() => {
@@ -1100,12 +1102,13 @@ function ProjectCostBadge({ project, ticketLive }: {
   }, [total])
 
   return (
-    <span className={`text-xs font-mono px-2 py-0.5 rounded-md transition-all duration-300 ${
+    <span className={`text-xs font-mono px-2 py-0.5 rounded-md transition-all duration-300 flex items-center gap-2 ${
       flash
         ? 'bg-[var(--accent)] text-white scale-105'
         : 'text-[var(--muted)]'
-    }`}>
-      ${total.toFixed(2)} / ${cap.toFixed(2)}
+    }`} title={`Monthly: $${total.toFixed(4)} of $${cap} cap\nLive tokens: ${liveTokIn.toLocaleString()} in / ${liveTokOut.toLocaleString()} out`}>
+      <span>${total.toFixed(2)}<span className="opacity-50">/${cap.toFixed(0)}</span></span>
+      {(liveTokIn > 0 || liveTokOut > 0) && <span className="opacity-60">{fmtTok(liveTokIn)}+{fmtTok(liveTokOut)}</span>}
     </span>
   )
 }
