@@ -4,8 +4,15 @@
  */
 import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react'
 import { api } from './lib'
+import { apiFetch } from '../api'
 import { ROLE_COLOR, MODEL_SUGGESTIONS, type Project, type RoleCfg } from './types'
 import type { TicketLiveEntry } from './useAgentWebSocket'
+
+/** Runtime → key-vault provider id (must match byo-key.ts on the backend). */
+const RUNTIME_TO_PROVIDER: Record<string, string> = {
+  'cf-native': 'anthropic',
+  'openai-responses': 'openai',
+}
 
 // ── ProjectCostBadge ──────────────────────────────────────────────────
 
@@ -66,6 +73,17 @@ export function BoardConfig({ appId, project, roles, getToken, onUpdateProject, 
   onUpdateRoles: Dispatch<SetStateAction<RoleCfg[]>>;
 }) {
   const [open, setOpen] = useState(false)
+  // Which providers the user has API keys for (loaded on popover open).
+  const [configuredProviders, setConfiguredProviders] = useState<Set<string> | null>(null)
+  useEffect(() => {
+    if (!open) return
+    const token = getToken()
+    if (!token) return
+    apiFetch<{ keys: { provider: string }[] }>('/keys/status', { token })
+      .then(d => setConfiguredProviders(new Set(d.keys.map(k => k.provider))))
+      .catch(() => {}) // fail silently — show all models as fallback
+  }, [open, getToken])
+
   const buildRoles = roles.filter(r => ['BA', 'Dev', 'QA'].includes(r.role))
   const short = (m: string) => m.replace('claude-', '').replace('openai-', '')
   const devModel = buildRoles.find(r => r.role === 'Dev')?.model ?? '?'
@@ -125,12 +143,15 @@ export function BoardConfig({ appId, project, roles, getToken, onUpdateProject, 
                   onChange={e => { const [rt, m] = e.target.value.split('|'); saveRole(r.role, rt!, m!) }}
                   aria-label={`Model for ${r.role}`}
                   className="flex-1 text-[11px] text-[var(--ink)] bg-transparent border border-[var(--line)] rounded px-1.5 py-1 cursor-pointer hover:border-[var(--accent)]">
-                  <optgroup label="Anthropic">
-                    {MODEL_SUGGESTIONS['cf-native'].map(m => <option key={`cf|${m}`} value={`cf-native|${m}`}>{m}</option>)}
-                  </optgroup>
-                  <optgroup label="OpenAI">
-                    {MODEL_SUGGESTIONS['openai-responses'].map(m => <option key={`oa|${m}`} value={`openai-responses|${m}`}>{m}</option>)}
-                  </optgroup>
+                  {Object.entries(MODEL_SUGGESTIONS).map(([rt, models]) => {
+                    const provider = RUNTIME_TO_PROVIDER[rt] ?? rt
+                    const hasKey = !configuredProviders || configuredProviders.has(provider)
+                    return (
+                      <optgroup key={rt} label={`${provider.charAt(0).toUpperCase() + provider.slice(1)}${hasKey ? '' : ' (no key)'}`}>
+                        {models.map(m => <option key={`${rt}|${m}`} value={`${rt}|${m}`} disabled={!hasKey}>{m}{hasKey ? '' : ' (no key)'}</option>)}
+                      </optgroup>
+                    )
+                  })}
                 </select>
               </div>
             ))}
