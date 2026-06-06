@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { api } from './agents/lib'
 
 /**
  * Live end-to-end test results for the Test tab. The QA agent's Playwright specs
@@ -26,11 +27,24 @@ function ago(ms: number): string {
   return `${Math.round(h / 24)}d ago`
 }
 
-export function TestResults({ appId, live = false }: { appId: string; live?: boolean }) {
+export function TestResults({ appId, live = false, getToken }: { appId: string; live?: boolean; getToken?: () => string | null }) {
   const [data, setData] = useState<E2ESummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [fetchedAt, setFetchedAt] = useState<number | null>(null)
+  const [specFiles, setSpecFiles] = useState<string[]>([])
+
+  // Load spec files from the working tree
+  useEffect(() => {
+    const token = getToken?.()
+    if (!token) return
+    api(`/projects/${appId}/files`, token).then((d: any) => {
+      const specs = ((d?.files as { path: string }[]) ?? [])
+        .filter(f => f.path.startsWith('e2e/specs/') || f.path.startsWith('tests/'))
+        .map(f => f.path)
+      setSpecFiles(specs)
+    }).catch(() => {})
+  }, [appId, getToken])
 
   const load = useCallback(async () => {
     setRefreshing(true)
@@ -57,17 +71,35 @@ export function TestResults({ appId, live = false }: { appId: string; live?: boo
 
   if (!data) {
     return (
-      <div className="max-w-2xl mx-auto py-16 text-center space-y-3">
-        <span className="text-4xl">🧪</span>
-        <h2 className="display-font text-xl font-bold text-[var(--ink)]">No test runs yet</h2>
-        <p className="text-sm text-[var(--muted)] max-w-lg mx-auto">
-          The QA agent writes Playwright end-to-end tests that run against the live app on every
-          deploy. Results appear here after the next deploy.
-        </p>
-        <button type="button" onClick={load} disabled={refreshing}
-          className="mt-1 text-xs text-[var(--muted)] hover:text-[var(--ink)] px-2 py-1 rounded border border-[var(--line)] hover:border-[var(--accent)] disabled:opacity-50">
-          {refreshing ? 'Checking…' : 'Refresh'}
-        </button>
+      <div className="space-y-4">
+        {specFiles.length > 0 && (
+          <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-5">
+            <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide mb-2">Test specs ({specFiles.length})</h3>
+            <div className="space-y-1">
+              {specFiles.map(f => (
+                <div key={f} className="flex items-center gap-2 text-xs">
+                  <span className="text-[var(--accent)]">
+                    {f.endsWith('.spec.ts') || f.endsWith('.spec.tsx') ? '🎭' : '✓'}
+                  </span>
+                  <span className="font-mono text-[var(--ink)]">{f}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-[var(--muted)] mt-2">These specs will run against the live app on the next deploy that includes a Playwright CI step.</p>
+          </div>
+        )}
+        <div className="max-w-2xl mx-auto py-8 text-center space-y-3">
+          <h2 className="display-font text-lg font-bold text-[var(--ink)]">No test runs yet</h2>
+          <p className="text-sm text-[var(--muted)] max-w-lg mx-auto">
+            {specFiles.length > 0
+              ? 'Test specs exist but no CI run results found yet. Results appear after a deploy that runs Playwright.'
+              : 'Ask the QA agent in the chat above to generate Playwright specs. They\'ll be saved to e2e/specs/ and run on deploy.'}
+          </p>
+          <button type="button" onClick={load} disabled={refreshing}
+            className="mt-1 text-xs text-[var(--muted)] hover:text-[var(--ink)] px-2 py-1 rounded border border-[var(--line)] hover:border-[var(--accent)] disabled:opacity-50">
+            {refreshing ? 'Checking…' : 'Refresh'}
+          </button>
+        </div>
       </div>
     )
   }

@@ -172,7 +172,7 @@ export function AppTest({ appId, getToken }: { appId: string; getToken: () => st
 
       {/* Test results (CI) */}
       <div className="flex-1 min-w-0 overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
-        <TestResults appId={appId} live />
+        <TestResults appId={appId} live getToken={getToken} />
       </div>
     </div>
   )

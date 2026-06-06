@@ -125,7 +125,9 @@ export function AnalyticsSection({ appId, getToken }: { appId: string; getToken:
 
       {loading && <UsageSkeleton />}
       {!loading && statsError && (
-        <p className="text-sm text-[var(--error)]">Couldn't load analytics. {statsError}</p>
+        statsError.includes('not configured') || statsError.includes('503')
+          ? <p className="text-sm text-[var(--muted)]">Analytics not yet configured for this project. Stats will appear here after the platform admin enables the analytics integration.</p>
+          : <p className="text-sm text-[var(--error)]">Couldn't load analytics. {statsError}</p>
       )}
       {!loading && !statsError && stats && (
         <AnalyticsBody
