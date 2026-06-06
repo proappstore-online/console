@@ -59,8 +59,8 @@ export function TestResults({ appId, live = false, getToken, onFileClick }: { ap
   useEffect(() => {
     const token = getToken?.()
     if (!token) return
-    api(`/projects/${appId}/files`, token).then((d: any) => {
-      const specs = ((d?.files as { path: string }[]) ?? [])
+    api(`/projects/${appId}/files`, token).then((d: unknown) => {
+      const specs = (((d as { files?: { path: string }[] })?.files) ?? [])
         .filter(f => f.path.startsWith('e2e/specs/') || f.path.startsWith('tests/'))
         .map(f => f.path)
       setSpecFiles(specs)

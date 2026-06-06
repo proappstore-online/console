@@ -49,7 +49,7 @@ export function AppTest({ appId, getToken }: { appId: string; getToken: () => st
       // Filter to QA/test-related activity only
       const qa = a.activity
         .filter(e => e.type === 'test' || e.detail.startsWith('QA:') || e.detail.includes('QA ') || e.detail.includes('test'))
-        .map(e => ({ ...e, timestamp: e.timestamp ?? (e as any).createdAt }))
+        .map(e => ({ ...e, timestamp: e.timestamp || (e as Record<string, unknown>).createdAt as number || 0 }))
       setActivity(prev => prev.length === qa.length && prev[prev.length - 1]?.id === qa[qa.length - 1]?.id ? prev : qa)
     } catch { /* */ }
   }, [token, appId])

@@ -541,9 +541,9 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
             </p>
           </div>
           <div className="flex items-center gap-2 text-[9px] font-mono text-[var(--muted)]">
-            {ticketLive[ticket.id].startedAt && <ElapsedTimer startedAt={ticketLive[ticket.id].startedAt!} />}
+            {ticketLive[ticket.id].startedAt != null && <ElapsedTimer startedAt={ticketLive[ticket.id].startedAt ?? 0} />}
             {(ticketLive[ticket.id].costUsd ?? 0) > 0 && (
-              <span className="text-[var(--accent)] font-semibold">${ticketLive[ticket.id].costUsd!.toFixed(4)}</span>
+              <span className="text-[var(--accent)] font-semibold">${(ticketLive[ticket.id].costUsd ?? 0).toFixed(4)}</span>
             )}
             {(ticketLive[ticket.id].tokensIn ?? 0) > 0 && (
               <span>{((ticketLive[ticket.id].tokensIn ?? 0) / 1000).toFixed(0)}k in</span>
