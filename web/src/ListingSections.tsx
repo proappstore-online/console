@@ -5,6 +5,7 @@
 
 import { useState, useRef } from 'react'
 import { uploadAsset, CATEGORIES } from './listings'
+import { api } from './agents/lib'
 import {
   Section,
   useSection,
@@ -83,8 +84,38 @@ export function ListingCopySection({ appId, listing, update, getToken }: Section
   const { state, draft, set, save } = useSection(appId, listing, update, getToken, [
     'tagline', 'longDescription', 'category',
   ])
+  const [generating, setGenerating] = useState(false)
+  const [genError, setGenError] = useState<string | null>(null)
+
+  const generateWithAI = async () => {
+    const token = getToken()
+    if (!token) return
+    setGenerating(true)
+    setGenError(null)
+    try {
+      const r = await api(`/projects/${appId}/generate-listing`, token, { method: 'POST', body: {} }) as { listing?: { tagline?: string; longDescription?: string; category?: string }; error?: string }
+      if (r.error) { setGenError(r.error); return }
+      if (r.listing?.tagline) set('tagline', r.listing.tagline)
+      if (r.listing?.longDescription) set('longDescription', r.listing.longDescription)
+      if (r.listing?.category) set('category', r.listing.category)
+    } catch (e) {
+      setGenError((e as Error).message)
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   return (
     <Section title="Listing" hint="What the storefront shows on the app's detail page." state={state} onSave={save}>
+      <div className="flex items-center justify-between mb-2">
+        <button type="button" onClick={generateWithAI} disabled={generating}
+          className="flex items-center gap-1.5 rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/5 px-3 py-1.5 text-xs font-semibold text-[var(--accent)] hover:bg-[var(--accent)]/10 disabled:opacity-50 transition-colors"
+          title="Generate tagline, description, and category from your app's source code using AI (uses your Anthropic API key)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+          {generating ? 'Generating…' : 'Generate with AI'}
+        </button>
+        {genError && <span className="text-xs text-[var(--error)]">{genError}</span>}
+      </div>
       <Row label="Category">
         <select
           value={draft.category ?? ''}
