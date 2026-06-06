@@ -731,8 +731,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
               </button>
               <ScreenCopyBtn getData={screenSnapshot} />
               <CopyBtn label="Board" getData={() => JSON.stringify({ slug: appId, status: project?.status, cost: { spent: project?.costSpentMonthlyUsd, cap: project?.costCapMonthlyUsd }, tickets: tickets.map(t => ({ id: t.id, title: t.title, status: t.status, assignee: t.assigneeRole, iterations: t.iterations, cost: t.costSpentUsd })) }, null, 2)} />
-              {roles.length > 0 && <ModelSelector appId={appId} roles={roles} getToken={getToken} onUpdate={setRoles} />}
-              {project && <RunTimeoutSelect appId={appId} project={project} getToken={getToken} onUpdate={setProject} />}
+              {project && <BoardConfig appId={appId} project={project} roles={roles} getToken={getToken} onUpdateProject={setProject} onUpdateRoles={setRoles} />}
               {project && <ProjectCostBadge project={project} ticketLive={ticketLive} />}
             </div>
           </div>
@@ -1130,29 +1129,28 @@ function ElapsedTimer({ startedAt }: { startedAt: number }) {
   return <span className="text-[var(--muted)] tabular-nums">{m}:{s.toString().padStart(2, '0')}</span>
 }
 
-/** Compact model + runtime selector on the board header. Shows current Dev model
- *  with a dropdown grouped by runtime (Anthropic / OpenAI). Saves immediately. */
-/** Per-role model selector — compact inline display with popover for per-role changes. */
-function ModelSelector({ appId, roles, getToken, onUpdate }: {
-  appId: string; roles: RoleCfg[]; getToken: () => string | null;
-  onUpdate: (fn: (prev: RoleCfg[]) => RoleCfg[]) => void;
+/** Unified board config popover — models per role, timeout, cost cap. */
+function BoardConfig({ appId, project, roles, getToken, onUpdateProject, onUpdateRoles }: {
+  appId: string; project: Project; roles: RoleCfg[]; getToken: () => string | null;
+  onUpdateProject: (fn: (prev: Project | null) => Project | null) => void;
+  onUpdateRoles: (fn: (prev: RoleCfg[]) => RoleCfg[]) => void;
 }) {
   const [open, setOpen] = useState(false)
   const buildRoles = roles.filter(r => ['BA', 'Dev', 'QA'].includes(r.role))
-  if (!buildRoles.length) return null
-
-  // Short model label for inline display
   const short = (m: string) => m.replace('claude-', '').replace('openai-', '')
   const devModel = buildRoles.find(r => r.role === 'Dev')?.model ?? '?'
+  const allSame = buildRoles.length > 0 && buildRoles.every(r => r.model === devModel)
+  const timeout = project.maxRunMinutes ?? 10
+  const cap = project.costCapMonthlyUsd ?? 50
 
   const saveRole = async (role: string, runtime: string, model: string) => {
     const token = getToken()
     if (!token) return
     const snapshot = [...roles]
     const next = roles.map(r => r.role === role ? { ...r, runtime: runtime as RoleCfg['runtime'], model } : r)
-    onUpdate(() => next)
+    onUpdateRoles(() => next)
     try { await api(`/projects/${appId}/roles`, token, { method: 'PUT', body: { roles: next } }) }
-    catch { onUpdate(() => snapshot) }
+    catch { onUpdateRoles(() => snapshot) }
   }
 
   const setAll = async (runtime: string, model: string) => {
@@ -1160,77 +1158,108 @@ function ModelSelector({ appId, roles, getToken, onUpdate }: {
     if (!token) return
     const snapshot = [...roles]
     const next = roles.map(r => ['BA', 'Dev', 'QA'].includes(r.role) ? { ...r, runtime: runtime as RoleCfg['runtime'], model } : r)
-    onUpdate(() => next)
+    onUpdateRoles(() => next)
     try { await api(`/projects/${appId}/roles`, token, { method: 'PUT', body: { roles: next } }) }
-    catch { onUpdate(() => snapshot) }
+    catch { onUpdateRoles(() => snapshot) }
   }
 
-  const allSame = buildRoles.every(r => r.model === devModel)
+  const saveBudget = async (body: { maxRunMinutes?: number; costCapMonthlyUsd?: number }) => {
+    const token = getToken()
+    if (!token) return
+    if (body.maxRunMinutes) onUpdateProject(prev => prev ? { ...prev, maxRunMinutes: body.maxRunMinutes! } : prev)
+    if (body.costCapMonthlyUsd) onUpdateProject(prev => prev ? { ...prev, costCapMonthlyUsd: body.costCapMonthlyUsd! } : prev)
+    try { await api(`/projects/${appId}/budget`, token, { method: 'PUT', body }) } catch { /* rollback handled by next refresh */ }
+  }
+
+  // Inline label
+  const label = allSame ? short(devModel) : buildRoles.map(r => `${r.role[0]}:${short(r.model).split('-')[0]}`).join(' ')
 
   return (
     <div className="relative">
       <button type="button" onClick={() => setOpen(o => !o)}
-        className={`text-[11px] font-mono px-1.5 py-0.5 rounded border transition-colors cursor-pointer max-w-[160px] truncate ${
+        className={`text-[11px] font-mono px-1.5 py-0.5 rounded border transition-colors cursor-pointer flex items-center gap-1.5 ${
           open ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-[var(--line)] text-[var(--muted)] hover:border-[var(--accent)]'
         }`}
-        title="Click to configure model per agent role">
-        {allSame ? short(devModel) : buildRoles.map(r => `${r.role[0]}:${short(r.model).split('-')[0]}`).join(' ')}
+        title="Agent config: models, timeout, budget">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+        {label} {timeout}m ${cap}
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 rounded-xl border border-[var(--line)] bg-[var(--panel)] shadow-lg p-3 min-w-[260px]"
-          onMouseLeave={() => setOpen(false)}>
-          <p className="text-[10px] font-semibold text-[var(--muted)] uppercase tracking-wide mb-2">Model per role</p>
-          {buildRoles.map(r => (
-            <div key={r.role} className="flex items-center gap-2 mb-1.5">
-              <span className="text-[11px] font-bold w-6" style={{ color: ROLE_COLOR[r.role] }}>{r.role}</span>
-              <select value={`${r.runtime}|${r.model}`}
-                onChange={e => { const [rt, m] = e.target.value.split('|'); saveRole(r.role, rt!, m!) }}
-                aria-label={`Model for ${r.role}`}
-                className="flex-1 text-[11px] text-[var(--ink)] bg-transparent border border-[var(--line)] rounded px-1.5 py-1 cursor-pointer hover:border-[var(--accent)]">
-                <optgroup label="Anthropic">
-                  {MODEL_SUGGESTIONS['cf-native'].map(m => <option key={`cf|${m}`} value={`cf-native|${m}`}>{m}</option>)}
-                </optgroup>
-                <optgroup label="OpenAI">
-                  {MODEL_SUGGESTIONS['openai-responses'].map(m => <option key={`oa|${m}`} value={`openai-responses|${m}`}>{m}</option>)}
-                </optgroup>
+        <div className="absolute right-0 top-full mt-1 z-50 rounded-xl border border-[var(--line)] bg-[var(--panel)] shadow-xl p-3 min-w-[290px] space-y-3">
+          {/* Models */}
+          <div>
+            <p className="text-[10px] font-semibold text-[var(--muted)] uppercase tracking-wide mb-1.5">Model per role</p>
+            {buildRoles.map(r => (
+              <div key={r.role} className="flex items-center gap-2 mb-1">
+                <span className="text-[11px] font-bold w-7" style={{ color: ROLE_COLOR[r.role] }}>{r.role}</span>
+                <select value={`${r.runtime}|${r.model}`}
+                  onChange={e => { const [rt, m] = e.target.value.split('|'); saveRole(r.role, rt!, m!) }}
+                  aria-label={`Model for ${r.role}`}
+                  className="flex-1 text-[11px] text-[var(--ink)] bg-transparent border border-[var(--line)] rounded px-1.5 py-1 cursor-pointer hover:border-[var(--accent)]">
+                  <optgroup label="Anthropic">
+                    {MODEL_SUGGESTIONS['cf-native'].map(m => <option key={`cf|${m}`} value={`cf-native|${m}`}>{m}</option>)}
+                  </optgroup>
+                  <optgroup label="OpenAI">
+                    {MODEL_SUGGESTIONS['openai-responses'].map(m => <option key={`oa|${m}`} value={`openai-responses|${m}`}>{m}</option>)}
+                  </optgroup>
+                </select>
+              </div>
+            ))}
+            <div className="flex gap-1.5 mt-1.5">
+              <button type="button" onClick={() => setAll('cf-native', 'claude-haiku-4-5')}
+                className="text-[10px] px-2 py-0.5 rounded bg-green-500/10 text-green-600 font-semibold hover:bg-green-500/20">Cheap</button>
+              <button type="button" onClick={() => setAll('cf-native', 'claude-sonnet-4-6')}
+                className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 font-semibold hover:bg-blue-500/20">Balanced</button>
+              <button type="button" onClick={() => setAll('cf-native', 'claude-opus-4-8')}
+                className="text-[10px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 font-semibold hover:bg-purple-500/20">Smart</button>
+            </div>
+          </div>
+
+          {/* Timeout + Budget */}
+          <div className="border-t border-[var(--line)] pt-2 grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] font-semibold text-[var(--muted)] uppercase tracking-wide block mb-1">Run timeout</label>
+              <select value={timeout} onChange={e => saveBudget({ maxRunMinutes: Number(e.target.value) })}
+                aria-label="Agent run timeout"
+                className="w-full text-[11px] text-[var(--ink)] bg-transparent border border-[var(--line)] rounded px-1.5 py-1 cursor-pointer hover:border-[var(--accent)]">
+                {[5, 10, 15, 20, 30, 45, 60].map(m => <option key={m} value={m}>{m} min</option>)}
               </select>
             </div>
-          ))}
-          <div className="border-t border-[var(--line)] mt-2 pt-2 flex gap-1.5">
-            <button type="button" onClick={() => { setAll('cf-native', 'claude-haiku-4-5'); setOpen(false) }}
-              className="text-[10px] px-2 py-0.5 rounded bg-green-500/10 text-green-600 font-semibold hover:bg-green-500/20">Cheap</button>
-            <button type="button" onClick={() => { setAll('cf-native', 'claude-sonnet-4-6'); setOpen(false) }}
-              className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 font-semibold hover:bg-blue-500/20">Balanced</button>
-            <button type="button" onClick={() => { setAll('cf-native', 'claude-opus-4-8'); setOpen(false) }}
-              className="text-[10px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 font-semibold hover:bg-purple-500/20">Smart</button>
+            <div>
+              <label className="text-[10px] font-semibold text-[var(--muted)] uppercase tracking-wide block mb-1">Monthly cap</label>
+              <select value={cap} onChange={e => saveBudget({ costCapMonthlyUsd: Number(e.target.value) })}
+                aria-label="Monthly cost cap"
+                className="w-full text-[11px] text-[var(--ink)] bg-transparent border border-[var(--line)] rounded px-1.5 py-1 cursor-pointer hover:border-[var(--accent)]">
+                {[10, 25, 50, 100, 200, 500, 1000].map(v => <option key={v} value={v}>${v}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Max tokens per role */}
+          <div className="border-t border-[var(--line)] pt-2">
+            <p className="text-[10px] font-semibold text-[var(--muted)] uppercase tracking-wide mb-1.5">Max output tokens</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {buildRoles.map(r => (
+                <div key={r.role}>
+                  <span className="text-[10px] font-bold block mb-0.5" style={{ color: ROLE_COLOR[r.role] }}>{r.role}</span>
+                  <select value={r.maxTokens ?? 8192}
+                    onChange={e => {
+                      const token = getToken(); if (!token) return;
+                      const snapshot = [...roles];
+                      const next = roles.map(x => x.role === r.role ? { ...x, maxTokens: Number(e.target.value) } : x);
+                      onUpdateRoles(() => next);
+                      api(`/projects/${appId}/roles`, token, { method: 'PUT', body: { roles: next } }).catch(() => onUpdateRoles(() => snapshot));
+                    }}
+                    aria-label={`Max tokens for ${r.role}`}
+                    className="w-full text-[10px] text-[var(--ink)] bg-transparent border border-[var(--line)] rounded px-1 py-0.5 cursor-pointer hover:border-[var(--accent)]">
+                    {[2048, 4096, 8192, 16384, 32768].map(v => <option key={v} value={v}>{(v/1024).toFixed(0)}k</option>)}
+                  </select>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
     </div>
-  )
-}
-
-/** Inline timeout selector on the board header. */
-function RunTimeoutSelect({ appId, project, getToken, onUpdate }: {
-  appId: string; project: Project; getToken: () => string | null;
-  onUpdate: (fn: (prev: Project | null) => Project | null) => void;
-}) {
-  const current = project.maxRunMinutes ?? 10
-  const save = async (mins: number) => {
-    const token = getToken()
-    if (!token) return
-    onUpdate(prev => prev ? { ...prev, maxRunMinutes: mins } : prev)
-    try { await api(`/projects/${appId}/budget`, token, { method: 'PUT', body: { maxRunMinutes: mins } }) }
-    catch { onUpdate(prev => prev ? { ...prev, maxRunMinutes: current } : prev) }
-  }
-  return (
-    <select value={current} onChange={e => save(Number(e.target.value))}
-      aria-label="Agent run timeout"
-      title="Max minutes per agent run before timeout"
-      className="text-[11px] text-[var(--muted)] bg-transparent border border-[var(--line)] rounded px-1 py-0.5 cursor-pointer hover:border-[var(--accent)]">
-      {[5, 10, 15, 20, 30, 45, 60].map(m => (
-        <option key={m} value={m}>{m}m</option>
-      ))}
-    </select>
   )
 }
