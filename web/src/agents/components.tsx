@@ -2,7 +2,7 @@
 // the icon copy controls, the info modal, the per-app settings modal, and the
 // memory panel. Extracted from AppAgents so that file stays focused on the
 // main workspace orchestration.
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { api } from './lib'
 import { ROLE_INFO, ROLE_COLOR, MODEL_SUGGESTIONS, type RoleCfg } from './types'
 
@@ -233,6 +233,33 @@ export function MemoryPanel({ entries, onAdd, onDelete, onClose }: {
             className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50">Add</button>
         </div>
       </div>
+    </div>
+  )
+}
+
+/** Collapsible wrapper — truncates long content with a gradient and toggle. */
+export function Collapsible({ children, maxH = 120 }: { children: React.ReactNode; maxH?: number }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [needs, setNeeds] = useState(false)
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (el) setNeeds(el.scrollHeight > maxH + 20)
+  }, [children, maxH])
+  return (
+    <div className="relative">
+      <div ref={ref} style={!open && needs ? { maxHeight: maxH, overflow: 'hidden' } : undefined}>
+        {children}
+      </div>
+      {needs && !open && (
+        <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-[var(--panel)] to-transparent pointer-events-none" />
+      )}
+      {needs && (
+        <button type="button" onClick={() => setOpen(o => !o)}
+          className="text-[10px] font-semibold text-[var(--accent)] hover:underline mt-0.5 block">
+          {open ? 'Show less' : 'Show more'}
+        </button>
+      )}
     </div>
   )
 }

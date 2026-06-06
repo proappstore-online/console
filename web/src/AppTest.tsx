@@ -3,6 +3,7 @@ import { Markdown } from './Markdown'
 import { TestResults } from './TestResults'
 import { useStickToBottom } from './useStickToBottom'
 import { api, mergeServerChat } from './agents/lib'
+import { Collapsible } from './agents/components'
 import { InlineCopy } from './agents/components'
 import { useWindowedLimit } from './agents/useWindowedLimit'
 import { ROLE_COLOR } from './agents/types'
@@ -128,9 +129,11 @@ export function AppTest({ appId, getToken }: { appId: string; getToken: () => st
                   {msg.role !== 'user' && msg.role !== 'system' && (
                     <span className="text-xs font-bold block mb-0.5" style={{ color: ROLE_COLOR[msg.role] }}>{msg.role}</span>
                   )}
-                  {msg.role === 'user'
-                    ? <p className="text-sm whitespace-pre-wrap break-words">{msg.text}</p>
-                    : <Markdown compact>{msg.text}</Markdown>}
+                  <Collapsible maxH={msg.role === 'user' ? 200 : 150}>
+                    {msg.role === 'user'
+                      ? <p className="text-sm whitespace-pre-wrap break-words">{msg.text}</p>
+                      : <Markdown compact>{msg.text}</Markdown>}
+                  </Collapsible>
                   <div className="flex items-center gap-2 mt-1 text-[10px]">
                     <span className="opacity-50">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     {msg.role !== 'system' && <InlineCopy text={msg.text} title="Copy" />}

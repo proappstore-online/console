@@ -5,7 +5,7 @@ import { CodeView } from './CodeView'
 import { useStickToBottom } from './useStickToBottom'
 import { api, fileRefsFromActivity, prettyForDisplay, mergeServerChat } from './agents/lib'
 import { useAgentWebSocket } from './agents/useAgentWebSocket'
-import { CopyBtn, InlineCopy, ScreenCopyBtn, AgentsInfoModal, MemoryPanel } from './agents/components'
+import { CopyBtn, InlineCopy, ScreenCopyBtn, AgentsInfoModal, MemoryPanel, Collapsible } from './agents/components'
 import { COLUMNS, LIST_SECTIONS, ROLE_COLOR, MODEL_SUGGESTIONS } from './agents/types'
 import { useWindowedLimit } from './agents/useWindowedLimit'
 import type { Ticket, Project, ChatMessage, ActivityEntry, RoleCfg } from './agents/types'
@@ -611,9 +611,11 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
                   {msg.role !== 'user' && msg.role !== 'system' && (
                     <span className="text-xs font-bold block mb-0.5" style={{ color: ROLE_COLOR[msg.role] }}>{msg.role}</span>
                   )}
-                  {msg.role === 'user'
-                    ? <p className="text-sm whitespace-pre-wrap break-words">{msg.text}</p>
-                    : <Markdown compact>{msg.text}</Markdown>}
+                  <Collapsible maxH={msg.role === 'user' ? 200 : 150}>
+                    {msg.role === 'user'
+                      ? <p className="text-sm whitespace-pre-wrap break-words">{msg.text}</p>
+                      : <Markdown compact>{msg.text}</Markdown>}
+                  </Collapsible>
                   {msg.toolCall && (
                     <div className="mt-1 px-2 py-1 rounded bg-black/5 dark:bg-white/5 text-xs font-mono text-[var(--muted)]">
                       {msg.toolCall.name}({msg.toolCall.args ?? ''})
@@ -1055,7 +1057,9 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
                           <InlineCopy text={m.body} title="Copy message" />
                         </div>
                       </div>
-                      <Markdown compact>{m.body}</Markdown>
+                      <Collapsible maxH={150}>
+                        <Markdown compact>{m.body}</Markdown>
+                      </Collapsible>
                     </div>
                   ))}
                 </div>
