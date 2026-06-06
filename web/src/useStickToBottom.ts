@@ -41,8 +41,14 @@ export function useStickToBottom(count: number) {
     const added = count - prevCount.current
     prevCount.current = count
     if (!el || added <= 0) return
-    if (stuck) el.scrollTop = el.scrollHeight
-    else setUnseen((u) => u + added)
+    if (stuck) {
+      // Double-set: once synchronously (layout), once async (after paint).
+      // Some containers (position:absolute, flex) need the post-paint nudge.
+      el.scrollTop = el.scrollHeight
+      requestAnimationFrame(() => { el.scrollTop = el.scrollHeight })
+    } else {
+      setUnseen((u) => u + added)
+    }
   }, [count, stuck])
 
   return { ref, onScroll, unseen, jumpToBottom, unstick, stuck }

@@ -950,8 +950,10 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
                     ? 'border-[var(--accent)] text-[var(--accent)]'
                     : 'border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--accent)]'
                 }`}
-                title={actScroll.stuck ? 'Auto-scroll is ON — click to stop' : 'Auto-scroll is OFF — click to jump to latest'}>
-                {actScroll.stuck ? '⇩ Auto' : '⇩ Off'}
+                title={actScroll.stuck
+                  ? 'Auto-scroll ON: log follows new entries. Click to pause scrolling so you can read history.'
+                  : 'Auto-scroll OFF: log stays where you scrolled. Click to jump to latest and resume auto-scroll.'}>
+                {actScroll.stuck ? 'Tail' : 'Paused'}
               </button>
               <button type="button" onClick={loadActivity}
                 className="text-[10px] text-[var(--muted)] hover:text-[var(--ink)] px-1.5 py-0.5 rounded border border-[var(--line)] hover:border-[var(--accent)]"
