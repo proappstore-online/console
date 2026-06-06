@@ -51,10 +51,8 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   // Live "an agent is working right now" signal — set by run/heartbeat/tool WS
   // events, auto-cleared by a staleness check (see effect below). null = idle.
   const [agentWork, setAgentWork] = useState<{ role: string; at: number } | null>(null)
-  // Per-ticket live status line — shows what the agent is doing right now on each ticket.
-  // Keyed by ticketId. Updated by agent-text, agent-tool-call, activity WS events.
-  // Auto-cleared after 30s of no updates (agent finished or idle).
-  const [ticketLive, setTicketLive] = useState<Record<string, { text: string; role: string; at: number }>>({})
+  // Per-ticket live status line + real-time cost.
+  const [ticketLive, setTicketLive] = useState<Record<string, { text: string; role: string; at: number; costUsd?: number; tokensIn?: number; tokensOut?: number }>>({})
   // Bumped on every `files-synced` event so the live KB preview (Research tab)
   // refetches as the Architect writes — without holding the file list in memory here.
   const [filesVersion, setFilesVersion] = useState(0)
@@ -378,23 +376,26 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
           case 'agent-tool-result': {
             const role = String(d.role ?? 'Agent')
             setAgentWork({ role, at: Date.now() })
-            // Per-ticket live status line — accumulate text deltas into a rolling buffer
+            // Per-ticket live status line + real-time cost
             if (d.ticketId) {
               const tid = String(d.ticketId)
+              const cost = typeof d.costUsd === 'number' ? d.costUsd : undefined
+              const tokIn = typeof d.tokensIn === 'number' ? d.tokensIn : undefined
+              const tokOut = typeof d.tokensOut === 'number' ? d.tokensOut : undefined
               if (d.type === 'agent-text') {
-                // Append delta to existing text (agent streams token by token)
                 setTicketLive(prev => {
                   const existing = prev[tid]?.text ?? ''
                   const appended = (existing + String(d.text ?? '')).replace(/\n/g, ' ')
-                  return { ...prev, [tid]: { text: appended.slice(-200), role, at: Date.now() } }
+                  return { ...prev, [tid]: { text: appended.slice(-200), role, at: Date.now(),
+                    costUsd: cost ?? prev[tid]?.costUsd, tokensIn: tokIn ?? prev[tid]?.tokensIn, tokensOut: tokOut ?? prev[tid]?.tokensOut } }
                 })
               } else {
-                // Tool calls and transitions replace the text entirely
                 const line = d.type === 'agent-tool-call' ? `${role}: ${d.name}()`
                   : d.type === 'agent-tool-result' ? `${role}: ${d.ok ? '✓' : '✗'} tool done`
                   : d.type === 'agent-run-started' ? `${role} starting...`
                   : `${role} working...`
-                setTicketLive(prev => ({ ...prev, [tid]: { text: line, role, at: Date.now() } }))
+                setTicketLive(prev => ({ ...prev, [tid]: { text: line, role, at: Date.now(),
+                  costUsd: cost ?? prev[tid]?.costUsd, tokensIn: tokIn ?? prev[tid]?.tokensIn, tokensOut: tokOut ?? prev[tid]?.tokensOut } }))
               }
             }
             break
@@ -623,7 +624,10 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
     <div key={ticket.id} role="button" tabIndex={0} onClick={() => openTicket(ticket)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTicket(ticket) } }}
       className={`w-full text-left rounded-lg border p-2 text-xs transition-colors cursor-pointer ${
-        selTicket?.id === ticket.id ? 'border-[var(--accent)] bg-[var(--accent)]/5' : 'border-[var(--line)] hover:border-[var(--accent)]'
+        ticket.status === 'needs-input' || ticket.status === 'failed'
+          ? 'border-[var(--error)] bg-[var(--error)]/5 ring-1 ring-[var(--error)]/20'
+          : selTicket?.id === ticket.id ? 'border-[var(--accent)] bg-[var(--accent)]/5'
+          : 'border-[var(--line)] hover:border-[var(--accent)]'
       }`} title={ticket.rawIdea}>
       <div className="flex items-center gap-1 mb-0.5">
         <span className="font-mono font-bold text-[var(--accent)]" style={{ fontSize: '10px' }}>#{ticket.seq}</span>
@@ -631,22 +635,36 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
       </div>
       <p className="font-medium text-[var(--ink)] line-clamp-2 leading-tight">{ticket.title}</p>
       {ticketLive[ticket.id] ? (
-        <div className="mt-1 flex items-start gap-1">
-          <span className="relative flex h-1.5 w-1.5 flex-shrink-0 mt-0.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ background: ROLE_COLOR[ticketLive[ticket.id].role] ?? 'var(--accent)' }}></span>
-            <span className="relative inline-flex rounded-full h-1.5 w-1.5" style={{ background: ROLE_COLOR[ticketLive[ticket.id].role] ?? 'var(--accent)' }}></span>
-          </span>
-          <p className="text-[10px] text-[var(--muted)] leading-tight line-clamp-2 break-words" title={ticketLive[ticket.id].text}>
-            {ticketLive[ticket.id].text}
-          </p>
+        <div className="mt-1 space-y-0.5">
+          <div className="flex items-start gap-1">
+            <span className="relative flex h-1.5 w-1.5 flex-shrink-0 mt-0.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ background: ROLE_COLOR[ticketLive[ticket.id].role] ?? 'var(--accent)' }}></span>
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5" style={{ background: ROLE_COLOR[ticketLive[ticket.id].role] ?? 'var(--accent)' }}></span>
+            </span>
+            <p className="text-[10px] text-[var(--muted)] leading-tight line-clamp-2 break-words" title={ticketLive[ticket.id].text}>
+              {ticketLive[ticket.id].text}
+            </p>
+          </div>
+          {(ticketLive[ticket.id].costUsd ?? 0) > 0 && (
+            <div className="flex items-center gap-2 text-[9px] font-mono text-[var(--muted)]">
+              <span className="text-[var(--accent)] font-semibold">${ticketLive[ticket.id].costUsd!.toFixed(4)}</span>
+              <span>{((ticketLive[ticket.id].tokensIn ?? 0) / 1000).toFixed(0)}k in</span>
+              <span>{((ticketLive[ticket.id].tokensOut ?? 0) / 1000).toFixed(0)}k out</span>
+            </div>
+          )}
         </div>
       ) : (
-        <div className="flex items-center gap-1 mt-1">
+        <div className="flex items-center gap-1 mt-1 flex-wrap">
           {!hideAssignee && ticket.assigneeRole && (
             <span className="font-bold" style={{ color: ROLE_COLOR[ticket.assigneeRole] ?? 'var(--muted)', fontSize: '10px' }}>{ticket.assigneeRole}</span>
           )}
           {ticket.iterations > 0 && <span className="text-[var(--muted)]" style={{ fontSize: '10px' }}>i:{ticket.iterations}</span>}
-          {ticket.stuckReason && <span className="text-[var(--error)]" style={{ fontSize: '10px' }}>blocked</span>}
+          {ticket.costSpentUsd > 0 && <span className="text-[var(--muted)] font-mono" style={{ fontSize: '10px' }}>${ticket.costSpentUsd.toFixed(2)}</span>}
+          {ticket.stuckReason && (
+            <span className="bg-[var(--error)] text-white font-bold px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wide animate-pulse">
+              needs input
+            </span>
+          )}
         </div>
       )}
     </div>
