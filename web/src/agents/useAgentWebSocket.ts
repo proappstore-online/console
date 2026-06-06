@@ -7,7 +7,7 @@
  * (running text, cost, elapsed timer), activity log, chat routing, ticket
  * refresh triggers, and memory/file-synced signals.
  */
-import { useEffect, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react'
 import type { Ticket, Project, ChatMessage, ActivityEntry } from './types'
 
 export interface TicketLiveEntry {
@@ -45,6 +45,10 @@ interface UseAgentWebSocketOpts {
 
 export function useAgentWebSocket(opts: UseAgentWebSocketOpts) {
   const { appId, token, notStarted, syncLive, loadMemory, loadFileList } = opts
+  // Keep a ref to opts so the WS message handler always reads the latest
+  // state setters + callbacks without causing reconnects on every render.
+  const optsRef = useRef(opts)
+  optsRef.current = opts
 
   useEffect(() => {
     if (!token || notStarted) return
@@ -56,11 +60,11 @@ export function useAgentWebSocket(opts: UseAgentWebSocketOpts) {
     const connect = () => {
       if (closed) return
       ws = new WebSocket(`wss://agents.proappstore.online/v1/projects/${appId}/ws?token=${encodeURIComponent(token)}`)
-      ws.onopen = () => { retry = 0; syncLive() }
+      ws.onopen = () => { retry = 0; optsRef.current.syncLive() }
       ws.onmessage = (ev) => {
         let d: Record<string, unknown>
         try { d = JSON.parse(typeof ev.data === 'string' ? ev.data : '') } catch { return }
-        handleEvent(d, opts)
+        handleEvent(d, optsRef.current)
       }
       ws.onerror = () => { try { ws?.close() } catch { /* noop */ } }
       ws.onclose = () => {
@@ -76,7 +80,10 @@ export function useAgentWebSocket(opts: UseAgentWebSocketOpts) {
       if (reconnectTimer) clearTimeout(reconnectTimer)
       try { ws?.close() } catch { /* noop */ }
     }
-  }, [token, appId, notStarted, syncLive, loadMemory, loadFileList])
+    // Only reconnect when connection params change — not on every opts change.
+    // The ref ensures the handler always has fresh callbacks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, appId, notStarted])
 }
 
 /** Route a single WS event to the appropriate state setter. Exported for testing. */

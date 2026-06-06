@@ -237,23 +237,29 @@ export function MemoryPanel({ entries, onAdd, onDelete, onClose }: {
   )
 }
 
-/** Collapsible wrapper — truncates long content with a gradient and toggle. */
+/** Collapsible wrapper — truncates long content with a fade and toggle. */
 export function Collapsible({ children, maxH = 120 }: { children: React.ReactNode; maxH?: number }) {
   const ref = useRef<HTMLDivElement>(null)
   const [needs, setNeeds] = useState(false)
   const [open, setOpen] = useState(false)
+  // Measure after paint (not on every children change — just on mount + maxH).
+  // ResizeObserver catches dynamic content changes without depending on children identity.
   useEffect(() => {
     const el = ref.current
-    if (el) setNeeds(el.scrollHeight > maxH + 20)
-  }, [children, maxH])
+    if (!el) return
+    const check = () => setNeeds(el.scrollHeight > maxH + 20)
+    check()
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(check)
+      ro.observe(el)
+      return () => ro.disconnect()
+    }
+  }, [maxH])
   return (
     <div className="relative">
-      <div ref={ref} style={!open && needs ? { maxHeight: maxH, overflow: 'hidden' } : undefined}>
+      <div ref={ref} style={!open && needs ? { maxHeight: maxH, overflow: 'hidden', maskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)' } : undefined}>
         {children}
       </div>
-      {needs && !open && (
-        <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-[var(--panel)] to-transparent pointer-events-none" />
-      )}
       {needs && (
         <button type="button" onClick={() => setOpen(o => !o)}
           className="text-[10px] font-semibold text-[var(--accent)] hover:underline mt-0.5 block">
