@@ -52,7 +52,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   // events, auto-cleared by a staleness check (see effect below). null = idle.
   const [agentWork, setAgentWork] = useState<{ role: string; at: number } | null>(null)
   // Per-ticket live status line + real-time cost.
-  const [ticketLive, setTicketLive] = useState<Record<string, { text: string; role: string; at: number; costUsd?: number; tokensIn?: number; tokensOut?: number }>>({})
+  const [ticketLive, setTicketLive] = useState<Record<string, { text: string; role: string; at: number; startedAt?: number; costUsd?: number; tokensIn?: number; tokensOut?: number }>>({})
   // Bumped on every `files-synced` event so the live KB preview (Research tab)
   // refetches as the Architect writes — without holding the file list in memory here.
   const [filesVersion, setFilesVersion] = useState(0)
@@ -389,12 +389,12 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
                 setTicketLive(prev => {
                   const existing = prev[tid]?.text ?? ''
                   const appended = (existing + String(d.text ?? '')).replace(/\n/g, ' ')
-                  return { ...prev, [tid]: { text: appended.slice(-200), role, at: Date.now(),
+                  return { ...prev, [tid]: { text: appended.slice(-200), role, at: Date.now(), startedAt: prev[tid]?.startedAt,
                     costUsd: cost ?? prev[tid]?.costUsd, tokensIn: tokIn ?? prev[tid]?.tokensIn, tokensOut: tokOut ?? prev[tid]?.tokensOut } }
                 })
               } else if (d.type === 'agent-run-started') {
-                // Run start resets the text buffer for this ticket
-                setTicketLive(prev => ({ ...prev, [tid]: { text: `${role} starting...`, role, at: Date.now(),
+                // Run start resets the text buffer + starts the elapsed timer
+                setTicketLive(prev => ({ ...prev, [tid]: { text: `${role} starting...`, role, at: Date.now(), startedAt: Date.now(),
                   costUsd: cost, tokensIn: tokIn, tokensOut: tokOut } }))
               } else {
                 // Tool call/result/heartbeat: update cost + keep text alive, don't overwrite
@@ -402,7 +402,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
                   const existing = prev[tid]
                   // If no text accumulated yet (no agent-text received), show a tool line
                   const text = existing?.text || (d.type === 'agent-tool-call' ? `${role}: ${String(d.name ?? 'tool')}()` : `${role} working...`)
-                  return { ...prev, [tid]: { text, role, at: Date.now(),
+                  return { ...prev, [tid]: { text, role, at: Date.now(), startedAt: existing?.startedAt,
                     costUsd: cost ?? existing?.costUsd, tokensIn: tokIn ?? existing?.tokensIn, tokensOut: tokOut ?? existing?.tokensOut } }
                 })
               }
@@ -662,13 +662,18 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
               {ticketLive[ticket.id].text}
             </p>
           </div>
-          {(ticketLive[ticket.id].costUsd ?? 0) > 0 && (
-            <div className="flex items-center gap-2 text-[9px] font-mono text-[var(--muted)]">
+          <div className="flex items-center gap-2 text-[9px] font-mono text-[var(--muted)]">
+            {ticketLive[ticket.id].startedAt && <ElapsedTimer startedAt={ticketLive[ticket.id].startedAt!} />}
+            {(ticketLive[ticket.id].costUsd ?? 0) > 0 && (
               <span className="text-[var(--accent)] font-semibold">${ticketLive[ticket.id].costUsd!.toFixed(4)}</span>
+            )}
+            {(ticketLive[ticket.id].tokensIn ?? 0) > 0 && (
               <span>{((ticketLive[ticket.id].tokensIn ?? 0) / 1000).toFixed(0)}k in</span>
+            )}
+            {(ticketLive[ticket.id].tokensOut ?? 0) > 0 && (
               <span>{((ticketLive[ticket.id].tokensOut ?? 0) / 1000).toFixed(0)}k out</span>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       ) : (
         <div className="flex items-center gap-1 mt-1 flex-wrap">
@@ -1214,6 +1219,19 @@ function ProjectCostBadge({ project, ticketLive }: {
       ${total.toFixed(2)} / ${cap.toFixed(2)}
     </span>
   )
+}
+
+/** Live elapsed timer — ticks every second like Claude Code's. */
+function ElapsedTimer({ startedAt }: { startedAt: number }) {
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const secs = Math.max(0, Math.floor((now - startedAt) / 1000))
+  const m = Math.floor(secs / 60)
+  const s = secs % 60
+  return <span className="text-[var(--muted)] tabular-nums">{m}:{s.toString().padStart(2, '0')}</span>
 }
 
 /** Inline timeout selector on the board header. */
