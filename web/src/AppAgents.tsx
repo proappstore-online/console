@@ -54,6 +54,8 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   const [agentWork, setAgentWork] = useState<{ role: string; at: number } | null>(null)
   // Per-ticket live status line + real-time cost.
   const [ticketLive, setTicketLive] = useState<Record<string, { text: string; role: string; at: number; startedAt?: number; costUsd?: number; tokensIn?: number; tokensOut?: number }>>({})
+  // WS event counter for debugging — visible on the board so we can verify events arrive.
+  const [wsEvents, setWsEvents] = useState(0)
   // Bumped on every `files-synced` event so the live KB preview (Research tab)
   // refetches as the Architect writes — without holding the file list in memory here.
   const [filesVersion, setFilesVersion] = useState(0)
@@ -366,6 +368,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
       ws.onmessage = (ev) => {
         let d: Record<string, unknown>
         try { d = JSON.parse(typeof ev.data === 'string' ? ev.data : '') } catch { return }
+        setWsEvents(n => n + 1)
         switch (d.type) {
           case 'play-state':
             setProject(prev => prev ? { ...prev, status: d.status as 'running' | 'paused' } : prev)
@@ -377,6 +380,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
           case 'agent-tool-call':
           case 'agent-tool-result': {
             const role = String(d.role ?? 'Agent')
+            if (d.type !== 'agent-text') console.debug('[agent-ws]', d.type, d.ticketId, { cost: d.costUsd, tokIn: d.tokensIn, tokOut: d.tokensOut })
             setAgentWork({ role, at: Date.now() })
             // Per-ticket live status line + real-time cost.
             // IMPORTANT: only `agent-text` builds the running text buffer.
@@ -862,6 +866,9 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
               {roles.length > 0 && <ModelSelector appId={appId} roles={roles} getToken={getToken} onUpdate={setRoles} />}
               {project && <RunTimeoutSelect appId={appId} project={project} getToken={getToken} onUpdate={setProject} />}
               {project && <ProjectCostBadge project={project} ticketLive={ticketLive} />}
+              <span className="text-[9px] text-[var(--muted)] font-mono opacity-50" title={`WS events received: ${wsEvents}, live tickets: ${Object.keys(ticketLive).length}`}>
+                ws:{wsEvents} live:{Object.keys(ticketLive).length}
+              </span>
             </div>
           </div>
           {/* Scrolls internally so the page itself never scrolls. */}
