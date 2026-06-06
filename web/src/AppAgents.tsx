@@ -1141,11 +1141,12 @@ function ModelSelector({ appId, roles, getToken, onUpdate }: {
     const [rt, m] = value.split('|') as [string, string]
     const token = getToken()
     if (!token || !m) return
-    // Update ALL build roles (BA, Dev, QA) to the same runtime+model for consistency
+    // Snapshot BEFORE the optimistic update so rollback reverts to the right state.
+    const snapshot = [...roles]
     const next = roles.map(r => (['BA', 'Dev', 'QA'].includes(r.role) ? { ...r, runtime: rt as RoleCfg['runtime'], model: m } : r))
     onUpdate(() => next)
     try { await api(`/projects/${appId}/roles`, token, { method: 'PUT', body: { roles: next } }) }
-    catch { onUpdate(() => roles) }
+    catch { onUpdate(() => snapshot) }
   }
   return (
     <select value={`${runtime}|${model}`} onChange={e => save(e.target.value)}
