@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from './agents/lib'
 import { Collapsible } from './agents/components'
+import { CodeView } from './CodeView'
 
 /**
  * Live end-to-end test results for the Test tab. The QA agent's Playwright specs
@@ -238,8 +239,8 @@ function SpecFilesList({ appId, specFiles, getToken }: { appId: string; specFile
             <span className="text-[11px] font-mono text-[var(--ink)] truncate">{previewFile.path}</span>
             <button type="button" onClick={() => setPreviewFile(null)} className="text-[var(--muted)] hover:text-[var(--ink)] text-xs">Close</button>
           </div>
-          <Collapsible maxH={300}>
-            <pre className="text-[11px] font-mono p-3 overflow-x-auto text-[var(--ink)] whitespace-pre-wrap">{previewFile.content}</pre>
+          <Collapsible maxH={400}>
+            <CodeView code={previewFile.content} path={previewFile.path} />
           </Collapsible>
         </div>
       )}
