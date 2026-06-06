@@ -7,16 +7,18 @@ export type View =
 // Per-app workspace tabs, shown next to the project switcher in the navbar.
 //  - research: brainstorm chat + live Knowledge Base preview
 //  - build:    the agent kanban + activity feed
-//  - test:     automated QA / E2E (future)
+//  - test:     automated QA / E2E (Playwright, manual/opt-in)
 //  - control:  the live VCQA code-health dashboard (ops/control)
+//  - spending: cost breakdown by role, ticket, and ledger history
 //  - settings: listing / domains / app roles + agent team config / danger zone
-export type AppTab = 'research' | 'build' | 'test' | 'control' | 'settings'
+export type AppTab = 'research' | 'build' | 'test' | 'control' | 'spending' | 'settings'
 
 export const APP_TABS: { key: AppTab; label: string }[] = [
   { key: 'research', label: 'Research' },
   { key: 'build', label: 'Build' },
   { key: 'test', label: 'Test' },
   { key: 'control', label: 'Control' },
+  { key: 'spending', label: 'Spending' },
   { key: 'settings', label: 'Settings' },
 ]
 

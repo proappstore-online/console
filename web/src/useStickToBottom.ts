@@ -32,6 +32,10 @@ export function useStickToBottom(count: number) {
     setStuck(true)
   }, [])
 
+  const unstick = useCallback(() => {
+    setStuck(false)
+  }, [])
+
   useLayoutEffect(() => {
     const el = ref.current
     const added = count - prevCount.current
@@ -41,5 +45,5 @@ export function useStickToBottom(count: number) {
     else setUnseen((u) => u + added)
   }, [count, stuck])
 
-  return { ref, onScroll, unseen, jumpToBottom, stuck }
+  return { ref, onScroll, unseen, jumpToBottom, unstick, stuck }
 }

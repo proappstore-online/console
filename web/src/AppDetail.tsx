@@ -10,6 +10,7 @@ import { AppMcpTools } from './AppMcpTools'
 import { AppSecrets } from './AppSecrets'
 import { AppPublishing } from './AppPublishing'
 import { AppAgents } from './AppAgents'
+import { AppSpending } from './AppSpending'
 import type { AppTab } from './nav'
 import {
   BrandingSection, ListingCopySection, ScreenshotsSection, DeveloperSection,
@@ -83,6 +84,16 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab }: Props) {
             Click "Fix" on any issue to send it to the Dev agent.
           </p>
           <CodeHealth appId={appId} live getToken={getToken} />
+        </div>
+      )}
+
+      {tab === 'spending' && (
+        <div className="space-y-3">
+          <h2 className="display-font text-lg font-bold text-[var(--ink)]">{appName ?? appId} — Spending</h2>
+          <p className="text-sm text-[var(--muted)]">
+            Cost breakdown by role, ticket, and model. Token counts and dollar spend for every agent action.
+          </p>
+          <AppSpending appId={appId} getToken={getToken} />
         </div>
       )}
 

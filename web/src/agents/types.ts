@@ -24,6 +24,7 @@ export interface Project {
   slug: string
   costCapMonthlyUsd: number
   costSpentMonthlyUsd: number
+  maxRunMinutes: number
   status: 'running' | 'paused'
 }
 
@@ -93,7 +94,7 @@ export const ROLE_INFO: { role: string; title: string; blurb: string }[] = [
   { role: 'Architect', title: 'Architect — Research & Knowledge Base', blurb: 'Lives in the Research tab (not the Kanban). Chat with it to research the app — it has live web access — and it writes the Knowledge Base (KNOWLEDGE.md + docs/), the source of truth the rest of the team builds from.' },
   { role: 'BA', title: 'BA — Business Analyst', blurb: 'Refines a ticket into a clear spec with acceptance criteria. Pushes back on vague requests instead of guessing.' },
   { role: 'Dev', title: 'Dev — Developer', blurb: 'Implements the approved spec — writes and edits the app’s files, then deploys.' },
-  { role: 'QA', title: 'QA — Quality Assurance', blurb: 'Writes automated end-to-end tests from the acceptance criteria. They run against the live app on every deploy and gate it — a failing test sends the ticket back to Dev. Real QA: it drives the app, not just reads the code.' },
+  { role: 'QA', title: 'QA — Quality Assurance', blurb: 'Writes vitest unit + integration tests from the acceptance criteria. They run in CI on every push and gate the deploy — a failing test sends the ticket back to Dev. E2E (Playwright) tests live in the Test tab and run on demand.' },
 ]
 
 export const MODEL_SUGGESTIONS: Record<string, string[]> = {

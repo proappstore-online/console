@@ -376,7 +376,10 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
           case 'agent-tool-result': {
             const role = String(d.role ?? 'Agent')
             setAgentWork({ role, at: Date.now() })
-            // Per-ticket live status line + real-time cost
+            // Per-ticket live status line + real-time cost.
+            // IMPORTANT: only `agent-text` builds the running text buffer.
+            // Tool-call/result/heartbeat update cost + timestamp but preserve
+            // the accumulated text so it doesn't get clobbered every few seconds.
             if (d.ticketId) {
               const tid = String(d.ticketId)
               const cost = typeof d.costUsd === 'number' ? d.costUsd : undefined
@@ -389,13 +392,19 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
                   return { ...prev, [tid]: { text: appended.slice(-200), role, at: Date.now(),
                     costUsd: cost ?? prev[tid]?.costUsd, tokensIn: tokIn ?? prev[tid]?.tokensIn, tokensOut: tokOut ?? prev[tid]?.tokensOut } }
                 })
+              } else if (d.type === 'agent-run-started') {
+                // Run start resets the text buffer for this ticket
+                setTicketLive(prev => ({ ...prev, [tid]: { text: `${role} starting...`, role, at: Date.now(),
+                  costUsd: cost, tokensIn: tokIn, tokensOut: tokOut } }))
               } else {
-                const line = d.type === 'agent-tool-call' ? `${role}: ${d.name}()`
-                  : d.type === 'agent-tool-result' ? `${role}: ${d.ok ? '✓' : '✗'} tool done`
-                  : d.type === 'agent-run-started' ? `${role} starting...`
-                  : `${role} working...`
-                setTicketLive(prev => ({ ...prev, [tid]: { text: line, role, at: Date.now(),
-                  costUsd: cost ?? prev[tid]?.costUsd, tokensIn: tokIn ?? prev[tid]?.tokensIn, tokensOut: tokOut ?? prev[tid]?.tokensOut } }))
+                // Tool call/result/heartbeat: update cost + keep text alive, don't overwrite
+                setTicketLive(prev => {
+                  const existing = prev[tid]
+                  // If no text accumulated yet (no agent-text received), show a tool line
+                  const text = existing?.text || (d.type === 'agent-tool-call' ? `${role}: ${String(d.name ?? 'tool')}()` : `${role} working...`)
+                  return { ...prev, [tid]: { text, role, at: Date.now(),
+                    costUsd: cost ?? existing?.costUsd, tokensIn: tokIn ?? existing?.tokensIn, tokensOut: tokOut ?? existing?.tokensOut } }
+                })
               }
             }
             break
@@ -405,9 +414,16 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
             if (e) setActivity(prev => prev.some(a => a.id === e.id) ? prev : [...prev.slice(-300), { id: e.id, type: e.type, detail: e.detail, timestamp: e.createdAt, meta: e.meta }])
             // A tool/transition row arriving also means an agent is active — keep the indicator alive.
             if (e && (e.type === 'tool' || e.type === 'transition')) setAgentWork(w => ({ role: w?.role ?? 'Agent', at: Date.now() }))
-            // Per-ticket live status from activity (tool calls, transitions, deploys)
+            // Per-ticket: keep the live text alive (update timestamp) but don't
+            // overwrite the running text buffer with short activity summaries.
             if (e?.ticketId) {
-              setTicketLive(prev => ({ ...prev, [e.ticketId!]: { text: e.detail.slice(-120), role: e.detail.split(':')[0] ?? 'Agent', at: Date.now() } }))
+              setTicketLive(prev => {
+                const existing = prev[e.ticketId!]
+                // Only set text from activity if there's no accumulated agent text yet
+                const text = existing?.text || e.detail.slice(-120)
+                const role = existing?.role || e.detail.split(':')[0] || 'Agent'
+                return { ...prev, [e.ticketId!]: { ...existing, text, role, at: Date.now() } }
+              })
             }
             break
           }
@@ -597,6 +613,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
           value={idea}
           onChange={e => setIdea(e.target.value)}
           rows={4}
+          aria-label="App idea"
           placeholder="e.g. A chess training app with daily puzzles, ELO tracking, and spaced-repetition review."
           className="block w-full rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-3 text-sm text-[var(--ink)]"
         />
@@ -755,6 +772,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
+              aria-label={activeThread === 'research' ? 'Chat with the Architect' : 'Chat with the PO'}
               placeholder={activeThread === 'research' ? 'Brainstorm the app / shape the KB…' : 'Describe what you want built…'}
               disabled={sending}
               className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3 py-2.5 text-sm text-[var(--ink)] disabled:opacity-50"
@@ -834,11 +852,8 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
               </button>
               <ScreenCopyBtn getData={screenSnapshot} />
               <CopyBtn label="Board" getData={() => JSON.stringify({ slug: appId, status: project?.status, cost: { spent: project?.costSpentMonthlyUsd, cap: project?.costCapMonthlyUsd }, tickets: tickets.map(t => ({ id: t.id, title: t.title, status: t.status, assignee: t.assigneeRole, iterations: t.iterations, cost: t.costSpentUsd })) }, null, 2)} />
-              {project && (
-                <span className="text-xs text-[var(--muted)]">
-                  ${(project.costSpentMonthlyUsd ?? 0).toFixed(2)} / ${(project.costCapMonthlyUsd ?? 50).toFixed(2)}
-                </span>
-              )}
+              {project && <RunTimeoutSelect appId={appId} project={project} getToken={getToken} onUpdate={setProject} />}
+              {project && <ProjectCostBadge project={project} ticketLive={ticketLive} />}
             </div>
           </div>
           {/* Scrolls internally so the page itself never scrolls. */}
@@ -914,17 +929,21 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
                 title="The team's memory — durable decisions & facts">
                 Memory
               </button>
-              <button type="button" onClick={() => openFile('KNOWLEDGE.md')}
-                className="text-[10px] px-1.5 py-0.5 rounded border border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--accent)] transition-colors"
-                title="The project Knowledge Base the Architect wrote (the team's source of truth)">
-                KB
-              </button>
               <button type="button" onClick={toggleFileList}
                 className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
                   fileList ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--accent)]'
                 }`}
                 title="Browse the agents' working-tree files">
                 Files
+              </button>
+              <button type="button" onClick={() => actScroll.stuck ? actScroll.unstick() : actScroll.jumpToBottom()}
+                className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+                  actScroll.stuck
+                    ? 'border-[var(--accent)] text-[var(--accent)]'
+                    : 'border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--accent)]'
+                }`}
+                title={actScroll.stuck ? 'Auto-scroll is ON — click to stop' : 'Auto-scroll is OFF — click to jump to latest'}>
+                {actScroll.stuck ? '⇩ Auto' : '⇩ Off'}
               </button>
               <button type="button" onClick={loadActivity}
                 className="text-[10px] text-[var(--muted)] hover:text-[var(--ink)] px-1.5 py-0.5 rounded border border-[var(--line)] hover:border-[var(--accent)]"
@@ -1161,5 +1180,63 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
         </div>
       )}
     </div>
+  )
+}
+
+/** Real-time project cost badge that highlights (flash) when the total changes. */
+function ProjectCostBadge({ project, ticketLive }: {
+  project: Project;
+  ticketLive: Record<string, { costUsd?: number; tokensIn?: number; tokensOut?: number }>;
+}) {
+  // Sum live in-flight costs from active ticket heartbeats on top of the persisted project total.
+  const liveDelta = Object.values(ticketLive).reduce((s, t) => s + (t.costUsd ?? 0), 0)
+  const total = (project.costSpentMonthlyUsd ?? 0) + liveDelta
+  const cap = project.costCapMonthlyUsd ?? 50
+
+  // Flash on change: track the last rendered total and toggle a CSS class.
+  const prevRef = useRef(total)
+  const [flash, setFlash] = useState(false)
+  useEffect(() => {
+    if (Math.abs(total - prevRef.current) > 0.0001) {
+      prevRef.current = total
+      setFlash(true)
+      const t = setTimeout(() => setFlash(false), 1200)
+      return () => clearTimeout(t)
+    }
+  }, [total])
+
+  return (
+    <span className={`text-xs font-mono px-2 py-0.5 rounded-md transition-all duration-300 ${
+      flash
+        ? 'bg-[var(--accent)] text-white scale-105'
+        : 'text-[var(--muted)]'
+    }`}>
+      ${total.toFixed(2)} / ${cap.toFixed(2)}
+    </span>
+  )
+}
+
+/** Inline timeout selector on the board header. */
+function RunTimeoutSelect({ appId, project, getToken, onUpdate }: {
+  appId: string; project: Project; getToken: () => string | null;
+  onUpdate: (fn: (prev: Project | null) => Project | null) => void;
+}) {
+  const current = project.maxRunMinutes ?? 10
+  const save = async (mins: number) => {
+    const token = getToken()
+    if (!token) return
+    onUpdate(prev => prev ? { ...prev, maxRunMinutes: mins } : prev)
+    try { await api(`/projects/${appId}/budget`, token, { method: 'PUT', body: { maxRunMinutes: mins } }) }
+    catch { onUpdate(prev => prev ? { ...prev, maxRunMinutes: current } : prev) }
+  }
+  return (
+    <select value={current} onChange={e => save(Number(e.target.value))}
+      aria-label="Agent run timeout"
+      title="Max minutes per agent run before timeout"
+      className="text-[11px] text-[var(--muted)] bg-transparent border border-[var(--line)] rounded px-1 py-0.5 cursor-pointer hover:border-[var(--accent)]">
+      {[5, 10, 15, 20, 30, 45, 60].map(m => (
+        <option key={m} value={m}>{m}m</option>
+      ))}
+    </select>
   )
 }
