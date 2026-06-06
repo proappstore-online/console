@@ -1,29 +1,33 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Markdown } from './Markdown'
+import { CodeView } from './CodeView'
 import { TestResults } from './TestResults'
 import { useStickToBottom } from './useStickToBottom'
 import { api, mergeServerChat } from './agents/lib'
-import { Collapsible } from './agents/components'
-import { InlineCopy } from './agents/components'
+import { Collapsible, InlineCopy } from './agents/components'
 import { useWindowedLimit } from './agents/useWindowedLimit'
 import { ROLE_COLOR } from './agents/types'
-import type { ChatMessage } from './agents/types'
+import type { ChatMessage, ActivityEntry } from './agents/types'
 
 /**
- * Test tab: QA agent chat + CI test results.
- * The QA agent reads done tickets, the KB, and code to generate test scenarios.
- * Below the chat, TestResults shows the latest CI Playwright run.
+ * Test tab: 3-panel layout matching the Build tab.
+ * Left: QA agent chat
+ * Right top: spec list + detail preview
+ * Right bottom: QA activity log
  */
 export function AppTest({ appId, getToken }: { appId: string; getToken: () => string | null }) {
   const [chat, setChat] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [activity, setActivity] = useState<ActivityEntry[]>([])
+  const [previewFile, setPreviewFile] = useState<{ path: string; content: string } | null>(null)
   const { limit: chatLimit, more: chatMore } = useWindowedLimit(30)
+  const { limit: actLimit, more: actMore } = useWindowedLimit(50)
   const chatScroll = useStickToBottom(chat.length)
+  const actScroll = useStickToBottom(activity.length)
   const token = getToken()
 
-  // Load chat history for the test thread
   const loadChat = useCallback(async () => {
     if (!token) { setLoading(false); return }
     try {
@@ -31,42 +35,43 @@ export function AppTest({ appId, getToken }: { appId: string; getToken: () => st
         messages: { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }[]
       }
       const next = h.messages.map(m => ({
-        id: m.id,
-        role: m.role as ChatMessage['role'],
-        text: m.body,
-        timestamp: m.createdAt,
-        toolCall: m.toolCall,
+        id: m.id, role: m.role as ChatMessage['role'], text: m.body, timestamp: m.createdAt, toolCall: m.toolCall,
       }))
       setChat(prev => mergeServerChat(prev, next))
     } catch { /* no history yet */ }
     setLoading(false)
   }, [token, appId])
 
-  useEffect(() => { loadChat() }, [loadChat])
+  const loadActivity = useCallback(async () => {
+    if (!token) return
+    try {
+      const a = await api(`/projects/${appId}/activity`, token) as { activity: ActivityEntry[] }
+      // Filter to QA/test-related activity only
+      const qa = a.activity
+        .filter(e => e.type === 'test' || e.detail.startsWith('QA:') || e.detail.includes('QA ') || e.detail.includes('test'))
+        .map(e => ({ ...e, timestamp: e.timestamp ?? (e as any).createdAt }))
+      setActivity(prev => prev.length === qa.length && prev[prev.length - 1]?.id === qa[qa.length - 1]?.id ? prev : qa)
+    } catch { /* */ }
+  }, [token, appId])
 
-  // Poll for new messages (QA agent may respond via the pipeline)
+  useEffect(() => { loadChat(); loadActivity() }, [loadChat, loadActivity])
   useEffect(() => {
-    const id = setInterval(() => { if (!document.hidden) loadChat() }, 5000)
-    const onVisible = () => { if (!document.hidden) loadChat() }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible) }
-  }, [loadChat])
+    const id = setInterval(() => { if (!document.hidden) { loadChat(); loadActivity() } }, 5000)
+    return () => clearInterval(id)
+  }, [loadChat, loadActivity])
 
   const sendMessage = async () => {
     if (!token || !input.trim()) return
     const text = input.trim()
-    setInput('')
-    setSending(true)
+    setInput(''); setSending(true)
     setChat(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, timestamp: Date.now(), pending: true }])
     try {
-      const result = await api(`/projects/${appId}/chat`, token, {
-        method: 'POST',
-        body: { message: text, thread: 'test' },
-      }) as { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }
+      const result = await api(`/projects/${appId}/chat`, token, { method: 'POST', body: { message: text, thread: 'test' } }) as
+        { id: string; role: string; body: string; toolCall?: { name: string; args: string }; createdAt: number }
       setChat(prev => prev.some(m => m.id === result.id) ? prev : [
-        ...prev,
-        { id: result.id, role: result.role as ChatMessage['role'], text: result.body, timestamp: result.createdAt, toolCall: result.toolCall },
+        ...prev, { id: result.id, role: result.role as ChatMessage['role'], text: result.body, timestamp: result.createdAt, toolCall: result.toolCall },
       ])
+      loadActivity() // refresh after QA writes files
     } catch (err) {
       setChat(prev => [...prev, { id: crypto.randomUUID(), role: 'system', text: `Error: ${(err as Error).message}`, timestamp: Date.now() }])
     }
@@ -76,17 +81,24 @@ export function AppTest({ appId, getToken }: { appId: string; getToken: () => st
   const [confirmClear, setConfirmClear] = useState(false)
   const clearChat = async () => {
     if (!token) return
-    try { await api(`/projects/${appId}/chat/history?thread=test`, token, { method: 'DELETE' }); setChat([]) }
-    catch { /* ignore */ }
+    try { await api(`/projects/${appId}/chat/history?thread=test`, token, { method: 'DELETE' }); setChat([]) } catch { /* */ }
     setConfirmClear(false)
+  }
+
+  const loadFile = async (path: string) => {
+    if (!token) return
+    try {
+      const r = await api(`/projects/${appId}/files/content?path=${encodeURIComponent(path)}`, token) as { content: string }
+      setPreviewFile({ path, content: r.content })
+    } catch { setPreviewFile({ path, content: '(could not load)' }) }
   }
 
   if (loading) return <p className="py-12 text-center text-sm text-[var(--muted)]">Loading QA agent...</p>
 
   return (
     <div className="flex flex-col lg:flex-row gap-2 flex-1 min-h-0 overflow-hidden">
-      {/* QA Chat */}
-      <div className="flex flex-col lg:w-[400px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
+      {/* LEFT: QA Chat */}
+      <div className="flex flex-col lg:w-[360px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden min-h-0">
         <div className="px-3 py-2 border-b border-[var(--line)] flex items-center justify-between">
           <h3 className="text-sm font-bold text-[var(--ink)]">QA Agent</h3>
           <div className="flex items-center gap-1">
@@ -94,10 +106,8 @@ export function AppTest({ appId, getToken }: { appId: string; getToken: () => st
             {confirmClear ? (
               <>
                 <span className="text-[10px] text-[var(--muted)]">Clear?</span>
-                <button type="button" onClick={clearChat}
-                  className="text-[10px] text-[var(--error)] font-semibold px-1">Yes</button>
-                <button type="button" onClick={() => setConfirmClear(false)}
-                  className="text-[10px] text-[var(--muted)] px-1">No</button>
+                <button type="button" onClick={clearChat} className="text-[10px] text-[var(--error)] font-semibold px-1">Yes</button>
+                <button type="button" onClick={() => setConfirmClear(false)} className="text-[10px] text-[var(--muted)] px-1">No</button>
               </>
             ) : (
               <button type="button" onClick={() => setConfirmClear(true)} title="Clear chat"
@@ -109,13 +119,12 @@ export function AppTest({ appId, getToken }: { appId: string; getToken: () => st
           <div ref={chatScroll.ref} onScroll={chatScroll.onScroll} className="absolute inset-0 overflow-y-auto p-4 space-y-3">
             {chat.length === 0 && (
               <p className="text-xs text-[var(--muted)] text-center py-8">
-                I'm the QA agent. I generate test scenarios from your completed tickets and the Knowledge Base.
-                Try "generate tests", "status", or describe a specific scenario.
+                QA agent — generates test specs from completed tickets and the KB.
+                Try "generate tests" or describe a scenario.
               </p>
             )}
             {chat.length > chatLimit && (
-              <button type="button" onClick={chatMore}
-                className="block mx-auto mb-1 text-xs text-[var(--accent)] hover:underline">
+              <button type="button" onClick={chatMore} className="block mx-auto mb-1 text-xs text-[var(--accent)] hover:underline">
                 Load previous ({chat.length - chatLimit} older)
               </button>
             )}
@@ -144,22 +153,18 @@ export function AppTest({ appId, getToken }: { appId: string; getToken: () => st
           </div>
           {!chatScroll.stuck && (
             <button type="button" onClick={chatScroll.jumpToBottom}
-              className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full bg-[var(--accent)] text-white text-xs font-semibold px-3 py-1.5 shadow-lg hover:opacity-90">
+              className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-[var(--accent)] text-white text-xs font-semibold px-3 py-1.5 shadow-lg hover:opacity-90">
               {chatScroll.unseen > 0 ? `${chatScroll.unseen} new` : 'Latest'}
             </button>
           )}
         </div>
         <div className="p-3 border-t border-[var(--line)]">
           <div className="flex gap-2">
-            <input
-              value={input}
-              onChange={e => setInput(e.target.value)}
+            <input value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
               placeholder="Ask QA to generate tests, check coverage..."
-              disabled={sending}
-              aria-label="Message the QA agent"
-              className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3 py-2.5 text-sm text-[var(--ink)] disabled:opacity-50"
-            />
+              disabled={sending} aria-label="Message the QA agent"
+              className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3 py-2.5 text-sm text-[var(--ink)] disabled:opacity-50" />
             <button type="button" onClick={sendMessage} disabled={sending || !input.trim()}
               className="flex items-center justify-center rounded-lg bg-[var(--accent)] w-10 h-10 flex-shrink-0 text-white hover:opacity-90 disabled:opacity-50">
               {sending
@@ -170,9 +175,56 @@ export function AppTest({ appId, getToken }: { appId: string; getToken: () => st
         </div>
       </div>
 
-      {/* Test results (CI) */}
-      <div className="flex-1 min-w-0 overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
-        <TestResults appId={appId} live getToken={getToken} />
+      {/* RIGHT: top = specs/results + detail, bottom = activity */}
+      <div className="flex-1 flex flex-col gap-2 min-w-0 min-h-0">
+        {/* Top: specs + file preview */}
+        <div className="flex-[2] min-h-0 flex gap-2">
+          <div className="flex-1 min-w-0 overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
+            <TestResults appId={appId} live getToken={getToken} onFileClick={loadFile} />
+          </div>
+          {/* Right inspector: file preview */}
+          {previewFile && (
+            <div className="flex flex-col lg:w-[400px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden min-h-0">
+              <div className="px-3 py-2 border-b border-[var(--line)] flex items-center justify-between">
+                <span className="text-xs font-mono text-[var(--ink)] truncate">{previewFile.path}</span>
+                <button type="button" onClick={() => setPreviewFile(null)} className="text-xs text-[var(--muted)] hover:text-[var(--ink)]">Close</button>
+              </div>
+              <div className="flex-1 overflow-y-auto min-h-0">
+                <CodeView code={previewFile.content} path={previewFile.path} />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Bottom: QA activity log */}
+        <div className="flex-[1] min-h-[100px] rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3 flex flex-col">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold text-[var(--ink)]">QA Activity</h3>
+            <button type="button" onClick={loadActivity}
+              className="text-[10px] text-[var(--muted)] hover:text-[var(--ink)] px-1.5 py-0.5 rounded border border-[var(--line)] hover:border-[var(--accent)]">Refresh</button>
+          </div>
+          <div className="relative flex-1 min-h-0">
+            <div ref={actScroll.ref} onScroll={actScroll.onScroll} className="absolute inset-0 overflow-y-auto space-y-1 text-xs font-mono">
+              {activity.length === 0 && (
+                <p className="text-[var(--muted)] py-4 text-center font-sans text-xs">QA tool calls, test runs, and spec writes appear here.</p>
+              )}
+              {activity.length > actLimit && (
+                <button type="button" onClick={actMore} className="block mx-auto mb-1 text-[11px] font-sans text-[var(--accent)] hover:underline">
+                  Load previous 50 ({activity.length - actLimit} older)
+                </button>
+              )}
+              {activity.slice(-actLimit).map(entry => (
+                <div key={entry.id} className="flex gap-2 text-[var(--muted)] leading-snug">
+                  <span className="flex-shrink-0 opacity-50 tabular-nums">{new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                  <span className="flex-shrink-0 font-bold" style={{
+                    color: entry.type === 'test' ? '#8b5cf6' : entry.type === 'tool' ? '#3b82f6' : entry.type === 'error' ? 'var(--error)' : 'var(--muted)',
+                  }}>{entry.type}</span>
+                  <span className="text-[var(--ink)] break-words min-w-0">{entry.detail}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

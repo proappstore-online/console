@@ -35,7 +35,7 @@ function fmtDuration(ms: number | null): string {
   return `${(ms / 1000).toFixed(1)}s`
 }
 
-export function TestResults({ appId, live = false, getToken }: { appId: string; live?: boolean; getToken?: () => string | null }) {
+export function TestResults({ appId, live = false, getToken, onFileClick }: { appId: string; live?: boolean; getToken?: () => string | null; onFileClick?: (path: string) => void }) {
   const [history, setHistory] = useState<TestHistory | null>(null)
   const [specFiles, setSpecFiles] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
@@ -138,7 +138,7 @@ export function TestResults({ appId, live = false, getToken }: { appId: string; 
           <div className="space-y-1">
             {Object.entries(history.specTrending).sort((a, b) => a[1].pct - b[1].pct).map(([spec, t]) => (
               <div key={spec} className="flex items-center gap-2 text-xs">
-                <button type="button" onClick={() => loadFile(spec)} className="font-mono text-[var(--accent)] hover:underline truncate min-w-0 text-left" style={{ maxWidth: '200px' }}>
+                <button type="button" onClick={() => (onFileClick ?? loadFile)(spec)} className="font-mono text-[var(--accent)] hover:underline truncate min-w-0 text-left" style={{ maxWidth: '200px' }}>
                   {spec.split('/').pop()}
                 </button>
                 <div className="flex-1 h-2 rounded-full bg-[var(--panel-hover)] overflow-hidden">
@@ -192,7 +192,7 @@ export function TestResults({ appId, live = false, getToken }: { appId: string; 
             <div className="mb-2">
               <p className="text-[9px] text-[var(--muted)] uppercase tracking-wide mb-0.5">E2E (Playwright)</p>
               {e2eSpecs.map(f => (
-                <button key={f} type="button" onClick={() => loadFile(f)}
+                <button key={f} type="button" onClick={() => (onFileClick ?? loadFile)(f)}
                   className={`w-full text-left flex items-center gap-2 text-xs py-0.5 px-1.5 rounded hover:bg-[var(--panel-hover)] ${previewFile?.path === f ? 'bg-[var(--accent)]/5' : ''}`}>
                   <span className="text-purple-500">▸</span>
                   <span className="font-mono text-[var(--ink)] truncate">{f.replace('e2e/specs/', '')}</span>
@@ -207,7 +207,7 @@ export function TestResults({ appId, live = false, getToken }: { appId: string; 
             <div>
               <p className="text-[9px] text-[var(--muted)] uppercase tracking-wide mb-0.5">Unit / Integration (vitest)</p>
               {unitSpecs.map(f => (
-                <button key={f} type="button" onClick={() => loadFile(f)}
+                <button key={f} type="button" onClick={() => (onFileClick ?? loadFile)(f)}
                   className={`w-full text-left flex items-center gap-2 text-xs py-0.5 px-1.5 rounded hover:bg-[var(--panel-hover)] ${previewFile?.path === f ? 'bg-[var(--accent)]/5' : ''}`}>
                   <span className="text-green-500">▸</span>
                   <span className="font-mono text-[var(--ink)] truncate">{f.replace('tests/', '')}</span>
@@ -229,8 +229,8 @@ export function TestResults({ appId, live = false, getToken }: { appId: string; 
         </div>
       )}
 
-      {/* File preview */}
-      {previewFile && (
+      {/* Inline file preview (only when no external onFileClick handler) */}
+      {!onFileClick && previewFile && (
         <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
           <div className="flex items-center justify-between px-4 py-2 bg-[var(--panel-hover)] border-b border-[var(--line)]">
             <span className="text-xs font-mono text-[var(--ink)] truncate">{previewFile.path}</span>
