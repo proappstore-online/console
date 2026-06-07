@@ -93,7 +93,7 @@ export function removeDomain(
   })
 }
 
-/** CF Pages project name for a PAS app — owner needs this as the CNAME target. */
+/** CNAME target for custom domains — points to the app's subdomain on the host Worker. */
 export function cnameTarget(appId: string): string {
-  return `proappstore-${appId}.pages.dev`
+  return `${appId}.proappstore.online`
 }

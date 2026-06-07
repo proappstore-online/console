@@ -121,7 +121,7 @@ export function LegalSection({ appId, listing, update, getToken }: SectionProps)
     }
   }
 
-  // Set the URL to the app's own subdomain (CF Pages serves web/public/<file>),
+  // Set the URL to the app's own subdomain (R2 host serves web/public/<file>),
   // then HEAD-probe to surface a friendly warning when the file is missing.
   async function applyRepoFile(kind: 'privacy' | 'terms') {
     const file = kind === 'privacy' ? 'privacy.md' : 'terms.md'
@@ -198,7 +198,7 @@ export function LegalSection({ appId, listing, update, getToken }: SectionProps)
             <p className="text-xs text-[var(--warning)]">
               {`No privacy.md found at https://${appId}.proappstore.online/privacy.md yet. Commit `}
               <code className="font-mono">web/public/privacy.md</code>
-              {` to your app repo and push — CF Pages will serve it.`}
+              {` to your app repo and push — the host Worker will serve it.`}
             </p>
           )}
           {repoProbe.privacy === true && (
