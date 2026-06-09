@@ -1,16 +1,30 @@
 import { useState, useEffect, useCallback } from 'react'
-
-const FAS_API = 'https://api.freeappstore.online/v1'
+import { API_BASE, requestJson } from './api'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 interface RoleAssignment {
-  user_id: string
-  role_name: string
-  granted_by: string
-  granted_at: string
+  userId: string
+  roleName: string
+  grantedBy: string | null
+  grantedAt: number | null
+  userLogin: string | null
+  userAvatarUrl: string | null
+  grantedByLogin: string | null
+  grantedByAvatarUrl: string | null
+}
+
+type RoleAssignmentApi = Partial<RoleAssignment> & {
+  user_id?: string
+  role_name?: string
+  granted_by?: string | null
+  granted_at?: string | number | null
+  user_login?: string | null
+  user_avatar_url?: string | null
+  granted_by_login?: string | null
+  granted_by_avatar_url?: string | null
 }
 
 const DEFAULT_ROLES: { name: string; description: string }[] = [
@@ -27,16 +41,15 @@ const ASSIGNABLE_ROLES = ['moderator', 'editor', 'viewer']
 // ---------------------------------------------------------------------------
 
 async function fetchRoles(token: string, appId: string): Promise<RoleAssignment[]> {
-  const res = await fetch(`${FAS_API}/apps/${encodeURIComponent(appId)}/roles`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  if (!res.ok) throw new Error(`Failed to load roles (${res.status})`)
-  const data = (await res.json()) as { roles: RoleAssignment[] }
-  return data.roles ?? []
+  const data = await requestJson<{ roles: RoleAssignmentApi[] }>(
+    `${API_BASE}/apps/${encodeURIComponent(appId)}/roles`,
+    { token },
+  )
+  return (data.roles ?? []).map(normalizeRoleAssignment).filter((r): r is RoleAssignment => r !== null)
 }
 
 async function assignRole(token: string, appId: string, userId: string, role: string): Promise<void> {
-  const res = await fetch(`${FAS_API}/apps/${encodeURIComponent(appId)}/roles`, {
+  const res = await fetch(`${API_BASE}/apps/${encodeURIComponent(appId)}/roles`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -51,7 +64,7 @@ async function assignRole(token: string, appId: string, userId: string, role: st
 }
 
 async function revokeRole(token: string, appId: string, userId: string, role: string): Promise<void> {
-  const res = await fetch(`${FAS_API}/apps/${encodeURIComponent(appId)}/roles`, {
+  const res = await fetch(`${API_BASE}/apps/${encodeURIComponent(appId)}/roles`, {
     method: 'DELETE',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -193,23 +206,35 @@ export function RolesManager({ appId, getToken }: Props) {
         {!loading && !loadError && roles.length > 0 && (
           <ul className="space-y-2">
             {roles.map((r) => {
-              const key = `${r.user_id}:${r.role_name}`
-              const isOwner = r.role_name === 'owner'
+              const key = `${r.userId}:${r.roleName}`
+              const isOwner = r.roleName === 'owner'
               const isRevoking = revoking[key] ?? false
+              const userLabel = r.userLogin ? `@${r.userLogin}` : r.userId
+              const grantorLabel = r.grantedByLogin ? `@${r.grantedByLogin}` : (r.grantedBy ?? 'platform')
               return (
                 <li
                   key={key}
                   className="flex items-center justify-between rounded-lg border border-[var(--line)] bg-[var(--paper)] px-4 py-3"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-[var(--ink)] font-mono truncate">
-                        {r.user_id}
-                      </span>
-                      <RoleBadge role={r.role_name} />
+                    <div className="flex items-center gap-3">
+                      {r.userAvatarUrl && (
+                        <img src={r.userAvatarUrl} alt="" className="h-8 w-8 rounded-full border border-[var(--line)]" />
+                      )}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-semibold text-[var(--ink)] truncate">
+                            {userLabel}
+                          </span>
+                          <RoleBadge role={r.roleName} />
+                        </div>
+                        <p className="text-[11px] text-[var(--muted)] font-mono truncate">
+                          UID {r.userId}
+                        </p>
+                      </div>
                     </div>
                     <p className="text-xs text-[var(--muted)] mt-0.5">
-                      Granted by {r.granted_by} on {new Date(r.granted_at).toLocaleDateString()}
+                      Granted by {grantorLabel} on {formatGrantedDate(r.grantedAt)}
                     </p>
                   </div>
                   {isOwner ? (
@@ -218,7 +243,7 @@ export function RolesManager({ appId, getToken }: Props) {
                     </span>
                   ) : (
                     <button
-                      onClick={() => handleRevoke(r.user_id, r.role_name)}
+                      onClick={() => handleRevoke(r.userId, r.roleName)}
                       disabled={isRevoking}
                       className="shrink-0 ml-3 rounded-lg border border-[var(--error)]/40 px-3 py-1.5 text-xs font-semibold text-[var(--error)] hover:bg-[var(--error)]/10 disabled:opacity-50"
                     >
@@ -335,4 +360,39 @@ function RoleBadge({ role }: { role: string }) {
       {role}
     </span>
   )
+}
+
+function normalizeRoleAssignment(raw: RoleAssignmentApi): RoleAssignment | null {
+  const userId = raw.userId ?? raw.user_id
+  const roleName = raw.roleName ?? raw.role_name
+  if (!userId || !roleName) return null
+  return {
+    userId,
+    roleName,
+    grantedBy: raw.grantedBy ?? raw.granted_by ?? null,
+    grantedAt: normalizeTime(raw.grantedAt ?? raw.granted_at),
+    userLogin: raw.userLogin ?? raw.user_login ?? null,
+    userAvatarUrl: raw.userAvatarUrl ?? raw.user_avatar_url ?? null,
+    grantedByLogin: raw.grantedByLogin ?? raw.granted_by_login ?? null,
+    grantedByAvatarUrl: raw.grantedByAvatarUrl ?? raw.granted_by_avatar_url ?? null,
+  }
+}
+
+function normalizeTime(value: string | number | null | undefined): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    const numeric = Number(value)
+    if (Number.isFinite(numeric)) return numeric
+    const parsed = Date.parse(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return null
+}
+
+function formatGrantedDate(value: number | null): string {
+  if (!value) return 'unknown date'
+  const ms = value < 10_000_000_000 ? value * 1000 : value
+  const date = new Date(ms)
+  if (Number.isNaN(date.getTime())) return 'unknown date'
+  return date.toLocaleDateString()
 }

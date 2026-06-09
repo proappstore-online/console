@@ -25,6 +25,9 @@ export function ProfileView({ user }: { user: User }) {
         <div>
           <h2 className="display-font text-2xl font-bold text-[var(--ink)]">{user.login}</h2>
           <p className="text-sm text-[var(--muted)]">Your ProAppStore account</p>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            UID <span className="font-mono text-[var(--ink)]">{user.id}</span>
+          </p>
         </div>
       </header>
 
