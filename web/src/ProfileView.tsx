@@ -18,12 +18,13 @@ function applyTheme(t: Theme) {
  * the agents), theme, and account actions. Reached from the avatar.
  */
 export function ProfileView({ user }: { user: User }) {
+  const displayName = user.login || user.name || user.id
   return (
     <div className="space-y-8 max-w-2xl">
       <header className="flex items-center gap-4">
         {user.avatarUrl && <img src={user.avatarUrl} alt="" className="h-14 w-14 rounded-full ring-2 ring-[var(--line-strong)]" />}
         <div>
-          <h2 className="display-font text-2xl font-bold text-[var(--ink)]">{user.login}</h2>
+          <h2 className="display-font text-2xl font-bold text-[var(--ink)]">{displayName}</h2>
           <p className="text-sm text-[var(--muted)]">Your ProAppStore account</p>
           <p className="mt-1 text-xs text-[var(--muted)]">
             UID <span className="font-mono text-[var(--ink)]">{user.id}</span>
