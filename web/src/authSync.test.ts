@@ -76,23 +76,29 @@ describe('readTokenFromCookie', () => {
 
 describe('restoreFromCookie', () => {
   it('does nothing when localStorage already has a session', () => {
-    localStorage.setItem('fas:session', JSON.stringify({ token: 'existing', user: null }))
+    localStorage.setItem('pas:session', JSON.stringify({ token: 'existing', user: null }))
     syncTokenToCookie('cookie-token')
     restoreFromCookie()
-    const stored = JSON.parse(localStorage.getItem('fas:session')!)
+    const stored = JSON.parse(localStorage.getItem('pas:session')!)
     expect(stored.token).toBe('existing') // unchanged
   })
 
   it('does nothing when no cookie exists', () => {
     restoreFromCookie()
-    expect(localStorage.getItem('fas:session')).toBeNull()
+    expect(localStorage.getItem('pas:session')).toBeNull()
   })
 
   it('restores from cookie when localStorage is empty', () => {
     syncTokenToCookie('cross-subdomain-token')
     restoreFromCookie()
-    const stored = JSON.parse(localStorage.getItem('fas:session')!)
+    const stored = JSON.parse(localStorage.getItem('pas:session')!)
     expect(stored.token).toBe('cross-subdomain-token')
     expect(stored.user).toBeNull()
+  })
+
+  it('does not write the obsolete FAS session key', () => {
+    syncTokenToCookie('cross-subdomain-token')
+    restoreFromCookie()
+    expect(localStorage.getItem('fas:session')).toBeNull()
   })
 })

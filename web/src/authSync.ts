@@ -1,7 +1,7 @@
 /**
  * Cross-subdomain auth sync.
  *
- * The FAS SDK stores the session in localStorage (origin-scoped). This module
+ * The PAS SDK stores the session in localStorage (origin-scoped). This module
  * mirrors the session token to a cookie on `.proappstore.online` so that the
  * storefront and other subdomains can detect the signed-in user.
  *
@@ -18,6 +18,7 @@
 
 const COOKIE_NAME = 'pas_token'
 const COOKIE_DOMAIN = '.proappstore.online'
+const STORAGE_KEY = 'pas:session'
 const MAX_AGE = 30 * 24 * 60 * 60 // 30 days
 
 /** Set the cross-subdomain cookie with the current token. */
@@ -40,7 +41,6 @@ export function readTokenFromCookie(): string | null {
 
 /** Restore session from cookie if localStorage is empty (signed in on another subdomain). */
 export function restoreFromCookie(): void {
-  const STORAGE_KEY = 'fas:session'
   const existing = localStorage.getItem(STORAGE_KEY)
   if (existing) return // already signed in locally
 

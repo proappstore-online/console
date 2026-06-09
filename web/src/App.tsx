@@ -4,7 +4,7 @@ import { pro } from './sdk'
 
 import { type View, type AppEntry, type AppTab, parseHash as parseHashString, hashFor, deriveSlug, mergeApps } from './nav'
 import { fetchApps, fetchAgentProjects, deleteAppApi, fetchIsAdmin } from './appsApi'
-import { syncTokenToCookie, restoreFromCookie } from './authSync'
+import { syncTokenToCookie } from './authSync'
 import { Landing, Header } from './Header'
 import { Dashboard } from './Dashboard'
 import { NewAppModal } from './NewAppModal'
@@ -74,8 +74,6 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    // Restore session from cross-subdomain cookie if localStorage is empty
-    restoreFromCookie()
     pro.auth.init().then(() => setReady(true))
     return pro.auth.onChange((u) => {
       setUser(u)
