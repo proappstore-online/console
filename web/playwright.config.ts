@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 // Mirrors fws/platform/packages/create's setup — tests run against prod
 // (console.proappstore.online) and stay public-only (auth-gated flows
-// require a real FAS session token, out of scope for default CI run).
+// require a real PAS session token, out of scope for default CI run).
 export default defineConfig({
   testDir: './e2e',
   timeout: 30_000,

@@ -14,7 +14,7 @@ test.describe('Analytics dashboard — UI shell (public)', () => {
   test('Console SPA shell loads (analytics lives behind auth)', async ({ page }) => {
     // The Console is a single SPA; the AnalyticsSection lives inside
     // AppDetail, behind sign-in. We can't drive into it without a real
-    // FAS session token, so this test asserts the unauth shell still
+    // PAS session token, so this test asserts the unauth shell still
     // loads cleanly — which is the prerequisite for anything downstream.
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveTitle(/Creator Console.*ProAppStore/);

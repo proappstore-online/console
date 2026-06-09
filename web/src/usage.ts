@@ -2,7 +2,7 @@
  * Usage API client — matches the PAS backend's /v1/apps/:id/usage
  * and /v1/usage/me contract.
  *
- * Both endpoints use the FAS session bearer token (from `pro.auth.token`).
+ * Both endpoints use the PAS session bearer token (from `pro.auth.token`).
  */
 
 import { apiFetch } from './api'
