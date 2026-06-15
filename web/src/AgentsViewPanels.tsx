@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { api } from './agents/lib'
-import { ROLE_COLOR, MODEL_SUGGESTIONS, type RoleCfg } from './agents/types'
+import { MODEL_SUGGESTIONS, type RoleCfg } from './agents/types'
 
 interface AgentDescriptor {
   id: string; label: string; summary: string; surface: 'chat' | 'build';
@@ -14,6 +14,15 @@ const SPINE_TOOLS = ['write_file', 'batch_write_files', 'read_file', 'list_files
 const RUNTIME_LABEL: Record<string, string> = { 'cf-native': 'Anthropic', 'openai-responses': 'OpenAI' }
 
 interface ProjectCost { costCapMonthlyUsd?: number; costSpentMonthlyUsd?: number }
+
+function Badge({ kind }: { kind: 'default' | 'custom' | 'templated' }) {
+  const map = {
+    default: { label: 'default', cls: 'text-[var(--muted)] border-[var(--line)]' },
+    custom: { label: 'customized', cls: 'text-[var(--accent)] border-[var(--accent)]' },
+    templated: { label: 'per-message', cls: 'text-[var(--muted)] border-[var(--line)]' },
+  }[kind]
+  return <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border ${map.cls}`}>{map.label}</span>
+}
 
 export function ReadPanel({ agent }: { agent: AgentDescriptor }) {
   const [showPrompt, setShowPrompt] = useState(false)

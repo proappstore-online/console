@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from './agents/lib'
-import { ROLE_COLOR, MODEL_SUGGESTIONS, type RoleCfg } from './agents/types'
+import { ROLE_COLOR, type RoleCfg } from './agents/types'
 import { ReadPanel, EditPanel, BudgetCard } from './AgentsViewPanels'
 
 /**
@@ -27,20 +27,6 @@ interface AgentDescriptor {
   runtime: string
   maxTokens?: number
   editable: { fields: string[]; via: string }
-}
-
-/** Spine tools a role may be granted (kept in sync with the backend registry). */
-const SPINE_TOOLS = ['write_file', 'batch_write_files', 'read_file', 'list_files', 'search_files', 'delete_file', 'read_docs']
-
-const RUNTIME_LABEL: Record<string, string> = { 'cf-native': 'Anthropic', 'openai-responses': 'OpenAI' }
-
-function Badge({ kind }: { kind: 'default' | 'custom' | 'templated' }) {
-  const map = {
-    default: { label: 'default', cls: 'text-[var(--muted)] border-[var(--line)]' },
-    custom: { label: 'customized', cls: 'text-[var(--accent)] border-[var(--accent)]' },
-    templated: { label: 'per-message', cls: 'text-[var(--muted)] border-[var(--line)]' },
-  }[kind]
-  return <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border ${map.cls}`}>{map.label}</span>
 }
 
 interface ProjectCost { costCapMonthlyUsd?: number; costSpentMonthlyUsd?: number }
