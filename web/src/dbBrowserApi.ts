@@ -13,8 +13,18 @@ export async function fetchTables(token: string, appId: string): Promise<string[
     headers: { Authorization: `Bearer ${token}` },
   })
   if (!res.ok) throw new Error(`Failed to load tables (${res.status})`)
-  const data = (await res.json()) as { tables: string[] }
-  return data.tables ?? []
+  const data = await res.json() as unknown
+  const tables = Array.isArray(data)
+    ? data
+    : isRecord(data) && Array.isArray(data.tables)
+      ? data.tables
+      : null
+  if (!tables) throw new Error('Tables response was not an array')
+  return tables.filter((name): name is string => typeof name === 'string')
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
 export async function runQuery(
