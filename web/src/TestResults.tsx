@@ -41,7 +41,6 @@ export function TestResults({ appId, live = false, getToken, onFileClick }: { ap
   const [loading, setLoading] = useState(true)
   const [previewFile, setPreviewFile] = useState<{ path: string; content: string } | null>(null)
   const [expandedRun, setExpandedRun] = useState<string | null>(null)
-  const [runDetails, setRunDetails] = useState<Record<string, { specFile: string; testName: string; status: string; durationMs: number | null; error: string | null }[]>>({})
   const [running, setRunning] = useState(false)
   const [runResult, setRunResult] = useState<{ ok: boolean; msg: string } | null>(null)
 

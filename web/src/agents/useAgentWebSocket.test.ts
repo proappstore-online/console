@@ -19,6 +19,7 @@ function makeOpts() {
     refreshTickets: vi.fn(),
     loadMemory: vi.fn(),
     loadFileList: vi.fn(),
+    onAgentText: vi.fn(),
     memOpenRef: { current: false },
     fileListOpenRef: { current: false },
   }
@@ -170,7 +171,6 @@ describe('handleEvent — agent-tool-result', () => {
 describe('handleEvent — onAgentText callback', () => {
   it('calls onAgentText with role and text', () => {
     const opts = makeOpts()
-    opts.onAgentText = vi.fn()
     handleEvent({ type: 'agent-text', ticketId: 't1', role: 'Architect', text: 'writing KB' }, opts)
     expect(opts.onAgentText).toHaveBeenCalledWith('Architect', 'writing KB')
   })

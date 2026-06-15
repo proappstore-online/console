@@ -18,7 +18,7 @@ function applyTheme(t: Theme) {
  * the agents), theme, and account actions. Reached from the avatar.
  */
 export function ProfileView({ user }: { user: User }) {
-  const displayName = user.login || user.name || user.id
+  const displayName = user.login || user.id
   return (
     <div className="space-y-8 max-w-2xl">
       <header className="flex items-center gap-4">

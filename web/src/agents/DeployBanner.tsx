@@ -12,9 +12,8 @@ function deployHistory(activity: ActivityEntry[]): { ticketId: string | null; en
   let current: typeof deploys[0] | null = null
 
   for (const a of activity) {
-    if (a.type !== 'deploy' && a.type !== 'transition') continue
+    if (a.type !== 'deploy') continue
     const isDeploy = a.type === 'deploy'
-    const isDeployTransition = a.type === 'transition' && a.detail.includes('deploying')
 
     if (isDeploy && a.detail.includes('Pushed')) {
       // New deploy started

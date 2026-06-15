@@ -46,7 +46,7 @@ interface UseAgentWebSocketOpts {
 }
 
 export function useAgentWebSocket(opts: UseAgentWebSocketOpts) {
-  const { appId, token, notStarted, syncLive, loadMemory, loadFileList } = opts
+  const { appId, token, notStarted } = opts
   // Keep a ref to opts so the WS message handler always reads the latest
   // state setters + callbacks without causing reconnects on every render.
   const optsRef = useRef(opts)

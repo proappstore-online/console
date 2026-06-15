@@ -4,14 +4,12 @@
  */
 
 import { useState, useRef } from 'react'
-import { uploadAsset, CATEGORIES } from './listings'
+import { uploadAsset } from './listings'
 import {
   Section,
   useSection,
   Row,
-  ColorInput,
   PrefixedInput,
-  Preview,
   type SectionProps,
 } from './sectionPrimitives'
 

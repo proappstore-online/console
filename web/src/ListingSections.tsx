@@ -11,7 +11,6 @@ import {
   useSection,
   Row,
   ColorInput,
-  PrefixedInput,
   Preview,
   type SectionProps,
 } from './sectionPrimitives'
