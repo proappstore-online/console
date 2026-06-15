@@ -107,6 +107,8 @@ export interface SchemaGraphLayout {
 
 export function buildSchemaGraphLayout(tables: TableSchema[]): SchemaGraphLayout {
   const nodeWidth = 280
+  const headerHeight = 36
+  const rowHeight = 24
   const xGap = 56
   const yGap = 48
   const columns = tables.length <= 2 ? Math.max(tables.length, 1) : 3
@@ -116,7 +118,7 @@ export function buildSchemaGraphLayout(tables: TableSchema[]): SchemaGraphLayout
   for (let index = 0; index < tables.length; index += 1) {
     const table = tables[index]!
     const visibleColumns = Math.min(table.columns.length, 8)
-    const height = 72 + (visibleColumns * 24) + (table.columns.length > visibleColumns ? 24 : 0)
+    const height = headerHeight + (visibleColumns * rowHeight) + (table.columns.length > visibleColumns ? rowHeight : 0)
     const row = Math.floor(index / columns)
     rowHeights[row] = Math.max(rowHeights[row] ?? 0, height)
     nodes.push({
@@ -141,13 +143,18 @@ export function buildSchemaGraphLayout(tables: TableSchema[]): SchemaGraphLayout
   for (const relationship of relationships) {
     const fromNode = nodeByName.get(relationship.fromTable)
     const toNode = nodeByName.get(relationship.toTable)
+    const fromTable = tables.find((table) => table.name === relationship.fromTable)
+    const toTable = tables.find((table) => table.name === relationship.toTable)
     if (!fromNode || !toNode) continue
 
     const sameTable = fromNode.name === toNode.name
-    const startX = sameTable ? fromNode.x + fromNode.width - 16 : fromNode.x + fromNode.width / 2
-    const startY = sameTable ? fromNode.y + 44 : fromNode.y + fromNode.height / 2
-    const endX = sameTable ? toNode.x + toNode.width - 16 : toNode.x + toNode.width / 2
-    const endY = sameTable ? toNode.y + toNode.height - 16 : toNode.y + toNode.height / 2
+    const fromColumnY = columnAnchorY(fromNode, fromTable, relationship.fromColumn, headerHeight, rowHeight)
+    const toColumnY = columnAnchorY(toNode, toTable, relationship.toColumn, headerHeight, rowHeight)
+    const fromIsLeftOfTarget = fromNode.x + fromNode.width / 2 <= toNode.x + toNode.width / 2
+    const startX = sameTable || fromIsLeftOfTarget ? fromNode.x + fromNode.width : fromNode.x
+    const endX = sameTable || fromIsLeftOfTarget ? toNode.x : toNode.x + toNode.width
+    const startY = fromColumnY
+    const endY = toColumnY
 
     edges.push({
       key: `${relationship.source}-${relationship.fromTable}.${relationship.fromColumn}-${relationship.toTable}.${relationship.toColumn}-${relationship.id}-${relationship.sequence}`,
@@ -171,6 +178,20 @@ export function buildSchemaGraphLayout(tables: TableSchema[]): SchemaGraphLayout
   ), 0))
 
   return { width, height, nodes, edges }
+}
+
+function columnAnchorY(
+  node: SchemaNodeLayout,
+  table: TableSchema | undefined,
+  columnName: string,
+  headerHeight: number,
+  rowHeight: number,
+): number {
+  const columnIndex = table?.columns.findIndex((column) => column.name === columnName) ?? -1
+  if (columnIndex >= 0 && columnIndex < 8) {
+    return node.y + headerHeight + (columnIndex * rowHeight) + (rowHeight / 2)
+  }
+  return node.y + Math.max(headerHeight + (rowHeight / 2), node.height - (rowHeight / 2))
 }
 
 export function buildSchemaRelationships(tables: TableSchema[]): SchemaRelationship[] {

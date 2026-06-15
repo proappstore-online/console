@@ -64,6 +64,12 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab, settingsTab
         <AppAgents appId={appId} appName={appName} getToken={getToken} tab={tab} />
       )}
 
+      {tab === 'data' && (
+        <div className="max-w-6xl space-y-6 overflow-y-auto min-h-0 flex-1">
+          <DbBrowser appId={appId} getToken={getToken} />
+        </div>
+      )}
+
       {tab === 'test' && (
         <AppTest appId={appId} getToken={getToken} />
       )}
@@ -162,12 +168,6 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab, settingsTab
           {settingsTab === 'access' && (
             <div className="max-w-3xl space-y-6">
               <RolesManager appId={appId} getToken={getToken} />
-            </div>
-          )}
-
-          {settingsTab === 'data' && (
-            <div className="max-w-6xl space-y-6">
-              <DbBrowser appId={appId} getToken={getToken} />
             </div>
           )}
 

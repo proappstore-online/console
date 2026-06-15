@@ -7,16 +7,18 @@ export type View =
 // Per-app workspace tabs, shown next to the project switcher in the navbar.
 //  - research: brainstorm chat + live Knowledge Base preview
 //  - build:    the agent kanban + activity feed
+//  - data:     D1 table browser, SQL console, and schema graph
 //  - test:     automated QA / E2E (Playwright, manual/opt-in)
 //  - control:  the live VCQA code-health dashboard (ops/control)
 //  - spending: cost breakdown by role, ticket, and ledger history
 //  - settings: listing / domains / app roles + agent team config / danger zone
-export type AppTab = 'research' | 'build' | 'test' | 'control' | 'analytics' | 'spending' | 'style' | 'settings'
-export type AppSettingsTab = 'storefront' | 'publishing' | 'agents' | 'integrations' | 'access' | 'data' | 'danger'
+export type AppTab = 'research' | 'build' | 'data' | 'test' | 'control' | 'analytics' | 'spending' | 'style' | 'settings'
+export type AppSettingsTab = 'storefront' | 'publishing' | 'agents' | 'integrations' | 'access' | 'danger'
 
 export const APP_TABS: { key: AppTab; label: string }[] = [
   { key: 'research', label: 'Research' },
   { key: 'build', label: 'Build' },
+  { key: 'data', label: 'Data' },
   { key: 'test', label: 'Test' },
   { key: 'control', label: 'Control' },
   { key: 'analytics', label: 'Analytics' },
@@ -31,7 +33,6 @@ export const APP_SETTINGS_TABS: { key: AppSettingsTab; label: string }[] = [
   { key: 'agents', label: 'Agents' },
   { key: 'integrations', label: 'Integrations' },
   { key: 'access', label: 'Access' },
-  { key: 'data', label: 'Data' },
   { key: 'danger', label: 'Danger' },
 ]
 
@@ -71,6 +72,9 @@ export function parseHash(rawHash: string): ParsedRoute {
   if (hash.startsWith('apps/')) {
     const [param, maybeTab, maybeSettingsTab] = hash.slice(5).split('/')
     if (!param) return { view: 'dashboard', param: null, tab: null, settingsTab: null }
+    if (maybeTab === 'settings' && maybeSettingsTab === 'data') {
+      return { view: 'app-detail', param, tab: 'data', settingsTab: null }
+    }
     const tab = APP_TABS.some((t) => t.key === maybeTab) ? (maybeTab as AppTab) : null
     const settingsTab = tab === 'settings' && APP_SETTINGS_TABS.some((t) => t.key === maybeSettingsTab)
       ? (maybeSettingsTab as AppSettingsTab)

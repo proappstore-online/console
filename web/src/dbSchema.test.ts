@@ -61,7 +61,10 @@ describe('buildSchemaGraphLayout', () => {
       {
         name: 'members',
         sql: '',
-        columns: [{ name: 'org_id', type: 'TEXT', notNull: true, defaultValue: null, primaryKeyPosition: 0 }],
+        columns: [
+          { name: 'id', type: 'TEXT', notNull: true, defaultValue: null, primaryKeyPosition: 1 },
+          { name: 'org_id', type: 'TEXT', notNull: true, defaultValue: null, primaryKeyPosition: 0 },
+        ],
         foreignKeys: [{
           id: 0,
           sequence: 0,
@@ -84,6 +87,8 @@ describe('buildSchemaGraphLayout', () => {
       toTable: 'orgs',
       toColumn: 'id',
     })
+    expect(layout.edges[0]!.startY).toBe(72)
+    expect(layout.edges[0]!.endY).toBe(48)
   })
 })
 

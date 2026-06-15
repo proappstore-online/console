@@ -16,22 +16,26 @@ describe('parseHash', () => {
 
   it('parses an app-detail route with a deep-linked tab', () => {
     expect(parseHash('#/apps/interns/research')).toEqual({ view: 'app-detail', param: 'interns', tab: 'research', settingsTab: null })
+    expect(parseHash('#/apps/interns/data')).toEqual({ view: 'app-detail', param: 'interns', tab: 'data', settingsTab: null })
     expect(parseHash('#/apps/interns/control')).toEqual({ view: 'app-detail', param: 'interns', tab: 'control', settingsTab: null })
     expect(parseHash('#/apps/interns/settings')).toEqual({ view: 'app-detail', param: 'interns', tab: 'settings', settingsTab: null })
   })
 
   it('parses settings subtabs for app-detail settings routes', () => {
-    expect(parseHash('#/apps/interns/settings/data')).toEqual({
-      view: 'app-detail',
-      param: 'interns',
-      tab: 'settings',
-      settingsTab: 'data',
-    })
     expect(parseHash('#/apps/interns/settings/access')).toEqual({
       view: 'app-detail',
       param: 'interns',
       tab: 'settings',
       settingsTab: 'access',
+    })
+  })
+
+  it('maps the old settings/data route to the top-level data tab', () => {
+    expect(parseHash('#/apps/interns/settings/data')).toEqual({
+      view: 'app-detail',
+      param: 'interns',
+      tab: 'data',
+      settingsTab: null,
     })
   })
 
@@ -78,15 +82,15 @@ describe('hashFor', () => {
 
   it('appends the tab for app-detail routes that carry one', () => {
     expect(hashFor('app-detail', 'interns', 'control')).toBe('#/apps/interns/control')
+    expect(hashFor('app-detail', 'interns', 'data')).toBe('#/apps/interns/data')
     expect(hashFor('app-detail', 'interns', null)).toBe('#/apps/interns')
     // a tab without a param is meaningless — no app route, no tab
     expect(hashFor('dashboard', null, 'control')).toBe('#/')
   })
 
   it('appends settings subtabs for app-detail settings routes', () => {
-    expect(hashFor('app-detail', 'interns', 'settings', 'data')).toBe('#/apps/interns/settings/data')
     expect(hashFor('app-detail', 'interns', 'settings', 'access')).toBe('#/apps/interns/settings/access')
-    expect(hashFor('app-detail', 'interns', 'build', 'data')).toBe('#/apps/interns/build')
+    expect(hashFor('app-detail', 'interns', 'build', 'access')).toBe('#/apps/interns/build')
   })
 
   it('round-trips a parsed app-detail route (with + without tab)', () => {
@@ -94,8 +98,8 @@ describe('hashFor', () => {
     expect(hashFor(bare.view, bare.param, bare.tab)).toBe('#/apps/foo-bar')
     const tabbed = parseHash('#/apps/foo-bar/research')
     expect(hashFor(tabbed.view, tabbed.param, tabbed.tab)).toBe('#/apps/foo-bar/research')
-    const subtabbed = parseHash('#/apps/foo-bar/settings/data')
-    expect(hashFor(subtabbed.view, subtabbed.param, subtabbed.tab, subtabbed.settingsTab)).toBe('#/apps/foo-bar/settings/data')
+    const subtabbed = parseHash('#/apps/foo-bar/settings/access')
+    expect(hashFor(subtabbed.view, subtabbed.param, subtabbed.tab, subtabbed.settingsTab)).toBe('#/apps/foo-bar/settings/access')
   })
 
   it('app-detail without a param falls back to the bare view (no slug)', () => {

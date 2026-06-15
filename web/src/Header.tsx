@@ -86,7 +86,7 @@ export function Header({
               onOpenApp={onOpenApp}
               onAllApps={() => onNavigate('dashboard')}
             />
-            {/* Per-app workspace tabs: Research · Build · Test · Control · Settings */}
+            {/* Per-app workspace tabs: Research · Build · Data · Test · Control · Settings */}
             <div className="flex items-center rounded-lg border border-[var(--line-strong)] overflow-x-auto ml-1 min-w-0">
               {APP_TABS.map((t, i) => (
                 <button
