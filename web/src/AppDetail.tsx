@@ -34,7 +34,8 @@ const SETTINGS_TABS = [
   { key: 'publishing', label: 'Publishing' },
   { key: 'agents', label: 'Agents' },
   { key: 'integrations', label: 'Integrations' },
-  { key: 'access', label: 'Access & Data' },
+  { key: 'access', label: 'Access' },
+  { key: 'data', label: 'Data' },
   { key: 'danger', label: 'Danger' },
 ] as const
 type SettingsTab = typeof SETTINGS_TABS[number]['key']
@@ -171,6 +172,11 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab }: Props) {
           {settingsTab === 'access' && (
             <div className="max-w-3xl space-y-6">
               <RolesManager appId={appId} getToken={getToken} />
+            </div>
+          )}
+
+          {settingsTab === 'data' && (
+            <div className="max-w-6xl space-y-6">
               <DbBrowser appId={appId} getToken={getToken} />
             </div>
           )}
@@ -219,4 +225,3 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab }: Props) {
 // ---------------------------------------------------------------------------
 // Sections
 // ---------------------------------------------------------------------------
-
