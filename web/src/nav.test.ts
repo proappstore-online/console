@@ -3,39 +3,69 @@ import { parseHash, hashFor, deriveSlug, mergeApps, type AppEntry } from './nav'
 
 describe('parseHash', () => {
   it('defaults to dashboard for empty/`#`/`#/`', () => {
-    expect(parseHash('')).toEqual({ view: 'dashboard', param: null, tab: null })
-    expect(parseHash('#')).toEqual({ view: 'dashboard', param: null, tab: null })
-    expect(parseHash('#/')).toEqual({ view: 'dashboard', param: null, tab: null })
-    expect(parseHash('#/dashboard')).toEqual({ view: 'dashboard', param: null, tab: null })
+    expect(parseHash('')).toEqual({ view: 'dashboard', param: null, tab: null, settingsTab: null })
+    expect(parseHash('#')).toEqual({ view: 'dashboard', param: null, tab: null, settingsTab: null })
+    expect(parseHash('#/')).toEqual({ view: 'dashboard', param: null, tab: null, settingsTab: null })
+    expect(parseHash('#/dashboard')).toEqual({ view: 'dashboard', param: null, tab: null, settingsTab: null })
   })
 
   it('parses an app-detail route with its slug param', () => {
-    expect(parseHash('#/apps/interns')).toEqual({ view: 'app-detail', param: 'interns', tab: null })
-    expect(parseHash('#/apps/my-cool-app')).toEqual({ view: 'app-detail', param: 'my-cool-app', tab: null })
+    expect(parseHash('#/apps/interns')).toEqual({ view: 'app-detail', param: 'interns', tab: null, settingsTab: null })
+    expect(parseHash('#/apps/my-cool-app')).toEqual({ view: 'app-detail', param: 'my-cool-app', tab: null, settingsTab: null })
   })
 
   it('parses an app-detail route with a deep-linked tab', () => {
-    expect(parseHash('#/apps/interns/research')).toEqual({ view: 'app-detail', param: 'interns', tab: 'research' })
-    expect(parseHash('#/apps/interns/control')).toEqual({ view: 'app-detail', param: 'interns', tab: 'control' })
-    expect(parseHash('#/apps/interns/settings')).toEqual({ view: 'app-detail', param: 'interns', tab: 'settings' })
+    expect(parseHash('#/apps/interns/research')).toEqual({ view: 'app-detail', param: 'interns', tab: 'research', settingsTab: null })
+    expect(parseHash('#/apps/interns/control')).toEqual({ view: 'app-detail', param: 'interns', tab: 'control', settingsTab: null })
+    expect(parseHash('#/apps/interns/settings')).toEqual({ view: 'app-detail', param: 'interns', tab: 'settings', settingsTab: null })
+  })
+
+  it('parses settings subtabs for app-detail settings routes', () => {
+    expect(parseHash('#/apps/interns/settings/data')).toEqual({
+      view: 'app-detail',
+      param: 'interns',
+      tab: 'settings',
+      settingsTab: 'data',
+    })
+    expect(parseHash('#/apps/interns/settings/access')).toEqual({
+      view: 'app-detail',
+      param: 'interns',
+      tab: 'settings',
+      settingsTab: 'access',
+    })
   })
 
   it('ignores an unrecognized tab segment (tab: null)', () => {
-    expect(parseHash('#/apps/interns/bogus')).toEqual({ view: 'app-detail', param: 'interns', tab: null })
+    expect(parseHash('#/apps/interns/bogus')).toEqual({ view: 'app-detail', param: 'interns', tab: null, settingsTab: null })
+  })
+
+  it('ignores unrecognized settings subtab segments', () => {
+    expect(parseHash('#/apps/interns/settings/bogus')).toEqual({
+      view: 'app-detail',
+      param: 'interns',
+      tab: 'settings',
+      settingsTab: null,
+    })
+    expect(parseHash('#/apps/interns/build/data')).toEqual({
+      view: 'app-detail',
+      param: 'interns',
+      tab: 'build',
+      settingsTab: null,
+    })
   })
 
   it('treats a bare `apps/` (no slug) as dashboard, not a broken app-detail', () => {
-    expect(parseHash('#/apps/')).toEqual({ view: 'dashboard', param: null, tab: null })
+    expect(parseHash('#/apps/')).toEqual({ view: 'dashboard', param: null, tab: null, settingsTab: null })
   })
 
   it('parses known top-level views', () => {
     for (const v of ['publish', 'payouts', 'subscription', 'services', 'admin', 'profile', 'ui-library'] as const) {
-      expect(parseHash(`#/${v}`)).toEqual({ view: v, param: null, tab: null })
+      expect(parseHash(`#/${v}`)).toEqual({ view: v, param: null, tab: null, settingsTab: null })
     }
   })
 
   it('falls back to dashboard for unknown routes', () => {
-    expect(parseHash('#/totally-unknown')).toEqual({ view: 'dashboard', param: null, tab: null })
+    expect(parseHash('#/totally-unknown')).toEqual({ view: 'dashboard', param: null, tab: null, settingsTab: null })
   })
 })
 
@@ -53,11 +83,19 @@ describe('hashFor', () => {
     expect(hashFor('dashboard', null, 'control')).toBe('#/')
   })
 
+  it('appends settings subtabs for app-detail settings routes', () => {
+    expect(hashFor('app-detail', 'interns', 'settings', 'data')).toBe('#/apps/interns/settings/data')
+    expect(hashFor('app-detail', 'interns', 'settings', 'access')).toBe('#/apps/interns/settings/access')
+    expect(hashFor('app-detail', 'interns', 'build', 'data')).toBe('#/apps/interns/build')
+  })
+
   it('round-trips a parsed app-detail route (with + without tab)', () => {
     const bare = parseHash('#/apps/foo-bar')
     expect(hashFor(bare.view, bare.param, bare.tab)).toBe('#/apps/foo-bar')
     const tabbed = parseHash('#/apps/foo-bar/research')
     expect(hashFor(tabbed.view, tabbed.param, tabbed.tab)).toBe('#/apps/foo-bar/research')
+    const subtabbed = parseHash('#/apps/foo-bar/settings/data')
+    expect(hashFor(subtabbed.view, subtabbed.param, subtabbed.tab, subtabbed.settingsTab)).toBe('#/apps/foo-bar/settings/data')
   })
 
   it('app-detail without a param falls back to the bare view (no slug)', () => {

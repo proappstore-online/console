@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import type { User } from '@proappstore/sdk'
 import { pro } from './sdk'
 
-import { type View, type AppEntry, type AppTab, parseHash as parseHashString, hashFor, deriveSlug, mergeApps } from './nav'
+import { type View, type AppEntry, type AppTab, type AppSettingsTab, parseHash as parseHashString, hashFor, deriveSlug, mergeApps } from './nav'
 import { fetchApps, fetchAgentProjects, deleteAppApi, fetchIsAdmin } from './appsApi'
 import { syncTokenToCookie } from './authSync'
 import { Landing, Header } from './Header'
@@ -29,14 +29,20 @@ function RouteSpinner() {
 // ---------------------------------------------------------------------------
 
 /** Parse the current location hash into view + optional param + tab (DOM wrapper). */
-function parseHash(): { view: View; param: string | null; tab: AppTab | null } {
+function parseHash() {
   return parseHashString(location.hash)
 }
 
 /** Update hash without triggering hashchange (DOM wrapper). `replace` avoids
  *  pushing a history entry — used for tab switches so Back doesn't cycle tabs. */
-function setHash(view: View, param?: string | null, tab?: AppTab | null, replace = false) {
-  const target = hashFor(view, param, tab)
+function setHash(
+  view: View,
+  param?: string | null,
+  tab?: AppTab | null,
+  settingsTab?: AppSettingsTab | null,
+  replace = false,
+) {
+  const target = hashFor(view, param, tab, settingsTab)
   if (location.hash === target) return
   if (replace) history.replaceState(null, '', target)
   else history.pushState(null, '', target)
@@ -49,6 +55,7 @@ export default function App() {
   const [view, setViewState] = useState<View>(initial.view)
   const [selectedAppId, setSelectedAppId] = useState<string | null>(initial.param)
   const [appTab, setAppTab] = useState<AppTab>(initial.tab ?? 'build')
+  const [appSettingsTab, setAppSettingsTab] = useState<AppSettingsTab>(initial.settingsTab ?? 'storefront')
   const [apps, setApps] = useState<AppEntry[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [showNewApp, setShowNewApp] = useState(false)
@@ -62,11 +69,12 @@ export default function App() {
   // Listen for back/forward navigation
   useEffect(() => {
     const onHashChange = () => {
-      const { view: v, param, tab } = parseHash()
+      const { view: v, param, tab, settingsTab } = parseHash()
       setViewState(v)
       if (v === 'app-detail' && param) {
         setSelectedAppId(param)
         if (tab) setAppTab(tab) // restore the deep-linked tab on back/forward
+        if (tab === 'settings') setAppSettingsTab(settingsTab ?? 'storefront')
       }
     }
     window.addEventListener('hashchange', onHashChange)
@@ -109,14 +117,19 @@ export default function App() {
     setAppTab(tab)
     setSelectedAppId(id)
     setViewState('app-detail')
-    setHash('app-detail', id, tab)
-  }, [])
+    setHash('app-detail', id, tab, tab === 'settings' ? appSettingsTab : null)
+  }, [appSettingsTab])
 
   // Switch the active per-app tab + reflect it in the URL (replace, so Back
   // returns to the previous view rather than cycling through each tab).
   const changeAppTab = useCallback((t: AppTab) => {
     setAppTab(t)
-    if (selectedAppId) setHash('app-detail', selectedAppId, t, true)
+    if (selectedAppId) setHash('app-detail', selectedAppId, t, t === 'settings' ? appSettingsTab : null, true)
+  }, [appSettingsTab, selectedAppId])
+
+  const changeAppSettingsTab = useCallback((t: AppSettingsTab) => {
+    setAppSettingsTab(t)
+    if (selectedAppId) setHash('app-detail', selectedAppId, 'settings', t, true)
   }, [selectedAppId])
 
   // Create a new app = create its agent-teams project (slug = id), then land on
@@ -197,6 +210,8 @@ export default function App() {
               getToken={() => pro.auth.token}
               onDelete={deleteSelectedApp}
               tab={appTab}
+              settingsTab={appSettingsTab}
+              onSettingsTab={changeAppSettingsTab}
             />
           )}
           {view === 'publish' && <PublishView getToken={() => pro.auth.token} />}

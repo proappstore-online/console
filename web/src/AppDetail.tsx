@@ -12,7 +12,7 @@ import { AppPublishing } from './AppPublishing'
 import { AppAgents } from './AppAgents'
 import { AppSpending } from './AppSpending'
 import { AppStyle } from './AppStyle'
-import type { AppTab } from './nav'
+import { APP_SETTINGS_TABS, type AppSettingsTab, type AppTab } from './nav'
 import {
   BrandingSection, ListingCopySection, ScreenshotsSection, DeveloperSection,
   SocialSection, LegalSection, UsageSection, AnalyticsSection, DomainsSection,
@@ -26,27 +26,17 @@ interface Props {
   onDelete: () => Promise<void>
   /** Which per-app workspace tab is active (navbar switcher). */
   tab: AppTab
+  /** Which settings subtab is active when `tab` is settings. */
+  settingsTab: AppSettingsTab
+  onSettingsTab: (tab: AppSettingsTab) => void
 }
 
-// Sub-navigation within the Settings tab — all per-app configuration lives here.
-const SETTINGS_TABS = [
-  { key: 'storefront', label: 'Storefront' },
-  { key: 'publishing', label: 'Publishing' },
-  { key: 'agents', label: 'Agents' },
-  { key: 'integrations', label: 'Integrations' },
-  { key: 'access', label: 'Access' },
-  { key: 'data', label: 'Data' },
-  { key: 'danger', label: 'Danger' },
-] as const
-type SettingsTab = typeof SETTINGS_TABS[number]['key']
-
-export function AppDetail({ appId, appName, getToken, onDelete, tab }: Props) {
+export function AppDetail({ appId, appName, getToken, onDelete, tab, settingsTab, onSettingsTab }: Props) {
   const [listing, setListing] = useState<Listing | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [settingsTab, setSettingsTab] = useState<SettingsTab>('storefront')
   const showSettings = tab === 'settings'
 
   useEffect(() => {
@@ -109,8 +99,8 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab }: Props) {
 
           {/* Sub-nav: all per-app configuration is grouped here. */}
           <div className="flex items-center gap-0.5 flex-wrap rounded-lg border border-[var(--line-strong)] p-0.5 w-fit max-w-full overflow-x-auto">
-            {SETTINGS_TABS.map((s) => (
-              <button key={s.key} type="button" onClick={() => setSettingsTab(s.key)}
+            {APP_SETTINGS_TABS.map((s) => (
+              <button key={s.key} type="button" onClick={() => onSettingsTab(s.key)}
                 className={`px-3 py-1 text-xs font-semibold rounded-md whitespace-nowrap transition-colors ${
                   settingsTab === s.key ? 'bg-[var(--accent)] text-white' : 'text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--panel-hover)]'
                 }`}>

@@ -12,6 +12,7 @@ export type View =
 //  - spending: cost breakdown by role, ticket, and ledger history
 //  - settings: listing / domains / app roles + agent team config / danger zone
 export type AppTab = 'research' | 'build' | 'test' | 'control' | 'analytics' | 'spending' | 'style' | 'settings'
+export type AppSettingsTab = 'storefront' | 'publishing' | 'agents' | 'integrations' | 'access' | 'data' | 'danger'
 
 export const APP_TABS: { key: AppTab; label: string }[] = [
   { key: 'research', label: 'Research' },
@@ -22,6 +23,16 @@ export const APP_TABS: { key: AppTab; label: string }[] = [
   { key: 'spending', label: 'Spending' },
   { key: 'style', label: 'Style' },
   { key: 'settings', label: 'Settings' },
+]
+
+export const APP_SETTINGS_TABS: { key: AppSettingsTab; label: string }[] = [
+  { key: 'storefront', label: 'Storefront' },
+  { key: 'publishing', label: 'Publishing' },
+  { key: 'agents', label: 'Agents' },
+  { key: 'integrations', label: 'Integrations' },
+  { key: 'access', label: 'Access' },
+  { key: 'data', label: 'Data' },
+  { key: 'danger', label: 'Danger' },
 ]
 
 export interface AppEntry {
@@ -43,26 +54,45 @@ const VALID_VIEWS: View[] = [
   'dashboard', 'app-detail', 'publish', 'payouts', 'subscription', 'services', 'admin', 'profile', 'ui-library',
 ]
 
+export interface ParsedRoute {
+  view: View
+  param: string | null
+  tab: AppTab | null
+  settingsTab: AppSettingsTab | null
+}
+
 /** Parse a location hash into a view + optional app slug + optional app tab.
  *  App routes are `#/apps/<slug>` or `#/apps/<slug>/<tab>` (tab deep-links the
- *  per-app workspace). `tab` is null when absent or not a recognized tab. */
-export function parseHash(rawHash: string): { view: View; param: string | null; tab: AppTab | null } {
+ *  per-app workspace). Settings subtabs are `#/apps/<slug>/settings/<subtab>`.
+ *  `tab` / `settingsTab` are null when absent or not recognized. */
+export function parseHash(rawHash: string): ParsedRoute {
   const hash = rawHash.replace(/^#\/?/, '')
-  if (!hash || hash === 'dashboard') return { view: 'dashboard', param: null, tab: null }
+  if (!hash || hash === 'dashboard') return { view: 'dashboard', param: null, tab: null, settingsTab: null }
   if (hash.startsWith('apps/')) {
-    const [param, maybeTab] = hash.slice(5).split('/')
-    if (!param) return { view: 'dashboard', param: null, tab: null }
+    const [param, maybeTab, maybeSettingsTab] = hash.slice(5).split('/')
+    if (!param) return { view: 'dashboard', param: null, tab: null, settingsTab: null }
     const tab = APP_TABS.some((t) => t.key === maybeTab) ? (maybeTab as AppTab) : null
-    return { view: 'app-detail', param, tab }
+    const settingsTab = tab === 'settings' && APP_SETTINGS_TABS.some((t) => t.key === maybeSettingsTab)
+      ? (maybeSettingsTab as AppSettingsTab)
+      : null
+    return { view: 'app-detail', param, tab, settingsTab }
   }
-  if (VALID_VIEWS.includes(hash as View)) return { view: hash as View, param: null, tab: null }
-  return { view: 'dashboard', param: null, tab: null }
+  if (VALID_VIEWS.includes(hash as View)) return { view: hash as View, param: null, tab: null, settingsTab: null }
+  return { view: 'dashboard', param: null, tab: null, settingsTab: null }
 }
 
 /** Build the hash string for a view (inverse of parseHash). A tab is appended
  *  only for app-detail routes that carry one. */
-export function hashFor(view: View, param?: string | null, tab?: AppTab | null): string {
-  if (view === 'app-detail' && param) return tab ? `#/apps/${param}/${tab}` : `#/apps/${param}`
+export function hashFor(
+  view: View,
+  param?: string | null,
+  tab?: AppTab | null,
+  settingsTab?: AppSettingsTab | null,
+): string {
+  if (view === 'app-detail' && param) {
+    if (tab === 'settings' && settingsTab) return `#/apps/${param}/settings/${settingsTab}`
+    return tab ? `#/apps/${param}/${tab}` : `#/apps/${param}`
+  }
   const path = view === 'dashboard' ? '' : view
   return path ? `#/${path}` : '#/'
 }

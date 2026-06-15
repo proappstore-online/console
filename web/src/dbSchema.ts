@@ -30,6 +30,16 @@ export interface DatabaseSchema {
   tables: TableSchema[]
 }
 
+export interface SchemaRelationship {
+  source: 'declared' | 'inferred'
+  fromTable: string
+  fromColumn: string
+  toTable: string
+  toColumn: string
+  id: number
+  sequence: number
+}
+
 export function quoteSqlIdentifier(identifier: string): string {
   return `"${identifier.replaceAll('"', '""')}"`
 }
@@ -75,6 +85,7 @@ export interface SchemaNodeLayout {
 
 export interface SchemaEdgeLayout {
   key: string
+  source: SchemaRelationship['source']
   fromTable: string
   fromColumn: string
   toTable: string
@@ -125,33 +136,33 @@ export function buildSchemaGraphLayout(tables: TableSchema[]): SchemaGraphLayout
 
   const nodeByName = new Map(nodes.map((node) => [node.name, node]))
   const edges: SchemaEdgeLayout[] = []
+  const relationships = buildSchemaRelationships(tables)
 
-  for (const table of tables) {
-    for (const foreignKey of table.foreignKeys) {
-      const fromNode = nodeByName.get(table.name)
-      const toNode = nodeByName.get(foreignKey.table)
-      if (!fromNode || !toNode) continue
+  for (const relationship of relationships) {
+    const fromNode = nodeByName.get(relationship.fromTable)
+    const toNode = nodeByName.get(relationship.toTable)
+    if (!fromNode || !toNode) continue
 
-      const sameTable = fromNode.name === toNode.name
-      const startX = sameTable ? fromNode.x + fromNode.width - 16 : fromNode.x + fromNode.width / 2
-      const startY = sameTable ? fromNode.y + 44 : fromNode.y + fromNode.height / 2
-      const endX = sameTable ? toNode.x + toNode.width - 16 : toNode.x + toNode.width / 2
-      const endY = sameTable ? toNode.y + toNode.height - 16 : toNode.y + toNode.height / 2
+    const sameTable = fromNode.name === toNode.name
+    const startX = sameTable ? fromNode.x + fromNode.width - 16 : fromNode.x + fromNode.width / 2
+    const startY = sameTable ? fromNode.y + 44 : fromNode.y + fromNode.height / 2
+    const endX = sameTable ? toNode.x + toNode.width - 16 : toNode.x + toNode.width / 2
+    const endY = sameTable ? toNode.y + toNode.height - 16 : toNode.y + toNode.height / 2
 
-      edges.push({
-        key: `${table.name}.${foreignKey.from}-${foreignKey.table}.${foreignKey.to}-${foreignKey.id}-${foreignKey.sequence}`,
-        fromTable: table.name,
-        fromColumn: foreignKey.from,
-        toTable: foreignKey.table,
-        toColumn: foreignKey.to,
-        startX,
-        startY,
-        endX,
-        endY,
-        labelX: sameTable ? fromNode.x + fromNode.width + 28 : (startX + endX) / 2,
-        labelY: sameTable ? (startY + endY) / 2 : (startY + endY) / 2 - 8,
-      })
-    }
+    edges.push({
+      key: `${relationship.source}-${relationship.fromTable}.${relationship.fromColumn}-${relationship.toTable}.${relationship.toColumn}-${relationship.id}-${relationship.sequence}`,
+      source: relationship.source,
+      fromTable: relationship.fromTable,
+      fromColumn: relationship.fromColumn,
+      toTable: relationship.toTable,
+      toColumn: relationship.toColumn,
+      startX,
+      startY,
+      endX,
+      endY,
+      labelX: sameTable ? fromNode.x + fromNode.width + 28 : (startX + endX) / 2,
+      labelY: sameTable ? (startY + endY) / 2 : (startY + endY) / 2 - 8,
+    })
   }
 
   const width = Math.max(640, Math.min(tables.length, columns) * nodeWidth + (Math.min(tables.length, columns) - 1) * xGap)
@@ -160,4 +171,95 @@ export function buildSchemaGraphLayout(tables: TableSchema[]): SchemaGraphLayout
   ), 0))
 
   return { width, height, nodes, edges }
+}
+
+export function buildSchemaRelationships(tables: TableSchema[]): SchemaRelationship[] {
+  const relationships: SchemaRelationship[] = []
+  const declaredColumns = new Set<string>()
+  const tableByAlias = buildTableAliasMap(tables)
+
+  for (const table of tables) {
+    for (const foreignKey of table.foreignKeys) {
+      declaredColumns.add(`${table.name}.${foreignKey.from}`)
+      relationships.push({
+        source: 'declared',
+        fromTable: table.name,
+        fromColumn: foreignKey.from,
+        toTable: foreignKey.table,
+        toColumn: foreignKey.to,
+        id: foreignKey.id,
+        sequence: foreignKey.sequence,
+      })
+    }
+  }
+
+  let inferredId = 0
+  for (const table of tables) {
+    for (const column of table.columns) {
+      const columnKey = `${table.name}.${column.name}`
+      if (declaredColumns.has(columnKey)) continue
+      const targetAlias = foreignKeyColumnAlias(column.name)
+      if (!targetAlias) continue
+      const targetTable = tableByAlias.get(targetAlias)
+      if (!targetTable || targetTable.name === table.name) continue
+      const targetColumn = primaryKeyColumn(targetTable)
+      if (!targetColumn) continue
+      relationships.push({
+        source: 'inferred',
+        fromTable: table.name,
+        fromColumn: column.name,
+        toTable: targetTable.name,
+        toColumn: targetColumn.name,
+        id: inferredId,
+        sequence: 0,
+      })
+      inferredId += 1
+    }
+  }
+
+  return relationships
+}
+
+function buildTableAliasMap(tables: TableSchema[]): Map<string, TableSchema> {
+  const aliases = new Map<string, TableSchema>()
+  for (const table of tables) {
+    for (const alias of tableAliases(table.name)) {
+      if (!aliases.has(alias)) aliases.set(alias, table)
+    }
+  }
+  return aliases
+}
+
+function tableAliases(tableName: string): string[] {
+  const normalized = normalizeName(tableName)
+  const singular = singularize(normalized)
+  return [...new Set([normalized, singular])]
+}
+
+function foreignKeyColumnAlias(columnName: string): string | null {
+  const normalized = normalizeName(columnName)
+  if (normalized.length <= 2) return null
+  if (normalized.endsWith('id')) {
+    const alias = normalized.slice(0, -2)
+    return alias.length > 0 ? singularize(alias) : null
+  }
+  return null
+}
+
+function primaryKeyColumn(table: TableSchema): SchemaColumn | null {
+  const primaryKeys = table.columns
+    .filter((column) => column.primaryKeyPosition > 0)
+    .sort((a, b) => a.primaryKeyPosition - b.primaryKeyPosition)
+  return primaryKeys[0] ?? table.columns.find((column) => normalizeName(column.name) === 'id') ?? null
+}
+
+function normalizeName(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '')
+}
+
+function singularize(name: string): string {
+  if (name.endsWith('ies') && name.length > 3) return `${name.slice(0, -3)}y`
+  if (name.endsWith('ses') && name.length > 3) return name.slice(0, -2)
+  if (name.endsWith('s') && name.length > 1) return name.slice(0, -1)
+  return name
 }

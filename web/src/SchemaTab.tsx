@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchDatabaseSchema } from './dbBrowserApi'
-import { buildSchemaGraphLayout, type DatabaseSchema, type TableSchema } from './dbSchema'
+import { buildSchemaGraphLayout, buildSchemaRelationships, type DatabaseSchema, type TableSchema } from './dbSchema'
 
 // ---------------------------------------------------------------------------
 // Schema tab
@@ -42,7 +42,10 @@ export function SchemaTab({
     return <p className="text-sm text-[var(--muted)] italic">No tables found.</p>
   }
 
-  const relationshipCount = schema.tables.reduce((total, table) => total + table.foreignKeys.length, 0)
+  const relationships = buildSchemaRelationships(schema.tables)
+  const declaredRelationshipCount = relationships.filter((relationship) => relationship.source === 'declared').length
+  const inferredRelationshipCount = relationships.filter((relationship) => relationship.source === 'inferred').length
+  const relationshipCount = relationships.length
 
   return (
     <div className="space-y-5">
@@ -52,14 +55,25 @@ export function SchemaTab({
             Relational schema
           </h4>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            {schema.tables.length} table{schema.tables.length === 1 ? '' : 's'} · {relationshipCount} foreign key relationship{relationshipCount === 1 ? '' : 's'}
+            {schema.tables.length} table{schema.tables.length === 1 ? '' : 's'} · {declaredRelationshipCount} declared · {inferredRelationshipCount} inferred
           </p>
         </div>
       </div>
 
+      <div className="flex flex-wrap gap-3 text-xs text-[var(--muted)]">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-px w-8 bg-[var(--accent)]" />
+          declared foreign key
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-px w-8 border-t border-dashed border-[var(--accent)]" />
+          inferred by naming
+        </span>
+      </div>
+
       {relationshipCount === 0 && (
         <p className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--muted)]">
-          No declared foreign keys found. The graph still shows tables and columns, but relationships only appear when the schema declares SQLite foreign keys.
+          No declared or inferred relationships found. The graph still shows tables and columns.
         </p>
       )}
 
@@ -72,6 +86,16 @@ export function SchemaTab({
 function SchemaGraph({ tables }: { tables: TableSchema[] }) {
   const layout = useMemo(() => buildSchemaGraphLayout(tables), [tables])
   const tableByName = useMemo(() => new Map(tables.map((table) => [table.name, table])), [tables])
+  const relatedColumnSource = useMemo(() => {
+    const sources = new Map<string, 'declared' | 'inferred'>()
+    for (const edge of layout.edges) {
+      const key = `${edge.fromTable}.${edge.fromColumn}`
+      const current = sources.get(key)
+      if (current === 'declared') continue
+      sources.set(key, edge.source)
+    }
+    return sources
+  }, [layout.edges])
 
   return (
     <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--paper)]">
@@ -112,6 +136,7 @@ function SchemaGraph({ tables }: { tables: TableSchema[] }) {
                   stroke="var(--accent)"
                   strokeWidth="1.5"
                   strokeOpacity="0.7"
+                  strokeDasharray={edge.source === 'inferred' ? '6 5' : undefined}
                   markerEnd="url(#schema-arrow)"
                 />
                 <text
@@ -143,14 +168,15 @@ function SchemaGraph({ tables }: { tables: TableSchema[] }) {
               </div>
               <div className="divide-y divide-[var(--line)]">
                 {table.columns.slice(0, 8).map((column) => {
-                  const foreignKey = table.foreignKeys.find((fk) => fk.from === column.name)
+                  const relatedSource = relatedColumnSource.get(`${table.name}.${column.name}`)
                   return (
                     <div key={column.name} className="flex min-h-6 items-center gap-2 px-3 py-1 text-xs">
                       <span className="min-w-0 flex-1 truncate font-mono text-[var(--ink)]">
                         {column.name}
                       </span>
                       {column.primaryKeyPosition > 0 && <SchemaBadge label="PK" />}
-                      {foreignKey && <SchemaBadge label="FK" />}
+                      {relatedSource === 'declared' && <SchemaBadge label="FK" />}
+                      {relatedSource === 'inferred' && <SchemaBadge label="REL" />}
                       <span className="max-w-20 truncate font-mono text-[var(--muted)]">
                         {column.type || 'ANY'}
                       </span>
