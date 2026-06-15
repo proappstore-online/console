@@ -43,7 +43,7 @@ export function DbBrowser({ appId, getToken }: Props) {
   const tabs: { key: Tab; label: string }[] = [
     { key: 'tables', label: 'Tables' },
     { key: 'query', label: 'SQL Query' },
-    { key: 'schema', label: 'Schema' },
+    { key: 'schema', label: 'Schema Graph' },
   ]
 
   return (
