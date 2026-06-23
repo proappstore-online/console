@@ -265,21 +265,22 @@ export function KbPreview({
           sandbox="allow-scripts allow-same-origin allow-popups"
         />
       ) : (
-        <div className="flex-1 flex min-h-0">
-          {/* File rail */}
-          <div className="w-44 flex-shrink-0 border-r border-[var(--line)] overflow-y-auto py-1">
+        <div className="flex-1 flex flex-col sm:flex-row min-h-0">
+          {/* File rail — a horizontal scroll bar on mobile (a fixed 176px sidebar
+              would steal half a phone's width), a vertical sidebar on sm+. */}
+          <div className="flex flex-row sm:flex-col sm:w-44 flex-shrink-0 border-b sm:border-b-0 sm:border-r border-[var(--line)] overflow-x-auto sm:overflow-y-auto py-1">
             {files!.map(f => (
               <button key={f.path} type="button" onClick={() => setSelected(f.path)}
-                className={`flex items-center gap-1.5 w-full px-3 py-1.5 text-left text-xs transition-colors ${
+                className={`flex items-center gap-1.5 flex-shrink-0 sm:w-full px-3 py-1.5 text-left text-xs whitespace-nowrap transition-colors ${
                   selected === f.path ? 'bg-[var(--accent)]/10 text-[var(--accent)] font-semibold' : 'text-[var(--ink)] hover:bg-[var(--panel-hover)]'
                 }`} title={f.path}>
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 opacity-60"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
-                <span className="truncate">{prettyName(f.path)}</span>
+                <span className="truncate max-w-[44vw] sm:max-w-none">{prettyName(f.path)}</span>
               </button>
             ))}
           </div>
           {/* Rendered doc */}
-          <div className="flex-1 overflow-y-auto min-h-0 p-5">
+          <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-5">
             {selected !== loadedPath
               ? <p className="text-xs text-[var(--muted)]">Loading…</p>
               : <div className="text-sm"><Markdown>{content}</Markdown></div>}
