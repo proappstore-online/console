@@ -59,6 +59,7 @@ const TAB_ICONS: Record<View, ReactNode> = {
 const APP_TAB_ICONS: Record<AppTab, ReactNode> = {
   research: <Icon><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></Icon>,
   build: <Icon d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.1 2.1-2.7-.6-.6-2.7 2.1-2.1Z" />,
+  data: <Icon><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v6a8 3 0 0 0 16 0V5" /><path d="M4 11v6a8 3 0 0 0 16 0v-6" /></Icon>,
   test: <Icon><path d="M9 3v6l-5 9a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3l-5-9V3" /><path d="M8 3h8" /></Icon>,
   control: <Icon><line x1="4" y1="8" x2="20" y2="8" /><circle cx="9" cy="8" r="2" /><line x1="4" y1="16" x2="20" y2="16" /><circle cx="15" cy="16" r="2" /></Icon>,
   analytics: <Icon><line x1="6" y1="20" x2="6" y2="12" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="18" y1="20" x2="18" y2="14" /></Icon>,
@@ -96,16 +97,27 @@ export function Header({
   const isWide = onApp // app pages run full-width; match the navbar to the content
   return (
     <header className="sticky top-0 z-30 border-b border-[var(--line)] bg-[var(--panel)] backdrop-blur-xl">
-      <div className={`${isWide ? 'w-full px-3 sm:px-4' : 'mx-auto max-w-5xl px-4 sm:px-6 lg:px-8'} flex items-center gap-3`}>
+      <div className={`${isWide ? 'w-full px-2 sm:px-4' : 'mx-auto max-w-5xl px-4 sm:px-6 lg:px-8'} flex items-center gap-2 sm:gap-3`}>
         <button
           type="button"
           onClick={() => onNavigate('dashboard')}
-          title="Creator Console — dashboard"
-          className="display-font text-base font-bold text-[var(--ink)] tracking-tight py-2 whitespace-nowrap flex-shrink-0"
+          title={onApp ? 'Back to all apps' : 'Creator Console — dashboard'}
+          aria-label={onApp ? 'Back to all apps' : 'Creator Console'}
+          className="display-font text-base font-bold text-[var(--ink)] tracking-tight py-2 whitespace-nowrap flex-shrink-0 flex items-center"
         >
-          {/* Compact on mobile to leave room for the nav; full brand on sm+. */}
-          <span className="sm:hidden">Console</span>
-          <span className="hidden sm:inline">Creator Console</span>
+          {onApp ? (
+            <>
+              {/* Inside a project, the brand is wasted width on mobile — show a
+                  compact back arrow; full brand returns on sm+. */}
+              <svg className="sm:hidden" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+              <span className="hidden sm:inline">Creator Console</span>
+            </>
+          ) : (
+            <>
+              <span className="sm:hidden">Console</span>
+              <span className="hidden sm:inline">Creator Console</span>
+            </>
+          )}
         </button>
 
         {onApp ? (
@@ -114,7 +126,8 @@ export function Header({
           // dropdown, and any non-visible overflow clips it (overflow-x also
           // forces overflow-y to auto). Only the tab group scrolls (below).
           <div className="flex items-center gap-1 flex-1 min-w-0">
-            <span className="text-[var(--muted)] select-none flex-shrink-0">/</span>
+            {/* "/" breadcrumb only on sm+ — the back arrow already implies it on mobile. */}
+            <span className="text-[var(--muted)] select-none flex-shrink-0 hidden sm:inline">/</span>
             <ProjectSwitcher
               apps={apps}
               selectedAppId={selectedAppId!}
