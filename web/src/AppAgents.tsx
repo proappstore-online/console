@@ -56,7 +56,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   const { limit: fileLimit, more: fileMore } = useWindowedLimit(50)
   // Live "an agent is working right now" signal — set by run/heartbeat/tool WS
   // events, auto-cleared by a staleness check (see effect below). null = idle.
-  const [agentWork, setAgentWork] = useState<{ role: string; at: number } | null>(null)
+  const [agentWork, setAgentWork] = useState<{ role: string; at: number; costUsd?: number; tokensIn?: number; tokensOut?: number } | null>(null)
   // Per-ticket live status line + real-time cost.
   const [ticketLive, setTicketLive] = useState<Record<string, { text: string; role: string; at: number; startedAt?: number; costUsd?: number; tokensIn?: number; tokensOut?: number }>>({})
   // Bumped on every `files-synced` event so the live KB preview (Research tab)
@@ -662,6 +662,11 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
                     <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
                       <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
                       {agentWork ? `${agentWork.role} working...` : 'Thinking...'}
+                      {(agentWork?.costUsd ?? 0) > 0 && (
+                        <span className="text-[var(--accent)] font-semibold" title={`${agentWork!.tokensIn ?? 0}+${agentWork!.tokensOut ?? 0} tokens`}>
+                          ${(agentWork!.costUsd ?? 0).toFixed(4)}
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>

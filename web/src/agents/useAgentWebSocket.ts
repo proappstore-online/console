@@ -30,7 +30,7 @@ interface UseAgentWebSocketOpts {
   setChat: Dispatch<SetStateAction<ChatMessage[]>>
   setKbChat: Dispatch<SetStateAction<ChatMessage[]>>
   setActivity: Dispatch<SetStateAction<ActivityEntry[]>>
-  setAgentWork: Dispatch<SetStateAction<{ role: string; at: number } | null>>
+  setAgentWork: Dispatch<SetStateAction<{ role: string; at: number; costUsd?: number; tokensIn?: number; tokensOut?: number } | null>>
   setTicketLive: Dispatch<SetStateAction<Record<string, TicketLiveEntry>>>
   setSelTicket: Dispatch<SetStateAction<Ticket | null>>
   setFilesVersion: Dispatch<SetStateAction<number>>
@@ -108,12 +108,15 @@ export function handleEvent(d: Record<string, unknown>, opts: UseAgentWebSocketO
     case 'agent-tool-call':
     case 'agent-tool-result': {
       const role = String(d.role ?? 'Agent')
-      setAgentWork({ role, at: Date.now() })
+      const cost = typeof d.costUsd === 'number' ? d.costUsd : undefined
+      const tokIn = typeof d.tokensIn === 'number' ? d.tokensIn : undefined
+      const tokOut = typeof d.tokensOut === 'number' ? d.tokensOut : undefined
+      // Carry cost on the general signal too — the Architect (Research thread)
+      // has no ticketId, so this is the only place its spend surfaces.
+      setAgentWork(w => ({ role, at: Date.now(),
+        costUsd: cost ?? w?.costUsd, tokensIn: tokIn ?? w?.tokensIn, tokensOut: tokOut ?? w?.tokensOut }))
       if (d.ticketId) {
         const tid = String(d.ticketId)
-        const cost = typeof d.costUsd === 'number' ? d.costUsd : undefined
-        const tokIn = typeof d.tokensIn === 'number' ? d.tokensIn : undefined
-        const tokOut = typeof d.tokensOut === 'number' ? d.tokensOut : undefined
 
         if (d.type === 'agent-text') {
           opts.onAgentText?.(role, String(d.text ?? ''))
