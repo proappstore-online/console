@@ -284,6 +284,7 @@ export function SubmissionForm({
             onKeyDown={onFeatureKey}
             onBlur={addFeature}
             placeholder={form.proFeatures.length === 0 ? 'Type and press Enter…' : ''}
+            aria-label="Add a Pro feature"
             className="flex-1 min-w-[8rem] bg-transparent px-1 py-1 text-sm text-[var(--ink)] focus:outline-none"
           />
         </div>

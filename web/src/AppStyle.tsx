@@ -208,6 +208,7 @@ export function AppStyle({ appId, getToken }: { appId: string; getToken: () => s
                   <input type="color" value={tokens.accent} onChange={e => { set('accent', e.target.value); set('accentHover', e.target.value) }}
                     className="w-8 h-8 rounded cursor-pointer border border-[var(--line)]" />
                   <input type="text" value={tokens.accent} onChange={e => set('accent', e.target.value)}
+                    aria-label="Accent color"
                     className="input font-mono text-xs" />
                 </div>
               </label>
@@ -217,6 +218,7 @@ export function AppStyle({ appId, getToken }: { appId: string; getToken: () => s
                   <input type="color" value={tokens.accentHover} onChange={e => set('accentHover', e.target.value)}
                     className="w-8 h-8 rounded cursor-pointer border border-[var(--line)]" />
                   <input type="text" value={tokens.accentHover} onChange={e => set('accentHover', e.target.value)}
+                    aria-label="Accent hover color"
                     className="input font-mono text-xs" />
                 </div>
               </label>
@@ -226,6 +228,7 @@ export function AppStyle({ appId, getToken }: { appId: string; getToken: () => s
                   <input type="color" value={tokens.paper} onChange={e => set('paper', e.target.value)}
                     className="w-8 h-8 rounded cursor-pointer border border-[var(--line)]" />
                   <input type="text" value={tokens.paper} onChange={e => set('paper', e.target.value)}
+                    aria-label="Background color (light)"
                     className="input font-mono text-xs" />
                 </div>
               </label>
@@ -235,6 +238,7 @@ export function AppStyle({ appId, getToken }: { appId: string; getToken: () => s
                   <input type="color" value={tokens.paperDark} onChange={e => set('paperDark', e.target.value)}
                     className="w-8 h-8 rounded cursor-pointer border border-[var(--line)]" />
                   <input type="text" value={tokens.paperDark} onChange={e => set('paperDark', e.target.value)}
+                    aria-label="Background color (dark)"
                     className="input font-mono text-xs" />
                 </div>
               </label>
@@ -309,7 +313,7 @@ export function AppStyle({ appId, getToken }: { appId: string; getToken: () => s
                   <span className="opacity-50">Card component preview</span>
                 </div>
               </div>
-              <input type="text" placeholder="Input field" className="w-full px-2 py-1 text-xs border" style={{
+              <input type="text" placeholder="Input field" aria-label="Preview input field" className="w-full px-2 py-1 text-xs border" style={{
                 borderColor: previewTheme === 'dark' ? '#3a3a52' : '#d1d5db', borderRadius: parseInt(tokens.radius) > 8 ? Math.round(parseInt(tokens.radius) * 0.67) + 'px' : tokens.radius,
                 background: previewTheme === 'dark' ? tokens.paperDark : tokens.paper,
                 color: previewTheme === 'dark' ? tokens.inkDark : tokens.ink,

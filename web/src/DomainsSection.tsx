@@ -106,6 +106,7 @@ export function DomainsSection({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="app.yourdomain.com"
+          aria-label="Custom domain"
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}

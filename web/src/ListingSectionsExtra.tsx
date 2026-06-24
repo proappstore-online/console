@@ -25,6 +25,7 @@ export function DeveloperSection({ appId, listing, update, getToken }: SectionPr
           value={draft.websiteUrl ?? ''}
           onChange={(e) => set('websiteUrl', e.target.value || null)}
           placeholder="https://your-company.com"
+          aria-label="Website"
           className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm"
         />
       </Row>
@@ -34,6 +35,7 @@ export function DeveloperSection({ appId, listing, update, getToken }: SectionPr
           value={draft.supportEmail ?? ''}
           onChange={(e) => set('supportEmail', e.target.value || null)}
           placeholder="support@your-company.com"
+          aria-label="Support email"
           className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm"
         />
       </Row>
@@ -43,6 +45,7 @@ export function DeveloperSection({ appId, listing, update, getToken }: SectionPr
           value={draft.supportUrl ?? ''}
           onChange={(e) => set('supportUrl', e.target.value || null)}
           placeholder="https://help.your-company.com"
+          aria-label="Support URL"
           className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm"
         />
       </Row>
@@ -78,6 +81,7 @@ export function SocialSection({ appId, listing, update, getToken }: SectionProps
           value={draft.socialMastodon ?? ''}
           onChange={(e) => set('socialMastodon', e.target.value || null)}
           placeholder="https://mastodon.social/@you"
+          aria-label="Mastodon URL"
           className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm"
         />
       </Row>
@@ -156,12 +160,14 @@ export function LegalSection({ appId, listing, update, getToken }: SectionProps)
             value={draft.privacyPolicyUrl ?? ''}
             onChange={(e) => set('privacyPolicyUrl', e.target.value || null)}
             placeholder="https://your-site.com/privacy"
+            aria-label="Privacy policy URL"
             className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm"
           />
           <input
             ref={privacyRef}
             type="file"
             accept=".md,.markdown,.txt,text/markdown,text/plain"
+            aria-label="Privacy policy file"
             className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadMd('privacy-policy', f) }}
           />
@@ -211,12 +217,14 @@ export function LegalSection({ appId, listing, update, getToken }: SectionProps)
             value={draft.termsUrl ?? ''}
             onChange={(e) => set('termsUrl', e.target.value || null)}
             placeholder="https://your-site.com/terms"
+            aria-label="Terms of service URL"
             className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm"
           />
           <input
             ref={termsRef}
             type="file"
             accept=".md,.markdown,.txt,text/markdown,text/plain"
+            aria-label="Terms of service file"
             className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadMd('terms', f) }}
           />

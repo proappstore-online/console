@@ -120,6 +120,7 @@ export function ColorInput({ value, onChange, placeholder }: { value: string; on
         type="color"
         value={/^#[0-9a-fA-F]{6}$/.test(value) ? value : '#000000'}
         onChange={(e) => onChange(e.target.value)}
+        aria-label={`${placeholder} (color picker)`}
         className="h-9 w-12 rounded border border-[var(--line-strong)] cursor-pointer bg-transparent"
       />
       <input
@@ -127,6 +128,7 @@ export function ColorInput({ value, onChange, placeholder }: { value: string; on
         value={value}
         onChange={(e) => onChange(e.target.value || null)}
         placeholder={placeholder}
+        aria-label={placeholder}
         className="flex-1 rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm font-mono"
       />
     </div>
@@ -144,6 +146,7 @@ export function PrefixedInput({
         value={value}
         onChange={(e) => onChange(e.target.value.replace(/^@/, ''))}
         placeholder={placeholder}
+        aria-label={`${prefix}${placeholder}`}
         className="flex-1 px-3 py-2 text-sm bg-transparent focus:outline-none"
       />
     </div>

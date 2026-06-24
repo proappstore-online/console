@@ -238,6 +238,7 @@ function ApiKeysSection() {
                       onChange={(e) => setDraft(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') save(p.id) }}
                       placeholder={`Paste your ${p.name} API key${p.key_prefix ? ` (${p.key_prefix}…)` : ''}`}
+                      aria-label={`${p.name} API key`}
                       className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)]"
                     />
                     <button type="button" onClick={() => save(p.id)} disabled={!draft.trim()}

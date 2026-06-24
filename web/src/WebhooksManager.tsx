@@ -247,6 +247,7 @@ export function WebhooksManager({ appId, getToken }: Props) {
               value={event}
               onChange={(e) => setEvent(e.target.value)}
               disabled={addState === 'saving'}
+              aria-label="Webhook event"
               className="rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--ink)] disabled:opacity-50"
             >
               {SUPPORTED_EVENTS.map((ev) => (
@@ -258,6 +259,7 @@ export function WebhooksManager({ appId, getToken }: Props) {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://example.com/webhook"
+              aria-label="Webhook URL"
               disabled={addState === 'saving'}
               className="flex-1 rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm font-mono text-[var(--ink)] placeholder:text-[var(--muted)]/60 focus:outline-none focus:border-[var(--ink)] disabled:opacity-50"
             />

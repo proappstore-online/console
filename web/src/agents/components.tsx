@@ -225,9 +225,11 @@ export function MemoryPanel({ entries, onAdd, onDelete, onClose }: {
       </div>
       <div className="p-3 border-t border-[var(--line)] space-y-2">
         <input value={k} onChange={e => setK(e.target.value)} placeholder="key (e.g. auth)"
+          aria-label="Memory key"
           className="w-full rounded-lg border border-[var(--line)] bg-[var(--panel)] px-2 py-1.5 text-xs text-[var(--ink)]" />
         <div className="flex gap-2">
           <input value={v} onChange={e => setV(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submit() }} placeholder="value (e.g. GitHub OAuth)"
+            aria-label="Memory value"
             className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-2 py-1.5 text-xs text-[var(--ink)]" />
           <button type="button" onClick={submit} disabled={!k.trim() || !v.trim()}
             className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50">Add</button>

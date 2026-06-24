@@ -75,6 +75,7 @@ export function QueryTab({
             onChange={(e) => { setSql(e.target.value); setConfirmed(false) }}
             onKeyDown={handleKeyDown}
             placeholder="SELECT * FROM users LIMIT 10"
+            aria-label="SQL query"
             spellCheck={false}
             className="mt-1 w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm font-mono text-[var(--ink)] placeholder:text-[var(--muted)]/60 focus:outline-none focus:border-[var(--ink)]"
           />
