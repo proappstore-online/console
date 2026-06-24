@@ -2,6 +2,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkFrontmatter from 'remark-frontmatter'
 import rehypeRaw from 'rehype-raw'
+import rehypeSanitize from 'rehype-sanitize'
 import { highlightCode } from './highlight-langs'
 
 /**
@@ -26,11 +27,16 @@ function stripDirectives(md: string): string {
 }
 
 export function Markdown({ children, compact }: { children: string; compact?: boolean }) {
+  // rehypeRaw parses raw HTML in markdown; rehypeSanitize then strips scripts /
+  // event-handlers / javascript: URLs. Required because the content is AI/agent-
+  // authored (KB docs, agent messages) and renders in the creator's session —
+  // without it, a prompt-injected <img onerror> could steal the session token.
+  // Order matters: raw THEN sanitize.
   return (
     <div className={compact ? 'md md-compact' : 'md'}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkFrontmatter]}
-        rehypePlugins={[rehypeRaw]}
+        rehypePlugins={[rehypeRaw, rehypeSanitize]}
         components={{
           a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
           code({ node: _node, className, children, ...props }) {
