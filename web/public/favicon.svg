@@ -6,5 +6,16 @@
     </linearGradient>
   </defs>
   <rect width="512" height="512" rx="96" fill="url(#bg)"/>
-  <text x="256" y="346" font-family="Manrope, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="300" fill="white" text-anchor="middle">A</text>
+  <!-- Control-panel sliders — the Creator Console mark (vs the storefront "A"),
+       same PAS purple brand. -->
+  <g stroke="white" stroke-width="26" stroke-linecap="round">
+    <line x1="128" y1="170" x2="384" y2="170"/>
+    <line x1="128" y1="256" x2="384" y2="256"/>
+    <line x1="128" y1="342" x2="384" y2="342"/>
+  </g>
+  <g fill="white" stroke="#7c3aed" stroke-width="12">
+    <circle cx="320" cy="170" r="32"/>
+    <circle cx="184" cy="256" r="32"/>
+    <circle cx="296" cy="342" r="32"/>
+  </g>
 </svg>
