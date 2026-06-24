@@ -45,6 +45,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   // dropped if the user already switched tickets (avoids showing ticket A's
   // messages under ticket B). Same staleness guard pattern as KbPreview.loadDoc.
   const selTicketIdRef = useRef<string | null>(null)
+  const detailRef = useRef<HTMLDivElement | null>(null)
   // Project memory (decisions/facts the team treats as ground truth).
   const [memory, setMemory] = useState<{ id: string; category: string; key: string; value: string }[] | null>(null)
   const memOpenRef = useRef(false)
@@ -253,6 +254,15 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   // Keep the staleness ref in sync with the selected ticket from ALL paths
   // (close button, WS deletion, live-refresh swap) — not just openTicket.
   useEffect(() => { selTicketIdRef.current = selTicket?.id ?? null }, [selTicket])
+
+  // On phones/tablets the ticket detail stacks BELOW the board (it's a side
+  // column only at lg+). Without this, tapping a ticket scrolls nowhere and
+  // feels like nothing happened — bring the detail into view.
+  useEffect(() => {
+    if (selTicket?.id && detailRef.current && window.matchMedia('(max-width: 1023px)').matches) {
+      detailRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }, [selTicket?.id])
 
   // Preview one of the agents' working-tree files in the right inspector.
   const openFile = useCallback(async (path: string) => {
@@ -1051,7 +1061,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
 
       {/* DETAIL: ticket panel (right of the board) */}
       {tab === 'build' && !filePreview && !fileList && selTicket && (
-        <div className="flex flex-col lg:w-[380px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden min-h-0">
+        <div ref={detailRef} className="flex flex-col lg:w-[380px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden min-h-0">
           <div className="px-4 py-3 border-b border-[var(--line)] flex items-start justify-between gap-2 flex-shrink-0">
             <div className="min-w-0">
               <div className="flex items-center gap-1 mb-0.5">
