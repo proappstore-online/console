@@ -264,6 +264,18 @@ a:focus-visible {
   white-space: nowrap;
   animation: marquee 8s linear infinite;
 }
+
+/* Bottom-sheet slide-up (mobile ticket detail). */
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.animate-sheet-up {
+  animation: sheet-up 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-sheet-up { animation: none; }
+}
 .animate-marquee:hover {
   animation-play-state: paused;
 }

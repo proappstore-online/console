@@ -1059,9 +1059,19 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
         </div>
       )}
 
-      {/* DETAIL: ticket panel (right of the board) */}
+      {/* DETAIL: ticket panel — a bottom sheet on mobile, a side column at lg+. */}
       {tab === 'build' && !filePreview && !fileList && selTicket && (
-        <div ref={detailRef} className="flex flex-col lg:w-[380px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden min-h-0">
+        <>
+          {/* Mobile backdrop: dim the board, tap to dismiss. */}
+          <div className="lg:hidden fixed inset-0 z-[35] bg-black/40" onClick={() => setSelTicket(null)} aria-hidden="true" />
+          <div
+            ref={detailRef}
+            className="fixed inset-x-0 bottom-0 z-40 max-h-[82vh] rounded-t-2xl shadow-[0_-8px_30px_rgba(0,0,0,0.25)] animate-sheet-up pb-[env(safe-area-inset-bottom)]
+                       lg:static lg:z-auto lg:max-h-none lg:rounded-2xl lg:shadow-none lg:w-[380px] lg:animate-none lg:pb-0
+                       flex flex-col flex-shrink-0 border border-[var(--line)] bg-[var(--panel-solid)] lg:bg-[var(--panel)] overflow-hidden min-h-0"
+          >
+          {/* Grab handle (mobile only) */}
+          <div className="lg:hidden mx-auto mt-2 mb-1 h-1 w-9 rounded-full bg-[var(--line-strong)] flex-shrink-0" aria-hidden="true" />
           <div className="px-4 py-3 border-b border-[var(--line)] flex items-start justify-between gap-2 flex-shrink-0">
             <div className="min-w-0">
               <div className="flex items-center gap-1 mb-0.5">
@@ -1137,7 +1147,8 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
               )}
             </div>
           </div>
-        </div>
+          </div>
+        </>
       )}
 
       {showInfo && <AgentsInfoModal onClose={() => setShowInfo(false)} />}
