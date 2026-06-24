@@ -96,12 +96,10 @@ export function Header({
           className="display-font text-base font-bold text-[var(--ink)] tracking-tight py-2 whitespace-nowrap flex-shrink-0 flex items-center"
         >
           {onApp ? (
-            <>
-              {/* Inside a project, the brand is wasted width on mobile — show a
-                  compact back arrow; full brand returns on sm+. */}
-              <svg className="sm:hidden" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-              <span className="hidden sm:inline">Creator Console</span>
-            </>
+            // Inside a project the brand is wasted width at every size — the
+            // project switcher already shows context. Just a back arrow; the
+            // full "Creator Console" brand lives on the dashboard.
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
           ) : (
             <>
               <span className="sm:hidden">Console</span>
@@ -116,8 +114,7 @@ export function Header({
           // dropdown, and any non-visible overflow clips it (overflow-x also
           // forces overflow-y to auto). Only the tab group scrolls (below).
           <div className="flex items-center gap-1 flex-1 min-w-0">
-            {/* "/" breadcrumb only on sm+ — the back arrow already implies it on mobile. */}
-            <span className="text-[var(--muted)] select-none flex-shrink-0 hidden sm:inline">/</span>
+            {/* No "/" breadcrumb — the back arrow already implies the hierarchy. */}
             <ProjectSwitcher
               apps={apps}
               selectedAppId={selectedAppId!}

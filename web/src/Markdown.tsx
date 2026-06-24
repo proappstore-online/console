@@ -18,6 +18,7 @@ import { highlightCode } from './highlight-langs'
  */
 
 function stripDirectives(md: string): string {
+  if (!md) return '' // defend against undefined/empty children — never crash the chat
   return md
     .replace(/\{::nomarkdown\}/g, '')
     .replace(/\{:\/nomarkdown\}/g, '')

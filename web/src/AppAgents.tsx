@@ -46,6 +46,9 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
   // messages under ticket B). Same staleness guard pattern as KbPreview.loadDoc.
   const selTicketIdRef = useRef<string | null>(null)
   const detailRef = useRef<HTMLDivElement | null>(null)
+  // Research tab: show the KB or the Architect activity (one at a time, each
+  // full-height + scrollable) rather than cramming both into a split.
+  const [researchPane, setResearchPane] = useState<'kb' | 'activity'>('kb')
   // Project memory (decisions/facts the team treats as ground truth).
   const [memory, setMemory] = useState<{ id: string; category: string; key: string; value: string }[] | null>(null)
   const memOpenRef = useRef(false)
@@ -590,7 +593,9 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
       {/* Chat panel — one per tab, bound to its own thread/agent: Research → the
           Architect (KB), Build → the PO (backlog). Rendered for both tabs. */}
       {(tab === 'research' || tab === 'build') && (
-      <div className="flex flex-col lg:w-[360px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden min-h-0">
+      // On mobile the chat is capped so the board / KB below always have room
+      // (messages scroll inside); on lg+ it's the full-height left column.
+      <div className="flex flex-col lg:w-[360px] flex-shrink-0 max-h-[45vh] lg:max-h-none rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden min-h-0">
         <div className="px-3 py-2 border-b border-[var(--line)] flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <h3 className="text-sm font-bold text-[var(--ink)]">{activeThread === 'research' ? 'KB chat · Architect' : 'Chat · PO'}</h3>
@@ -717,37 +722,61 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
       {/* RESEARCH: live Knowledge Base preview + Architect activity */}
       {tab === 'research' && (
         <div className="flex-1 flex flex-col gap-2 min-w-0 min-h-0">
-          <div className="flex-[3] min-h-0">
-            <KbPreview
-              appId={appId}
-              token={token}
-              version={filesVersion}
-              kbStarted={kbStarted}
-              building={buildingKb}
-              onBuildKb={buildKB}
-              working={agentWork}
-            />
-          </div>
-          {/* Architect activity */}
-          <div className="flex-[1] min-h-[80px] rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3 flex flex-col">
-            <h3 className="text-sm font-bold text-[var(--ink)] mb-1">Architect Activity</h3>
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-1 text-xs font-mono">
-              {(() => {
-                const archActivity = activity.filter(e =>
-                  e.detail.startsWith('Architect:') || e.detail.startsWith('Architect ') || e.type === 'memory'
-                )
-                return archActivity.length === 0
-                  ? <p className="text-[var(--muted)] py-2 text-center font-sans text-xs">Architect tool calls and KB writes appear here.</p>
-                  : archActivity.slice(-30).map(e => (
-                    <div key={e.id} className="flex gap-2 text-[var(--muted)] leading-snug">
-                      <span className="flex-shrink-0 opacity-50 tabular-nums">{new Date(e.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-                      <span className="flex-shrink-0 font-bold" style={{ color: e.type === 'memory' ? '#14b8a6' : '#3b82f6' }}>{e.type}</span>
-                      <span className="text-[var(--ink)] break-words min-w-0">{e.detail.replace('Architect: ', '')}</span>
-                    </div>
-                  ))
-              })()}
+          {/* Toggle: the KB and the activity each get the FULL height + scroll,
+              instead of being squeezed into a fixed split. */}
+          {(() => {
+            const archActivity = activity.filter(e =>
+              e.detail.startsWith('Architect:') || e.detail.startsWith('Architect ') || e.type === 'memory'
+            )
+            return (
+              <div className="flex items-center gap-0.5 rounded-lg border border-[var(--line-strong)] p-0.5 w-fit flex-shrink-0" role="tablist" aria-label="Research pane">
+                <button type="button" role="tab" aria-selected={researchPane === 'kb'} onClick={() => setResearchPane('kb')}
+                  className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md transition-colors ${researchPane === 'kb' ? 'bg-[var(--accent)] text-white' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                  Knowledge
+                </button>
+                <button type="button" role="tab" aria-selected={researchPane === 'activity'} onClick={() => setResearchPane('activity')}
+                  className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md transition-colors ${researchPane === 'activity' ? 'bg-[var(--accent)] text-white' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                  Activity{archActivity.length > 0 ? ` (${archActivity.length})` : ''}
+                </button>
+              </div>
+            )
+          })()}
+
+          {researchPane === 'kb' ? (
+            <div className="flex-1 min-h-0">
+              <KbPreview
+                appId={appId}
+                token={token}
+                version={filesVersion}
+                kbStarted={kbStarted}
+                building={buildingKb}
+                onBuildKb={buildKB}
+                working={agentWork}
+              />
             </div>
-          </div>
+          ) : (
+            <div className="flex-1 min-h-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3 flex flex-col">
+              <h3 className="text-sm font-bold text-[var(--ink)] mb-2 flex-shrink-0">Architect Activity</h3>
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-1 text-xs font-mono">
+                {(() => {
+                  const archActivity = activity.filter(e =>
+                    e.detail.startsWith('Architect:') || e.detail.startsWith('Architect ') || e.type === 'memory'
+                  )
+                  return archActivity.length === 0
+                    ? <p className="text-[var(--muted)] py-2 text-center font-sans text-xs">Architect tool calls and KB writes appear here.</p>
+                    : archActivity.slice(-200).map(e => (
+                      <div key={e.id} className="flex gap-2 text-[var(--muted)] leading-snug">
+                        <span className="flex-shrink-0 opacity-50 tabular-nums">{new Date(e.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                        <span className="flex-shrink-0 font-bold" style={{ color: e.type === 'memory' ? '#14b8a6' : '#3b82f6' }}>{e.type}</span>
+                        <span className="text-[var(--ink)] break-words min-w-0">{e.detail.replace('Architect: ', '')}</span>
+                      </div>
+                    ))
+                })()}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
