@@ -6,10 +6,14 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="theme-color" content="#000000" id="theme-color" />
+    <!-- Brand theme color (matches proappstore.online): paper light / ink dark. -->
+    <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" />
     <meta name="darkreader-lock" />
     <link rel="manifest" href="/manifest.json" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <!-- ProAppStore brand mark: purple-gradient "A" (BRAND.md). -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <script>
       if (matchMedia('(prefers-color-scheme: dark)').matches) {
         document.documentElement.dataset.theme = 'dark';
@@ -21,6 +25,16 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <title>Creator Console — ProAppStore</title>
+    <meta name="description" content="Manage and build your apps on ProAppStore — the creator console." />
+    <!-- Social/share cards (brand parity with proappstore.online). -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Creator Console — ProAppStore" />
+    <meta property="og:description" content="Manage and build your apps on ProAppStore." />
+    <meta property="og:url" content="https://console.proappstore.online/" />
+    <meta property="og:image" content="https://console.proappstore.online/icon-512.png" />
+    <meta name="twitter:card" content="summary" />
+    <!-- Structured data — exceeds the storefront's head (adopted from PAGS). -->
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"ProAppStore Creator Console","url":"https://console.proappstore.online","applicationCategory":"DeveloperApplication","description":"Manage and build your apps on ProAppStore."}</script>
     <!-- CF Web Analytics beacon for the console itself. Cookieless, no PII.
          Token is the literal string until set; replace PROAPPSTORE_CONSOLE_CF_BEACON_TOKEN
          with the real Web Analytics site_token from the CF dashboard
