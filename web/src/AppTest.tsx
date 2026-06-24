@@ -98,7 +98,10 @@ export function AppTest({ appId, getToken }: { appId: string; getToken: () => st
   return (
     <div className="flex flex-col lg:flex-row gap-2 flex-1 min-h-0 overflow-hidden">
       {/* LEFT: QA Chat */}
-      <div className="flex flex-col lg:w-[360px] flex-shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden min-h-0">
+      {/* Mobile: definite height so the absolute-fill message area gets a bounded
+          height and scrolls, instead of collapsing and overlapping the input
+          (same fix as the Build/Research chat). lg+: full-height side column. */}
+      <div className="flex flex-col lg:w-[360px] flex-shrink-0 h-[45vh] lg:h-auto rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden min-h-0">
         <div className="px-3 py-2 border-b border-[var(--line)] flex items-center justify-between">
           <h3 className="text-sm font-bold text-[var(--ink)]">QA Agent</h3>
           <div className="flex items-center gap-1">
