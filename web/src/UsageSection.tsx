@@ -57,7 +57,10 @@ export function UsageSection({ appId, getToken }: { appId: string; getToken: () 
 }
 
 function UsageBody({ data }: { data: UsageResponse }) {
-  const { series, totals } = data
+  // Defend against an empty/partial response ({} for a brand-new app) so the
+  // tab shows the empty state instead of white-screening.
+  const series = data.series ?? []
+  const totals = data.totals ?? { users: 0, sessionSeconds: 0, apiCalls: 0 }
   const hasAnyActivity =
     totals.users > 0 || totals.sessionSeconds > 0 || totals.apiCalls > 0
 

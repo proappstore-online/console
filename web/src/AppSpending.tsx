@@ -44,7 +44,9 @@ export function AppSpending({ appId, getToken }: { appId: string; getToken: () =
     if (!token) return
     try {
       const d = await api(`/projects/${appId}/cost/detail`, token) as CostDetail
-      setData(d)
+      // Normalize: a partial/empty response ({} for a new project) would
+      // white-screen the render, which reads byTicket/byRole/ledger/totalUsd.
+      setData({ totalUsd: 0, byRole: [], byTicket: [], ledger: [], ...(d as Partial<CostDetail>) })
       setError(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load cost data')

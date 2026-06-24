@@ -6,7 +6,7 @@ import { formatViewCount, type EventKindSummary } from "./analytics"
  * SDK exposes window.pasAnalytics.event() until they're told.
  */
 export function CustomEventsPanel({
-  events,
+  events = [], // runtime default: the parent may feed an empty/partial response
   days,
   onPickKind,
 }: {

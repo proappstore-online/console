@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { ErrorBoundary } from './ErrorBoundary'
 import { fetchListing, type Listing } from './listings'
 import { RolesManager } from './RolesManager'
 import { DbBrowser } from './DbBrowser'
@@ -56,6 +57,10 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab, settingsTab
 
   return (
     <div className="flex-1 flex flex-col gap-2 min-h-0">
+      {/* A section-level boundary so one crashing tab/section shows a local
+          fallback instead of white-screening the whole console. resetKey={tab}
+          clears a tripped boundary when you switch tabs. */}
+      <ErrorBoundary variant="section" resetKey={tab}>
       {/* Navbar owns the project switcher / tab switcher / live link.
           Research + Build share ONE AppAgents instance (kept mounted across the
           switch so its WebSocket + state survive) — it just renders chat+KB vs
@@ -208,6 +213,7 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab, settingsTab
           )}
         </div>
       )}
+      </ErrorBoundary>
     </div>
   )
 }

@@ -49,12 +49,12 @@ export function LiveView({ appId, getToken }: { appId: string; getToken: () => s
         />
       </span>
       <div className="text-sm">
-        <span className="font-bold text-[var(--ink)] tabular-nums">{formatViewCount(data.views)}</span>{' '}
+        <span className="font-bold text-[var(--ink)] tabular-nums">{formatViewCount(data.views ?? 0)}</span>{' '}
         <span className="text-[var(--muted)]">page view{data.views === 1 ? '' : 's'} in the last 5 min</span>
-        {data.top_paths.length > 0 && (
+        {(data.top_paths?.length ?? 0) > 0 && (
           <>
             {' · hot now: '}
-            {data.top_paths.slice(0, 3).map((p, i) => (
+            {(data.top_paths ?? []).slice(0, 3).map((p, i) => (
               <span key={p.path}>
                 {i > 0 && ', '}
                 <span className="font-mono text-xs">{p.path || '/'}</span>

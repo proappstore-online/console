@@ -95,14 +95,16 @@ export function TestResults({ appId, live = false, getToken, onFileClick }: { ap
 
   if (loading) return <p className="py-8 text-center text-sm text-[var(--muted)]">Loading test history...</p>
 
-  const hasHistory = history && history.runs.length > 0
+  // Guard every field: a brand-new app (or a degraded/empty response) can return
+  // {} with no `runs`/`specTrending`, which would white-screen the whole tab.
+  const hasHistory = (history?.runs?.length ?? 0) > 0
   const e2eSpecs = specFiles.filter(f => f.startsWith('e2e/'))
   const unitSpecs = specFiles.filter(f => f.startsWith('tests/'))
 
   return (
     <div className="space-y-4">
       {/* Stats bar */}
-      {hasHistory && (
+      {history && hasHistory && (
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <span className={`text-2xl font-bold font-mono ${history.stats.overallPct >= 80 ? 'text-green-600' : history.stats.overallPct >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
@@ -131,7 +133,7 @@ export function TestResults({ appId, live = false, getToken, onFileClick }: { ap
       )}
 
       {/* Per-spec trending */}
-      {hasHistory && Object.keys(history.specTrending).length > 0 && (
+      {history && Object.keys(history.specTrending ?? {}).length > 0 && (
         <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
           <h3 className="text-[10px] font-semibold text-[var(--muted)] uppercase tracking-wide mb-2">Spec health (last 20 runs)</h3>
           <div className="space-y-1">
@@ -152,7 +154,7 @@ export function TestResults({ appId, live = false, getToken, onFileClick }: { ap
       )}
 
       {/* Run history */}
-      {hasHistory && (
+      {history && hasHistory && (
         <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
           <h3 className="text-[10px] font-semibold text-[var(--muted)] uppercase tracking-wide mb-2">Run history ({history.runs.length})</h3>
           <div className="space-y-1">
