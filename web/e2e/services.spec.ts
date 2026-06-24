@@ -137,7 +137,8 @@ test.describe('Services — /app proxy', () => {
     const manifest = await res.json();
     expect(manifest.scope).toBe('/app/');
     expect(manifest.start_url).toBe('/app/');
-    expect(manifest.name).toBe('ProAppStore');
+    // Distinct from the storefront: the console PWA is branded "ProAppStore Console".
+    expect(manifest.name).toBe('ProAppStore Console');
   });
 
   test('/app/nonexistent returns 200 (SPA fallback)', async ({ request }) => {
