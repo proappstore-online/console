@@ -593,9 +593,11 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
       {/* Chat panel — one per tab, bound to its own thread/agent: Research → the
           Architect (KB), Build → the PO (backlog). Rendered for both tabs. */}
       {(tab === 'research' || tab === 'build') && (
-      // On mobile the chat is capped so the board / KB below always have room
-      // (messages scroll inside); on lg+ it's the full-height left column.
-      <div className="flex flex-col lg:w-[360px] flex-shrink-0 max-h-[45vh] lg:max-h-none rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden min-h-0">
+      // Mobile: a DEFINITE height (not just max-h) so the messages area — an
+      // absolute-fill scroll region inside a flex-1 parent — gets a bounded
+      // height and scrolls, instead of collapsing and letting bubbles overlap
+      // the input. lg+: the full-height left column (h-auto stretches in the row).
+      <div className="flex flex-col lg:w-[360px] flex-shrink-0 h-[45vh] lg:h-auto rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden min-h-0">
         <div className="px-3 py-2 border-b border-[var(--line)] flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <h3 className="text-sm font-bold text-[var(--ink)]">{activeThread === 'research' ? 'KB chat · Architect' : 'Chat · PO'}</h3>
