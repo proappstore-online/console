@@ -1,39 +1,61 @@
-# template-standalone
+# Creator Console
 
-The standalone-app template used by [`fas init`](https://github.com/freeappstore-online/platform/tree/main/packages/cli) to scaffold new free apps for [FreeAppStore](https://freeappstore.online).
+The multi-tenant admin portal for **ProAppStore** creators — manage apps, drive the
+agent build teams, and configure everything from one place. Lives at
+[console.proappstore.online](https://console.proappstore.online) (also served at
+`proappstore.online/app/`).
 
-You almost certainly want to use the CLI, not clone this directly:
+> This started from the standalone-app template and has since grown into the
+> platform's own control plane. (The README you may have seen describing a
+> "FreeAppStore template" was leftover scaffolding — this is the real thing.)
+
+## What it does
+
+- **Dashboard** — your apps, stats, one-tap "new app".
+- **Per-app workspace** (tabbed):
+  - **Research** — chat with the *Architect* agent; browse the live Knowledge Base.
+  - **Build** — the PO + BA/Dev/QA agent board (Kanban / List), live activity, cost.
+  - **Data** — D1 browser (tables, SQL query, schema graph).
+  - **Test** — the QA agent; Playwright / vitest specs and run history.
+  - **Control** — code-health report.
+  - **Analytics** — usage + visitor analytics.
+  - **Spending** — per-project agent cost breakdown.
+  - **Style** — design tokens.
+  - **Settings** — storefront listing, publishing, agents, integrations, access.
+- **Payouts / Subscription / Services / Profile** — account-level.
+- **Push notifications** — pinged when an agent task needs input, finishes, or fails.
+
+## Stack
+
+React 19 · TypeScript · Vite · Tailwind 4 · `@proappstore/sdk`. PWA (vite-plugin-pwa).
+Talks to the PAS API (`api.proappstore.online`) and the agent-teams worker
+(`agents.proappstore.online`).
+
+## Develop
 
 ```bash
-npm i -g @freeappstore/cli
-fas init my-app
+pnpm install
+pnpm dev              # local dev server
+pnpm build            # production build → web/dist/
+npx tsc -b            # typecheck — vite does NOT typecheck, run this
+npx playwright test   # e2e (web/e2e/*.spec.ts)
 ```
 
-The CLI clones this template, replaces every `freeappstore` placeholder with your app id, runs `git init`, and makes the first commit — the result is a runnable app you can `pnpm dev` immediately.
+## Deploy
 
-## What's in here
+Push to `main` → auto-deploys via **Cloudflare Pages**. No manual deploys.
 
-- `web/` — Vite + React + TypeScript app, ESM-only, no Tailwind config needed (utility classes via inline styles + the `Shell` component).
-- `web/src/components/Shell.tsx` — sidebar layout with brand fonts (Manrope + Fraunces), CSS variables (`--paper`, `--ink`, `--accent`), and dark-mode support out of the box.
-- `web/src/main.tsx` — React entry point.
-- `web/index.html` — links Manrope + Fraunces, sets PWA meta tags, references the manifest.
-- `web/public/manifest.json` — PWA manifest with `name`, `display`, `start_url`.
-- `package.json` — pnpm workspace, `dev` / `build` / `typecheck` / `test` scripts.
-- `.github/workflows/compliance.yml` — runs the same checks as `fas check` on every PR. Source of truth lives in the [`@freeappstore/compliance`](https://www.npmjs.com/package/@freeappstore/compliance) package.
+## Notes
 
-## Cloning manually (not recommended)
+- **Mobile-first:** every flow works from ~360px — bottom tab bar, bottom-sheet
+  ticket detail, scroll-bounded chat/KB panels.
+- **Resilient:** a section-level `ErrorBoundary` wraps each view, so one bad section
+  shows a local fallback instead of white-screening the whole console.
+- **Markdown is sanitized** (`rehype-sanitize`) — agent-authored content can't inject
+  script into your session.
 
-If you really want to scaffold by hand:
-
-```bash
-git clone https://github.com/freeappstore-online/template-standalone my-app
-cd my-app
-# Replace freeappstore → my-app in package.json, web/index.html, web/src/main.tsx, README, etc.
-rm -rf .git && git init
-pnpm install && pnpm dev
-```
-
-Then run `fas publish` to provision repo + hosting + DNS, or open the [submission form](https://github.com/freeappstore-online/submissions/issues/new) for maintainer review.
+For platform conventions, read <https://proappstore.online/skills.md> before changing
+anything. Repo-specific AI guidance is in [`CLAUDE.md`](./CLAUDE.md).
 
 ## License
 
