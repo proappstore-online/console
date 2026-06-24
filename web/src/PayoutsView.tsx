@@ -308,8 +308,10 @@ function StatusDot({ color }: { color: 'muted' | 'warning' | 'success' }) {
 }
 
 function EarningsPreview({ preview }: { preview: PreviewResponse }) {
-  const current = preview.months.find((m) => m.isCurrent) ?? preview.months[0]
-  const previous = preview.months.find((m) => !m.isCurrent)
+  // Defend against a partial/empty response (no months) — don't crash the view.
+  const months = preview.months ?? []
+  const current = months.find((m) => m.isCurrent) ?? months[0]
+  const previous = months.find((m) => !m.isCurrent)
   if (!current) return null
 
   return (
