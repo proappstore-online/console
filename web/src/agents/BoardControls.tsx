@@ -129,7 +129,9 @@ export function BoardConfig({ appId, project, roles, getToken, onUpdateProject, 
         }`}
         title="Agent config: models, timeout, budget">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
-        {label} {timeout}m ${cap}
+        {/* Model stays; timeout + cap (also in the popover) drop on mobile to
+            keep the toolbar from wrapping. */}
+        {label}<span className="hidden sm:inline"> {timeout}m ${cap}</span>
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-1 z-50 rounded-xl border border-[var(--line)] bg-[var(--paper)] shadow-xl p-3 min-w-[290px] space-y-3"

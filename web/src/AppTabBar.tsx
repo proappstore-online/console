@@ -32,27 +32,28 @@ export const APP_TAB_ICONS: Record<AppTab, ReactNode> = {
  *  Icon + label, scrolls horizontally if the tabs exceed the width. */
 export function MobileAppTabBar({ appTab, onAppTab }: { appTab: AppTab; onAppTab: (t: AppTab) => void }) {
   return (
-    <nav
-      aria-label="Workspace"
-      className="sm:hidden fixed inset-x-0 bottom-0 z-30 flex overflow-x-auto border-t border-[var(--line)] bg-[var(--panel)] backdrop-blur-xl pb-[env(safe-area-inset-bottom)]"
-    >
-      {APP_TABS.map((t) => {
-        const active = appTab === t.key
-        return (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => onAppTab(t.key)}
-            aria-current={active ? 'page' : undefined}
-            className={`flex flex-col items-center justify-center gap-0.5 flex-shrink-0 min-w-[3.6rem] px-1 py-1.5 text-[10px] font-medium transition-colors ${
-              active ? 'text-[var(--accent)]' : 'text-[var(--muted)] hover:text-[var(--ink)]'
-            }`}
-          >
-            {APP_TAB_ICONS[t.key]}
-            <span className="leading-none">{t.label}</span>
-          </button>
-        )
-      })}
-    </nav>
+    <div className="sm:hidden fixed inset-x-0 bottom-0 z-30 border-t border-[var(--line)] bg-[var(--panel)] backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
+      <nav aria-label="Workspace" className="flex overflow-x-auto">
+        {APP_TABS.map((t) => {
+          const active = appTab === t.key
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => onAppTab(t.key)}
+              aria-current={active ? 'page' : undefined}
+              className={`flex flex-col items-center justify-center gap-0.5 flex-shrink-0 min-w-[3.6rem] px-1 py-1.5 text-[10px] font-medium transition-colors ${
+                active ? 'text-[var(--accent)]' : 'text-[var(--muted)] hover:text-[var(--ink)]'
+              }`}
+            >
+              {APP_TAB_ICONS[t.key]}
+              <span className="leading-none">{t.label}</span>
+            </button>
+          )
+        })}
+      </nav>
+      {/* Right-edge fade — hints that the tab row scrolls to more tabs. */}
+      <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-[var(--panel)] to-transparent" />
+    </div>
   )
 }
