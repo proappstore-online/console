@@ -15,6 +15,9 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2,wasm,json}'],
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
+        // Adds the Web Push 'push' + 'notificationclick' handlers (public/push-sw.js)
+        // to the generated SW so agent task updates can notify the creator.
+        importScripts: ['push-sw.js'],
         runtimeCaching: [
           { urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i, handler: 'CacheFirst',
             options: { cacheName: 'google-fonts-stylesheets',
@@ -26,19 +29,20 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] } } },
         ],
       },
+      // Single source of truth for the PWA manifest (VitePWA injects the link).
       manifest: {
-        name: "ProAppStore",
-        short_name: "ProAppStore",
-        description: "Build and manage Pro apps",
+        name: "ProAppStore Console",
+        short_name: "Console",
+        description: "Manage and build your apps on ProAppStore.",
         start_url: '/app/',
         scope: '/app/',
         display: 'standalone',
-        background_color: "#0f172a",
-        theme_color: "#0f172a",
+        background_color: "#ffffff",
+        theme_color: "#7c3aed",
         orientation: "any",
         icons: [
-          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
         ],
       },
     }),

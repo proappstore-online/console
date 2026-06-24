@@ -33,10 +33,74 @@ export function ProfileView({ user }: { user: User }) {
       </header>
 
       <ApiKeysSection />
+      <NotificationsSection />
       <ThemeSection />
       <TextSizeSection />
       <AccountSection />
     </div>
+  )
+}
+
+// ── Push notifications (so you don't have to watch the board) ──
+
+function NotificationsSection() {
+  const [state, setState] = useState<'loading' | 'on' | 'off' | 'denied' | 'unsupported'>('loading')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    (async () => {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window) || typeof Notification === 'undefined') { setState('unsupported'); return }
+      if (Notification.permission === 'denied') { setState('denied'); return }
+      try { setState((await pro.notifications.isSubscribed()) ? 'on' : 'off') } catch { setState('off') }
+    })()
+  }, [])
+
+  const enable = async () => {
+    setBusy(true); setErr(null)
+    try {
+      // Reuse the SW vite-plugin-pwa already registered (path differs between the
+      // console domain and proappstore.online/app/).
+      const reg = await navigator.serviceWorker.getRegistration()
+      const swPath = reg?.active?.scriptURL ? new URL(reg.active.scriptURL).pathname : '/sw.js'
+      await pro.notifications.subscribe(swPath)
+      setState('on')
+    } catch (e) {
+      const m = e instanceof Error ? e.message : 'Could not enable notifications.'
+      setErr(/denied/i.test(m) ? 'Permission blocked — allow notifications for this site in your browser settings.' : m)
+      if (typeof Notification !== 'undefined' && Notification.permission === 'denied') setState('denied')
+    } finally { setBusy(false) }
+  }
+
+  const disable = async () => {
+    setBusy(true)
+    try { await pro.notifications.unsubscribe(); setState('off') } catch { /* ignore */ } finally { setBusy(false) }
+  }
+
+  return (
+    <section className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
+      <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide mb-1">Notifications</h3>
+      <p className="text-sm text-[var(--muted)] mb-4">
+        Get a push when an agent task needs your input, finishes, or fails — so you don't have to watch the board while agents work.
+      </p>
+      {state === 'unsupported' && <p className="text-sm text-[var(--muted)]">Not supported in this browser.</p>}
+      {state === 'denied' && <p className="text-sm text-[var(--error)]">Notifications are blocked. Allow them for this site in your browser settings, then reload.</p>}
+      {(state === 'on' || state === 'off') && (
+        <button
+          type="button"
+          onClick={state === 'on' ? disable : enable}
+          disabled={busy}
+          className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold disabled:opacity-50 transition-colors ${
+            state === 'on'
+              ? 'border border-[var(--line-strong)] text-[var(--muted)] hover:text-[var(--ink)]'
+              : 'bg-[var(--accent)] text-white hover:opacity-90'
+          }`}
+        >
+          {busy ? 'Working…' : state === 'on' ? 'Disable notifications' : 'Enable notifications'}
+        </button>
+      )}
+      {err && <p className="text-xs text-[var(--error)] mt-2">{err}</p>}
+    </section>
   )
 }
 
