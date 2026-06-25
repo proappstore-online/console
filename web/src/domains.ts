@@ -15,25 +15,25 @@
 
 import { API_BASE } from './api'
 
-export interface VerificationData {
-  status?: string
-  error_message?: string
-}
-export interface ValidationData {
-  status?: string
-  method?: string
-  txt_name?: string
-  txt_value?: string
-  error_message?: string
+export interface DomainInstructions {
+  /** apex (root) domain — can't use a raw CNAME at most registrars. */
+  apex: boolean
+  /** The CNAME to add (null for apex — see the apex note). */
+  cname: { name: string; value: string } | null
+  cnameTarget: string
+  /** TXT records for ownership / SSL validation. */
+  txt: { name: string; value: string }[]
 }
 
 export interface Domain {
   domain: string
   status: 'pending' | 'active' | 'failed'
+  /** 'worker' = the domain's zone is already on Cloudflare (instant, no DNS
+   *  records for the owner). 'saas' = external DNS — add the records in
+   *  `instructions`. */
+  method: 'worker' | 'saas' | null
   cfStatus: string | null
-  verificationData: VerificationData | null
-  validationData: ValidationData | null
-  certificateAuthority: string | null
+  instructions: DomainInstructions | null
   addedAt: number
   verifiedAt: number | null
 }
@@ -91,9 +91,4 @@ export function removeDomain(
   return call(token, `/apps/${encodeURIComponent(appId)}/domains/${encodeURIComponent(domain)}`, {
     method: 'DELETE',
   })
-}
-
-/** CNAME target for custom domains — points to the app's subdomain on the host Worker. */
-export function cnameTarget(appId: string): string {
-  return `${appId}.proappstore.online`
 }

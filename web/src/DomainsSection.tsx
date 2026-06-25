@@ -7,7 +7,6 @@ import {
   attachDomain,
   verifyDomain,
   removeDomain,
-  cnameTarget,
   type Domain,
 } from "./domains"
 
@@ -71,9 +70,11 @@ export function DomainsSection({
     <section className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
       <h3 className="display-font text-lg font-bold text-[var(--ink)] mb-1">Custom domains</h3>
       <p className="text-sm text-[var(--muted)] mb-4">
-        Bring a domain you already own. Cloudflare provisions the SSL cert automatically
-        once your DNS points to the project. We don't sell domains — use Cloudflare
-        Registrar, Porkbun, or Namecheap.
+        Bring a domain you already own — keep its DNS wherever it is (Namecheap, GoDaddy,
+        Cloudflare…). If it's already on Cloudflare it connects instantly; otherwise we'll
+        show you a CNAME + TXT record to paste at your registrar, then Cloudflare issues the
+        SSL cert automatically. We don't sell domains — use Cloudflare Registrar, Porkbun, or
+        Namecheap.
       </p>
 
       {loading && <p className="text-sm text-[var(--muted)]">Loading…</p>}
@@ -230,11 +231,17 @@ function DomainRow({
             Detach <span className="font-mono font-semibold">{d.domain}</span>?
             Cloudflare will stop serving the app at this hostname.
           </p>
-          <p className="text-xs text-[var(--muted)]">
-            <strong className="text-[var(--ink)]">Also remove the CNAME at your registrar</strong>{' '}
-            ({d.domain} → {cnameTarget(appId)}) so the domain isn't left pointing at our infra.
-            That DNS lives on your account — we can't touch it.
-          </p>
+          {d.method === 'saas' && d.instructions?.cname ? (
+            <p className="text-xs text-[var(--muted)]">
+              <strong className="text-[var(--ink)]">Also remove the records at your registrar</strong>{' '}
+              (the CNAME {d.instructions.cname.name} → {d.instructions.cname.value} and the TXT) so the
+              domain isn't left pointing at our infra. That DNS lives on your account — we can't touch it.
+            </p>
+          ) : (
+            <p className="text-xs text-[var(--muted)]">
+              This domain's DNS is on Cloudflare; detaching removes the binding so it stops serving the app.
+            </p>
+          )}
           <div className="flex gap-2 pt-1">
             <button type="button"
               onClick={onRemove}
@@ -256,44 +263,68 @@ function DomainRow({
         <p className="mt-2 text-xs text-[var(--error)]">{removeState.error}</p>
       )}
 
-      {d.status !== 'active' && <DomainDnsHint appId={appId} d={d} />}
+      {d.status !== 'active' && <DomainDnsHint d={d} />}
     </li>
   )
 }
 
-function DomainDnsHint({ appId, d }: { appId: string; d: Domain }) {
-  const target = cnameTarget(appId)
-  const validation = d.validationData
-  const errMsg = d.verificationData?.error_message || validation?.error_message
-  return (
-    <div className="mt-3 pt-3 border-t border-[var(--line)] space-y-3">
-      <div>
-        <p className="text-xs font-semibold text-[var(--ink)] mb-1">Add this DNS record at your registrar:</p>
-        <div className="rounded-lg bg-[var(--ink)]/5 p-3 text-xs font-mono space-y-1">
-          <div><span className="text-[var(--muted)]">Type:</span>  CNAME</div>
-          <div><span className="text-[var(--muted)]">Name:</span>  {d.domain}</div>
-          <div className="break-all"><span className="text-[var(--muted)]">Value:</span> {target}</div>
-        </div>
-        <p className="text-[11px] text-[var(--muted)] mt-1.5 italic">
-          Apex domains (e.g. example.com without a subdomain) can't use a raw CNAME — use
-          ALIAS / ANAME if your registrar supports it, or A/AAAA records pointing to Cloudflare.
+function DomainDnsHint({ d }: { d: Domain }) {
+  const ins = d.instructions
+  // Worker path (zone already on Cloudflare): nothing for the owner to add.
+  if (d.method !== 'saas' || !ins) {
+    return (
+      <div className="mt-3 pt-3 border-t border-[var(--line)]">
+        <p className="text-xs text-[var(--muted)]">
+          This domain's zone is on Cloudflare — no DNS records to add. Cloudflare is issuing the
+          certificate; click <strong className="text-[var(--ink)]">Verify</strong> in a moment.
         </p>
       </div>
-
-      {validation?.method === 'txt' && validation.txt_name && validation.txt_value && (
+    )
+  }
+  return (
+    <div className="mt-3 pt-3 border-t border-[var(--line)] space-y-3">
+      {ins.apex || !ins.cname ? (
         <div>
-          <p className="text-xs font-semibold text-[var(--ink)] mb-1">Plus this TXT record for SSL validation:</p>
+          <p className="text-xs font-semibold text-[var(--ink)] mb-1">Point your root domain at us:</p>
+          <p className="text-[11px] text-[var(--muted)]">
+            <span className="font-mono">{d.domain}</span> is a root (apex) domain, which can't use a raw
+            CNAME at most registrars. Use your registrar's{' '}
+            <strong className="text-[var(--ink)]">CNAME flattening / ALIAS / ANAME</strong> pointing to{' '}
+            <span className="font-mono break-all">{ins.cnameTarget}</span>, or move the domain's
+            nameservers to Cloudflare and re-attach for an instant connect.
+          </p>
+        </div>
+      ) : (
+        <div>
+          <p className="text-xs font-semibold text-[var(--ink)] mb-1">Add this CNAME at your registrar:</p>
           <div className="rounded-lg bg-[var(--ink)]/5 p-3 text-xs font-mono space-y-1">
-            <div><span className="text-[var(--muted)]">Type:</span>  TXT</div>
-            <div className="break-all"><span className="text-[var(--muted)]">Name:</span>  {validation.txt_name}</div>
-            <div className="break-all"><span className="text-[var(--muted)]">Value:</span> {validation.txt_value}</div>
+            <div><span className="text-[var(--muted)]">Type:</span>  CNAME</div>
+            <div className="break-all"><span className="text-[var(--muted)]">Name:</span>  {ins.cname.name}</div>
+            <div className="break-all"><span className="text-[var(--muted)]">Value:</span> {ins.cname.value}</div>
           </div>
         </div>
       )}
 
-      {errMsg && (
-        <p className="text-xs text-[var(--error)]"><strong>Last check:</strong> {errMsg}</p>
+      {ins.txt.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-[var(--ink)] mb-1">
+            Plus {ins.txt.length === 1 ? 'this TXT record' : 'these TXT records'} for ownership + SSL:
+          </p>
+          <div className="space-y-2">
+            {ins.txt.map((t, i) => (
+              <div key={i} className="rounded-lg bg-[var(--ink)]/5 p-3 text-xs font-mono space-y-1">
+                <div><span className="text-[var(--muted)]">Type:</span>  TXT</div>
+                <div className="break-all"><span className="text-[var(--muted)]">Name:</span>  {t.name}</div>
+                <div className="break-all"><span className="text-[var(--muted)]">Value:</span> {t.value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
+
+      <p className="text-[11px] text-[var(--muted)] italic">
+        After adding the records, click Verify. DNS propagation + cert issuance can take a few minutes.
+      </p>
     </div>
   )
 }
