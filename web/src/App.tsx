@@ -136,14 +136,14 @@ export default function App() {
 
   // Create a new app = create its agent-teams project (slug = id), then land on
   // the app's Agents tab. The repo/hosting is built by the team afterward.
-  const createApp = useCallback(async (name: string, idea: string): Promise<string | null> => {
+  const createApp = useCallback(async (name: string, idea: string, template?: string): Promise<string | null> => {
     const slug = deriveSlug(name)
     if (slug.length < 2) return 'Please use letters or numbers in the name.'
     try {
       const res = await fetch('https://agents.proappstore.online/v1/projects', {
         method: 'POST',
         headers: { Authorization: `Bearer ${pro.auth.token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, slug, idea: idea.trim() || undefined }),
+        body: JSON.stringify({ name, slug, idea: idea.trim() || undefined, template: template && template !== 'blank' ? template : undefined }),
       })
       if (!res.ok) return `${res.status}: ${await res.text()}`
       setShowNewApp(false)
