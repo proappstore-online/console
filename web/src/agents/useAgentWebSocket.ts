@@ -20,6 +20,8 @@ export interface TicketLiveEntry {
   tokensOut?: number
 }
 
+const CLEAR_LIVE_STATUSES = new Set(['needs-input', 'failed', 'done', 'cancelled', 'deploying'])
+
 interface UseAgentWebSocketOpts {
   appId: string
   token: string | null
@@ -141,6 +143,21 @@ export function handleEvent(d: Record<string, unknown>, opts: UseAgentWebSocketO
       break
     }
 
+    case 'agent-run-ended': {
+      if (d.ticketId) {
+        const tid = String(d.ticketId)
+        setTicketLive(prev => {
+          if (!prev[tid]) return prev
+          const next = { ...prev }
+          delete next[tid]
+          return next
+        })
+      }
+      setAgentWork(null)
+      refreshTickets()
+      break
+    }
+
     case 'activity': {
       const e = d.entry as { id: string; ticketId?: string; type: string; detail: string; createdAt: number; meta?: string } | undefined
       if (e) setActivity(prev => prev.some(a => a.id === e.id) ? prev : [...prev.slice(-300), { id: e.id, type: e.type, detail: e.detail, timestamp: e.createdAt, meta: e.meta }])
@@ -167,7 +184,26 @@ export function handleEvent(d: Record<string, unknown>, opts: UseAgentWebSocketO
       break
     }
 
-    case 'transition':
+    case 'transition': {
+      const tid = typeof d.ticketId === 'string' ? d.ticketId : null
+      const to = typeof d.to === 'string' ? d.to : null
+      if (tid && to) {
+        setTickets(prev => prev.map(t => t.id === tid ? { ...t, status: to as Ticket['status'] } : t))
+        setSelTicket(prev => prev?.id === tid ? { ...prev, status: to as Ticket['status'] } : prev)
+        if (CLEAR_LIVE_STATUSES.has(to)) {
+          setTicketLive(prev => {
+            if (!prev[tid]) return prev
+            const next = { ...prev }
+            delete next[tid]
+            return next
+          })
+          setAgentWork(null)
+        }
+      }
+      refreshTickets()
+      break
+    }
+
     case 'ticket-created':
     case 'ticket-updated':
     case 'ticket-failed':

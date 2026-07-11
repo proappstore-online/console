@@ -438,9 +438,13 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
     setStarting(false)
   }
 
+  const buildAgentWorking = Boolean(agentWork && agentWork.role !== 'Architect')
+  const hasBlockedTickets = tickets.some(t => t.status === 'needs-input')
+  const playControlAction: 'play' | 'pause' = project?.status === 'running' && !(hasBlockedTickets && !buildAgentWorking) ? 'pause' : 'play'
+
   const togglePlay = async () => {
     if (!token || !project) return
-    const action = project.status === 'running' ? 'pause' : 'play'
+    const action = playControlAction
     try {
       await api(`/projects/${appId}/${action}`, token, { method: 'POST' })
       setProject(prev => prev ? { ...prev, status: action === 'play' ? 'running' : 'paused' } : prev)
@@ -792,11 +796,11 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
               {project && (
                 <button type="button" onClick={togglePlay}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                    project.status === 'running'
+                    playControlAction === 'pause'
                       ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 hover:bg-amber-200'
                       : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200'
                   }`}>
-                  {project.status === 'running' ? (<><span>&#9646;&#9646;</span> Pause</>) : (<><span>&#9654;</span> Play</>)}
+                  {playControlAction === 'pause' ? (<><span>&#9646;&#9646;</span> Pause</>) : (<><span>&#9654;</span> Play</>)}
                 </button>
               )}
               {/* Live working/idle indicator — so the founder knows whether an agent

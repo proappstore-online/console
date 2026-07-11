@@ -80,6 +80,21 @@ describe('handleEvent — agent events', () => {
     expect(result.t1.costUsd).toBe(2.0) // updated
     expect(result.t1.tokensIn).toBe(8000)
   })
+
+  it('agent-run-ended clears live state immediately', () => {
+    const opts = makeOpts()
+    handleEvent({ type: 'agent-run-ended', ticketId: 't1', role: 'Dev', error: 'timeout' }, opts)
+
+    expect(opts.setAgentWork).toHaveBeenCalledWith(null)
+    expect(opts.refreshTickets).toHaveBeenCalled()
+
+    const setter = opts.setTicketLive.mock.calls[0][0] as (prev: Record<string, TicketLiveEntry>) => Record<string, TicketLiveEntry>
+    const result = setter({
+      t1: { text: 'still running', role: 'Dev', at: 1 },
+      t2: { text: 'other', role: 'QA', at: 1 },
+    })
+    expect(result).toEqual({ t2: { text: 'other', role: 'QA', at: 1 } })
+  })
 })
 
 describe('handleEvent — activity events', () => {
@@ -130,6 +145,22 @@ describe('handleEvent — ticket lifecycle', () => {
   it('transition triggers refreshTickets', () => {
     const opts = makeOpts()
     handleEvent({ type: 'transition', ticketId: 't1' }, opts)
+    expect(opts.refreshTickets).toHaveBeenCalled()
+  })
+
+  it('transition to needs-input updates the ticket and clears live state', () => {
+    const opts = makeOpts()
+    handleEvent({ type: 'transition', ticketId: 't1', to: 'needs-input' }, opts)
+
+    const ticketSetter = opts.setTickets.mock.calls[0][0] as (prev: any[]) => any[]
+    expect(ticketSetter([{ id: 't1', status: 'dev-active' }, { id: 't2', status: 'ready' }])).toEqual([
+      { id: 't1', status: 'needs-input' },
+      { id: 't2', status: 'ready' },
+    ])
+
+    const liveSetter = opts.setTicketLive.mock.calls[0][0] as (prev: Record<string, TicketLiveEntry>) => Record<string, TicketLiveEntry>
+    expect(liveSetter({ t1: { text: 'running', role: 'Dev', at: 1 } })).toEqual({})
+    expect(opts.setAgentWork).toHaveBeenCalledWith(null)
     expect(opts.refreshTickets).toHaveBeenCalled()
   })
 
