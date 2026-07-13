@@ -290,17 +290,15 @@ export function SubmissionForm({
         </div>
       </div>
 
-      {/* Payouts note — replaces the old per-app price field. ProAppStore is
-          all-you-can-use for $9/mo; creators get paid from a monthly pool
-          proportional to their app's share of usage. There's no per-app price. */}
+      {/* Pricing note — replaces the old per-app price field. ProAppStore uses
+          one platform subscription, so apps do not set their own price. */}
       <div className="rounded-lg border border-[var(--line)] bg-[var(--paper-soft,var(--paper))] p-3 text-xs text-[var(--muted)]">
         <p>
-          <strong className="text-[var(--ink)]">How you get paid:</strong>{' '}
-          ProAppStore is a single $9/mo subscription for every Pro app. Each month, after the
-          10% platform fee, the rest is split among creators in proportion to how much their
-          app was used. You don't set a price — make a great app, and your share follows.{' '}
+          <strong className="text-[var(--ink)]">Pricing:</strong>{' '}
+          ProAppStore uses one $5/mo subscription for every Pro app. Do not add per-app
+          checkout, in-app upgrade prompts, or hidden paywalls.{' '}
           <a href="https://proappstore.online/pricing" target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--ink)]">
-            Full details
+            Pricing details
           </a>.
         </p>
       </div>

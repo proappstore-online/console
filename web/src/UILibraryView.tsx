@@ -130,7 +130,7 @@ export function UILibraryView() {
             app={demo}
             title="Go Pro"
             description="Unlock everything."
-            priceLabel="$9/month"
+            priceLabel="$5/month"
             features={['Cloud sync', 'AI features', 'Priority support']}
           />
         </Row>

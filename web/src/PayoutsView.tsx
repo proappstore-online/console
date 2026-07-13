@@ -152,22 +152,6 @@ export function PayoutsView({ getToken }: { getToken: () => string | null }) {
       {/* Earnings preview */}
       {!loading && preview && <EarningsPreview preview={preview} />}
 
-      {/* How payouts work */}
-      <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
-        <h3 className="display-font text-lg font-bold text-[var(--ink)] mb-2">How payouts work</h3>
-        <ol className="space-y-2 text-sm text-[var(--muted)] list-decimal list-inside">
-          <li>Subscribers pay $9/mo for the whole catalogue. No per-app prices.</li>
-          <li>Each month, after the 10% platform fee, the pool is split across creators in proportion to their app's share of subscriber usage (session-minutes + API calls).</li>
-          <li>Your share lands in the Stripe account you connect here, around the 1st of the following month.</li>
-          <li>You can view + edit your Stripe details at any time via the Stripe Express dashboard linked below once you're connected.</li>
-        </ol>
-        <p className="text-xs text-[var(--muted)] mt-3">
-          Full mechanics:{' '}
-          <a href="https://proappstore.online/pricing#for-developers" target="_blank" rel="noopener noreferrer" className="underline text-[var(--accent)]">
-            proappstore.online/pricing
-          </a>
-        </p>
-      </div>
     </div>
   )
 }
@@ -189,7 +173,7 @@ function StatusCard({
           <h3 className="display-font text-lg font-bold text-[var(--ink)]">Not connected</h3>
         </div>
         <p className="text-sm text-[var(--muted)] mb-4">
-          Connect a Stripe account to receive your share of the subscription pool. Stripe handles
+          Connect a Stripe account for future creator payouts. Stripe handles
           KYC, banking details, and tax forms — the platform never sees them.
         </p>
         <button
