@@ -34,7 +34,7 @@ export function SubscriptionView() {
 
   const isPro = sub?.status === 'active'
   const monthly = pricing?.proMonthly
-  const dollars = monthly?.dollars ?? 9
+  const dollars = monthly?.dollars ?? 5
 
   return (
     <div className="space-y-8">
@@ -88,43 +88,6 @@ export function SubscriptionView() {
         )}
       </div>
 
-      {/* Where your $9 goes — pool model explainer (replaces the old feature
-          comparison table, which described feature-gating that doesn't exist
-          on PAS). */}
-      <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
-        <h3 className="display-font text-lg font-bold text-[var(--ink)] mb-2">Where your ${dollars} goes</h3>
-        <p className="text-sm text-[var(--muted)] mb-4">
-          ProAppStore is one subscription for every Pro app — no per-app prices, no in-app upgrades.
-          Creators are paid monthly from the subscription pool in proportion to how much each
-          subscriber actually used their app.
-        </p>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4">
-            <p className="text-2xl font-bold text-[var(--ink)]">90%</p>
-            <p className="text-xs text-[var(--muted)] mt-1">
-              Goes to creators of the apps you used this month, weighted by your usage of each.
-            </p>
-          </div>
-          <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4">
-            <p className="text-2xl font-bold text-[var(--ink)]">10%</p>
-            <p className="text-xs text-[var(--muted)] mt-1">
-              Platform fee — covers hosting, databases, file storage, real-time, payments.
-            </p>
-          </div>
-          <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4">
-            <p className="text-2xl font-bold text-[var(--ink)]">0</p>
-            <p className="text-xs text-[var(--muted)] mt-1">
-              Ads. Trackers. Data sold. Per-app paywalls. None of the above.
-            </p>
-          </div>
-        </div>
-        <p className="text-xs text-[var(--muted)] mt-4">
-          Full mechanics, edge cases, and the math:{' '}
-          <a href="https://proappstore.online/pricing" target="_blank" rel="noopener noreferrer" className="underline text-[var(--accent)]">
-            proappstore.online/pricing
-          </a>
-        </p>
-      </div>
     </div>
   )
 }
