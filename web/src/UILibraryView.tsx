@@ -23,6 +23,7 @@ const sampleAvatar = `data:image/svg+xml,${encodeURIComponent(
 
 const mockUser = {
   id: 'demo-1',
+  name: 'sample-user',
   login: 'sample-user',
   avatarUrl: sampleAvatar,
   dateOfBirth: null,
@@ -30,6 +31,7 @@ const mockUser = {
 
 const mockUserNoAvatar = {
   id: 'demo-2',
+  name: 'jane-dev',
   login: 'jane-dev',
   avatarUrl: null,
   dateOfBirth: null,

@@ -11,8 +11,8 @@ importers:
   web:
     dependencies:
       '@proappstore/sdk':
-        specifier: ^1.16.9
-        version: 1.16.9(react@19.2.6)
+        specifier: ^1.16.54
+        version: 1.16.54(react@19.2.6)
       highlight.js:
         specifier: ^11.11.1
         version: 11.11.1
@@ -697,8 +697,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  '@proappstore/sdk@1.16.9':
-    resolution: {integrity: sha512-MLj+SakHDXhkF81o5GRVrGZfg7vHKuqS35Wf5lV9FZTFEku/yCRrFawLlGW9fUxUbddR0+xqT8gmfRK5VfFaMA==}
+  '@proappstore/sdk@1.16.54':
+    resolution: {integrity: sha512-8/k1FKIDe4U0/1e+/UGzJ67J8PT2ghxfLLDAE5aJkidM3+7CulVftLQCe8B9EpKlLwXHsWuOcJOwHxA8TgVIcQ==}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
     peerDependenciesMeta:
@@ -3577,7 +3577,7 @@ snapshots:
     dependencies:
       playwright: 1.60.0
 
-  '@proappstore/sdk@1.16.9(react@19.2.6)':
+  '@proappstore/sdk@1.16.54(react@19.2.6)':
     optionalDependencies:
       react: 19.2.6
 
