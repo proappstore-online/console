@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import type { User } from '@proappstore/sdk'
 import { pro } from './sdk'
 
-import { type View, type AppEntry, type AppTab, type AppSettingsTab, parseHash as parseHashString, hashFor, deriveSlug, mergeApps } from './nav'
+import { type View, type AppEntry, type AppTab, type AppSettingsTab, parseHash as parseHashString, hashFor, deriveSlug, mergeApps, appTabsFor } from './nav'
 import { fetchApps, fetchAgentProjects, deleteAppApi, fetchIsAdmin } from './appsApi'
 import { syncTokenToCookie } from './authSync'
 import { Landing, Header } from './Header'
@@ -231,7 +231,7 @@ export default function App() {
         </ErrorBoundary>
       </main>
       {view === 'app-detail' && selectedAppId && (
-        <MobileAppTabBar appTab={appTab} onAppTab={changeAppTab} />
+        <MobileAppTabBar tabs={appTabsFor(selected)} appTab={appTab} onAppTab={changeAppTab} />
       )}
       {showNewApp && <NewAppModal onClose={() => setShowNewApp(false)} onCreate={createApp} />}
     </div>

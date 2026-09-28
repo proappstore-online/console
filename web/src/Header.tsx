@@ -6,7 +6,7 @@ import { useState, useEffect, useRef, type ReactNode } from 'react'
 import type { User } from '@proappstore/sdk'
 import { pro } from './sdk'
 import type { View, AppEntry, AppTab } from './nav'
-import { APP_TABS } from './nav'
+import { appTabsFor } from './nav'
 import { APP_TAB_ICONS } from './AppTabBar'
 import { GitHubIcon } from './dashboardShared'
 
@@ -124,7 +124,7 @@ export function Header({
             {/* Per-app workspace tabs (sm+). On mobile these live in the fixed
                 bottom tab bar (MobileAppTabBar) instead. */}
             <div className="hidden sm:flex items-center rounded-lg border border-[var(--line-strong)] overflow-x-auto ml-1 min-w-0">
-              {APP_TABS.map((t, i) => (
+              {appTabsFor(apps.find((a) => a.id === selectedAppId)).map((t, i) => (
                 <button
                   key={t.key}
                   type="button"

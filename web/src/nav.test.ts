@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseHash, hashFor, deriveSlug, mergeApps, type AppEntry } from './nav'
+import { parseHash, hashFor, deriveSlug, mergeApps, appTabsFor, type AppEntry } from './nav'
 
 describe('parseHash', () => {
   it('defaults to dashboard for empty/`#`/`#/`', () => {
@@ -171,5 +171,28 @@ describe('mergeApps', () => {
   it('a published app without a matching project has hasAgentTeam=false', () => {
     const merged = mergeApps([app('solo', '2026-01-01T00:00:00.000Z')], [])
     expect(merged[0]).toMatchObject({ published: true, hasAgentTeam: false })
+  })
+})
+
+describe('operator tab (#240)', () => {
+  const base: AppEntry = { id: 'stash', name: 'Stash', createdAt: '2026-01-01T00:00:00.000Z' }
+  const keys = (app: AppEntry | undefined) => appTabsFor(app).map((t) => t.key)
+
+  it('deep-links to #/apps/<slug>/operator and back', () => {
+    expect(parseHash('#/apps/stash/operator')).toEqual({ view: 'app-detail', param: 'stash', tab: 'operator', settingsTab: null })
+    expect(hashFor('app-detail', 'stash', 'operator')).toBe('#/apps/stash/operator')
+  })
+
+  it('is offered only on apps the caller owns', () => {
+    expect(keys({ ...base, teamRole: 'owner' })).toContain('operator')
+    for (const teamRole of ['admin', 'developer', 'viewer', null, undefined]) {
+      expect(keys({ ...base, teamRole })).not.toContain('operator')
+    }
+    expect(keys(undefined)).not.toContain('operator')
+  })
+
+  it('keeps the owner role through mergeApps', () => {
+    const [merged] = mergeApps([{ ...base, teamRole: 'owner' }], [])
+    expect(keys(merged)).toContain('operator')
   })
 })

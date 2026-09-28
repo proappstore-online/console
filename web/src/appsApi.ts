@@ -17,6 +17,7 @@ interface AppApiRow {
   pro_features: string[] | null
   has_submission: boolean
   submission_status: string | null
+  team_role: string
 }
 
 /**
@@ -37,6 +38,7 @@ export async function fetchApps(token: string | null): Promise<AppEntry[]> {
       description: a.description,
       hasSubmission: a.has_submission,
       submissionStatus: a.submission_status,
+      teamRole: a.team_role,
     }))
   } catch {
     return []

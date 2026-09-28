@@ -13,6 +13,7 @@ import { AppPublishing } from './AppPublishing'
 import { AppAgents } from './AppAgents'
 import { AppSpending } from './AppSpending'
 import { AppStyle } from './AppStyle'
+import { OperatorView } from './OperatorView'
 import { APP_SETTINGS_TABS, type AppSettingsTab, type AppTab } from './nav'
 import {
   BrandingSection, ListingCopySection, ScreenshotsSection, DeveloperSection,
@@ -101,6 +102,12 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab, settingsTab
       {tab === 'style' && (
         <div className="overflow-y-auto min-h-0 flex-1 py-2">
           <AppStyle appId={appId} getToken={getToken} />
+        </div>
+      )}
+
+      {tab === 'operator' && (
+        <div className="max-w-4xl space-y-4 overflow-y-auto min-h-0 flex-1">
+          <OperatorView appId={appId} appName={appName} getToken={getToken} />
         </div>
       )}
 

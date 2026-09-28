@@ -6,7 +6,7 @@
 // bar is hidden. The icon map is shared with Header.
 
 import type { ReactNode } from 'react'
-import { APP_TABS, type AppTab } from './nav'
+import type { AppTab } from './nav'
 
 function Icon({ d, children }: { d?: string; children?: ReactNode }) {
   return (
@@ -24,17 +24,18 @@ export const APP_TAB_ICONS: Record<AppTab, ReactNode> = {
   control: <Icon><line x1="4" y1="8" x2="20" y2="8" /><circle cx="9" cy="8" r="2" /><line x1="4" y1="16" x2="20" y2="16" /><circle cx="15" cy="16" r="2" /></Icon>,
   analytics: <Icon><line x1="6" y1="20" x2="6" y2="12" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="18" y1="20" x2="18" y2="14" /></Icon>,
   spending: <Icon><circle cx="12" cy="12" r="9" /><path d="M12 7v10M9.5 9.5a2.5 2 0 0 1 5 0c0 2.5-5 1-5 4a2.5 2 0 0 0 5 0" /></Icon>,
+  operator: <Icon><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6l-8-3Z" /><circle cx="12" cy="11" r="2.5" /></Icon>,
   style: <Icon><circle cx="13.5" cy="6.5" r="1.5" /><circle cx="17.5" cy="10.5" r="1.5" /><circle cx="8.5" cy="7.5" r="1.5" /><circle cx="6.5" cy="12.5" r="1.5" /><path d="M12 2a10 10 0 1 0 0 20 2 2 0 0 0 2-2c0-1-1-1.5-1-2.5a2 2 0 0 1 2-2h2a4 4 0 0 0 4-4 8 8 0 0 0-11-7.5" /></Icon>,
   settings: <Icon><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 7 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H1a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 2.6 7a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H7a1.7 1.7 0 0 0 1-1.5V1a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V7a1.7 1.7 0 0 0 1.5 1H23a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" /></Icon>,
 }
 
 /** Fixed bottom tab bar for the per-app workspace — mobile only (sm:hidden).
  *  Icon + label, scrolls horizontally if the tabs exceed the width. */
-export function MobileAppTabBar({ appTab, onAppTab }: { appTab: AppTab; onAppTab: (t: AppTab) => void }) {
+export function MobileAppTabBar({ tabs, appTab, onAppTab }: { tabs: { key: AppTab; label: string }[]; appTab: AppTab; onAppTab: (t: AppTab) => void }) {
   return (
     <div className="sm:hidden fixed inset-x-0 bottom-0 z-30 border-t border-[var(--line)] bg-[var(--panel)] backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
       <nav aria-label="Workspace" className="flex overflow-x-auto">
-        {APP_TABS.map((t) => {
+        {tabs.map((t) => {
           const active = appTab === t.key
           return (
             <button

@@ -11,8 +11,9 @@ export type View =
 //  - test:     automated QA / E2E (Playwright, manual/opt-in)
 //  - control:  the live VCQA code-health dashboard (ops/control)
 //  - spending: cost breakdown by role, ticket, and ledger history
+//  - operator: owner-only oversight of the app (#240) — shown only for apps you own
 //  - settings: listing / domains / app roles + agent team config / danger zone
-export type AppTab = 'research' | 'build' | 'data' | 'test' | 'control' | 'analytics' | 'spending' | 'style' | 'settings'
+export type AppTab = 'research' | 'build' | 'data' | 'test' | 'control' | 'analytics' | 'spending' | 'style' | 'operator' | 'settings'
 export type AppSettingsTab = 'storefront' | 'publishing' | 'agents' | 'integrations' | 'access' | 'danger'
 
 export const APP_TABS: { key: AppTab; label: string }[] = [
@@ -24,6 +25,7 @@ export const APP_TABS: { key: AppTab; label: string }[] = [
   { key: 'analytics', label: 'Analytics' },
   { key: 'spending', label: 'Spending' },
   { key: 'style', label: 'Style' },
+  { key: 'operator', label: 'Operator' },
   { key: 'settings', label: 'Settings' },
 ]
 
@@ -49,6 +51,14 @@ export interface AppEntry {
   published?: boolean
   /** true when an agent team (project) exists for this app. */
   hasAgentTeam?: boolean
+  /** Caller's team role on the app ('owner' for the creator); absent for project-only apps. */
+  teamRole?: string | null
+}
+
+/** The workspace tabs for an app. Operator is owner-only (#240); the API
+ *  enforces that, this just keeps the tab off apps you can't open it for. */
+export function appTabsFor(app: AppEntry | undefined): { key: AppTab; label: string }[] {
+  return app?.teamRole === 'owner' ? APP_TABS : APP_TABS.filter((t) => t.key !== 'operator')
 }
 
 const VALID_VIEWS: View[] = [
