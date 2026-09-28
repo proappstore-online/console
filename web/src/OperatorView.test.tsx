@@ -547,6 +547,16 @@ describe('OperatorView — ID verification (#240)', () => {
     expect((await screen.findByRole('alert')).textContent).toBe('not a reviewer for this app')
   })
 
+  it('off the console origin, a document that needs a passkey points to the console, and never offers a futile re-sign-in (#244)', async () => {
+    await openKyc({ 'evidence:document_path': { status: 403, body: { error: 'step_up_required', method: 'passkey', max_age: 300 } } }, vi.fn())
+    fireEvent.click(screen.getByRole('button', { name: 'View ID document' }))
+    expect((await screen.findByRole('alert')).textContent).toBe('Opening a document needs a passkey check.')
+    const link = screen.getByRole('link', { name: 'console.proappstore.online' })
+    expect(link.getAttribute('href')).toBe('https://console.proappstore.online/#/apps/stash/operator/kyc/k1')
+    expect(screen.queryByRole('button', { name: 'Verify with passkey' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Sign in again' })).toBeNull()
+  })
+
   it('a stale session on the record itself is explained with a re-sign-in', async () => {
     const onReauth = vi.fn()
     serve({ ...baseline, contract: STASH }, { 'record:kyc': { status: 403, body: { error: 'step_up_required' } } })

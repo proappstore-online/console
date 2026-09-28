@@ -261,7 +261,12 @@ export function statusLabel(resource: OperatorResource, value: unknown): string 
 
 /** True when a refusal can be fixed by signing in again (the action needs a recent sign-in). */
 export function needsReauth(e: unknown): boolean {
-  return e instanceof ApiError && e.message === 'step_up_required'
+  return e instanceof ApiError && e.message === 'step_up_required' && !needsPasskey(e)
+}
+
+/** True when only a passkey step-up will do (#244): identity documents. A fresh sign-in would be refused again. */
+export function needsPasskey(e: unknown): boolean {
+  return e instanceof ApiError && e.message === 'step_up_required' && (e.body as { method?: unknown } | null)?.method === 'passkey'
 }
 
 /** A cell as plain text. Values come from the app; they are never rendered as HTML. */
@@ -280,6 +285,7 @@ export function formatCell(value: unknown, format: OperatorColumnFormat): string
 /** Why an operator read or action failed, in words the owner can act on. */
 export function operatorErrorMessage(e: unknown): string {
   if (e instanceof ApiError) {
+    if (needsPasskey(e)) return 'Opening a document needs a passkey check.'
     if (e.message === 'step_up_required') return 'This needs a recent sign-in. Sign in again, then retry.'
     if (e.status === 403 && /app role/.test(e.message)) {
       return "You don't hold the app role this needs. Grant it to yourself under Settings → Access."

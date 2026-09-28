@@ -1,13 +1,15 @@
 /**
  * The evidence documents of one verification record (#240). Each is fetched
  * only when the owner asks, through the platform's evidence route (a recent
- * sign-in and a review role are required there), and shown from an in-memory
- * object URL: images inline, PDFs in a new tab. The URLs are revoked when the
- * page closes. The console never sees or shows a storage path.
+ * passkey step-up (#244) and a review role are required there), and shown
+ * from an in-memory object URL: images inline, PDFs in a new tab. The URLs are
+ * revoked when the page closes. The console never sees or shows a storage path.
  */
 
 import { useState, useEffect } from 'react'
-import { fetchOperatorEvidence, operatorErrorMessage, needsReauth, type OperatorRow } from './operator'
+import { fetchOperatorEvidence, operatorErrorMessage, needsPasskey, needsReauth, type OperatorRow } from './operator'
+import { OperatorStepUp } from './OperatorStepUp'
+import { stepUpToken, stepUpWindow } from './passkeyStepUp'
 
 interface Loaded { url: string; type: string }
 
@@ -23,19 +25,24 @@ export function OperatorEvidence({ appId, resourceId, recordKey, record, evidenc
   const [loaded, setLoaded] = useState<Record<string, Loaded>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [reauth, setReauth] = useState(false)
+  /** The document a passkey check was asked for, and the window the platform reported. */
+  const [passkeyFor, setPasskeyFor] = useState<{ field: string; window: number } | null>(null)
 
   useEffect(() => () => { for (const d of Object.values(loaded)) URL.revokeObjectURL(d.url) }, [loaded])
 
   const view = async (field: string) => {
-    const token = getToken()
+    // A held passkey step-up session opens documents; the plain session is refused with method 'passkey'.
+    const token = stepUpToken() ?? getToken()
     if (!token) return
     setErrors((e) => ({ ...e, [field]: '' }))
     try {
       const blob = await fetchOperatorEvidence(token, appId, resourceId, recordKey, field)
       setLoaded((l) => ({ ...l, [field]: { url: URL.createObjectURL(blob), type: blob.type } }))
+      setPasskeyFor(null)
     } catch (e) {
       setErrors((x) => ({ ...x, [field]: operatorErrorMessage(e) }))
-      if (needsReauth(e)) setReauth(true)
+      if (needsPasskey(e)) setPasskeyFor({ field, window: stepUpWindow(e) })
+      else if (needsReauth(e)) setReauth(true)
     }
   }
 
@@ -69,6 +76,10 @@ export function OperatorEvidence({ appId, resourceId, recordKey, record, evidenc
           )
         })}
       </ul>
+      {passkeyFor && (
+        <OperatorStepUp getToken={getToken} windowSeconds={passkeyFor.window} onReauth={onReauth}
+          onVerified={() => view(passkeyFor.field)} />
+      )}
       {reauth && onReauth && (
         <button type="button" onClick={onReauth}
           className="mt-3 rounded-lg border border-[var(--line-strong)] px-3 py-1.5 text-sm font-medium text-[var(--ink)]">
