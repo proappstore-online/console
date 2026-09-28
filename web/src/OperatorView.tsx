@@ -24,10 +24,12 @@ function errorMessage(e: unknown): string {
   return `Couldn't load the operator view. ${(e as Error).message}`
 }
 
-export function OperatorView({ appId, appName, getToken }: {
+export function OperatorView({ appId, appName, getToken, onReauth }: {
   appId: string
   appName: string | null
   getToken: () => string | null
+  /** Start a fresh sign-in, for actions that need a recent one. */
+  onReauth?: () => void
 }) {
   const [data, setData] = useState<OperatorContext | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -63,8 +65,8 @@ export function OperatorView({ appId, appName, getToken }: {
       {!error && !data && <p className="text-sm text-[var(--muted)]">Loading...</p>}
 
       {data && record && (
-        <OperatorRecordView appId={appId} recordKey={record.key} getToken={getToken}
-          resource={data.contract?.resources.find((r) => r.id === record.resourceId)} />
+        <OperatorRecordView appId={appId} contract={data.contract} resourceId={record.resourceId} recordKey={record.key}
+          getToken={getToken} onReauth={onReauth} />
       )}
 
       {data && !record && (
@@ -82,7 +84,7 @@ export function OperatorView({ appId, appName, getToken }: {
             </div>
           </section>
 
-          <DeclaredPanels appId={appId} data={data} getToken={getToken} />
+          <DeclaredPanels appId={appId} data={data} getToken={getToken} onReauth={onReauth} />
         </>
       )}
     </div>
@@ -90,10 +92,11 @@ export function OperatorView({ appId, appName, getToken }: {
 }
 
 /** The app's declared resources grouped by kind, each with its row actions. */
-function DeclaredPanels({ appId, data, getToken }: {
+function DeclaredPanels({ appId, data, getToken, onReauth }: {
   appId: string
   data: OperatorContext
   getToken: () => string | null
+  onReauth?: () => void
 }) {
   const resources = data.contract?.resources ?? []
   const actions = data.contract?.actions ?? []
@@ -108,7 +111,7 @@ function DeclaredPanels({ appId, data, getToken }: {
           <div key={kind} className="space-y-3">
             <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide">{label}</h3>
             {ofKind.map((r) => (
-              <OperatorResourcePanel key={r.id} appId={appId} resource={r} getToken={getToken}
+              <OperatorResourcePanel key={r.id} appId={appId} resource={r} getToken={getToken} onReauth={onReauth}
                 actions={actions.filter((a) => a.resource === r.id)} />
             ))}
           </div>

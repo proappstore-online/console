@@ -33,13 +33,34 @@ const STASH: OperatorContract = {
       { key: 'email', label: 'Email', format: 'text' },
       { key: 'pocket_count', label: 'Pockets', format: 'number' },
     ] } },
+    { id: 'reports', kind: 'reports', title: 'Reports', description: null, action: 'op_list_reports', columns: [
+      { key: 'reason', label: 'Reason', format: 'text' },
+      { key: 'status', label: 'Status', format: 'badge' },
+      { key: 'report_id', label: 'Report', format: 'text' },
+    ],
+    status: { column: 'status', param: 'status', states: [
+      { value: 'open', label: 'Open' }, { value: 'reviewing', label: 'In review' }, { value: 'resolved', label: 'Resolved' },
+    ] } },
+    { id: 'history', kind: 'suspensions', title: 'Suspension history', description: null, action: 'op_list_suspensions', columns: [
+      { key: 'user_id', label: 'User', format: 'text' },
+      { key: 'status', label: 'Status', format: 'badge' },
+      { key: 'suspension_id', label: 'Suspension', format: 'text' },
+    ],
+    related: { resource: 'members', param: 'user' },
+    status: { column: 'status', param: null, states: [{ value: 'active', label: 'Active' }, { value: 'lifted', label: 'Lifted' }] } },
     { id: 'moderation', kind: 'metrics', title: 'Moderation', description: null, action: 'op_report_metrics', columns: [
       { key: 'open_reports', label: 'Open reports', format: 'number' },
       { key: 'suspended_users', label: 'Suspended', format: 'number' },
     ] },
   ],
   actions: [
-    { id: 'suspend_member', title: 'Suspend', resource: 'members', action: 'op_suspend_user', params: { user_id: 'user_id' }, confirm: 'Suspend this member?', step_up: false },
+    { id: 'suspend_member', title: 'Suspend', resource: 'members', action: 'op_suspend_user', params: { user_id: 'user_id' }, confirm: 'Suspend this member?', step_up: true, destructive: true, transition: null, target: 'user_id' },
+    ...(['review', 'resolve'] as const).map((id) => ({
+      id, title: id === 'review' ? 'Start review' : 'Resolve', resource: 'reports', action: `op_${id}_report`,
+      params: { report_id: 'report_id', from_status: 'status' }, confirm: `${id}?`, step_up: false, destructive: false, target: 'report_id',
+      transition: id === 'review' ? { from: ['open'], to: 'reviewing' } : { from: ['open', 'reviewing'], to: 'resolved' },
+    })),
+    { id: 'lift', title: 'Lift', resource: 'history', action: 'op_lift_suspension', params: { suspension_id: 'suspension_id', from_status: 'status', user_id: 'user_id' }, confirm: 'Lift?', step_up: false, destructive: false, target: 'user_id', transition: { from: ['active'], to: 'lifted' } },
   ],
 }
 
@@ -57,6 +78,12 @@ const PARENTS_CLUBS: OperatorContract = {
       { key: 'full_name', label: 'Parent', format: 'text' },
       { key: 'joined_at', label: 'Joined', format: 'datetime' },
     ] } },
+    { id: 'flags', kind: 'reports', title: 'Flagged posts', description: null, action: 'op_list_flags', columns: [
+      { key: 'post_title', label: 'Post', format: 'text' },
+      { key: 'state', label: 'State', format: 'badge' },
+      { key: 'flag_id', label: 'Flag', format: 'text' },
+    ],
+    status: { column: 'state', param: 'state', states: [{ value: 'new', label: 'New' }, { value: 'upheld', label: 'Upheld' }] } },
     { id: 'id_checks', kind: 'verification', title: 'ID checks', description: 'Pending ID checks.', action: 'op_pending_verifications', columns: [
       { key: 'parent_name', label: 'Parent', format: 'text' },
       { key: 'request_id', label: 'Request', format: 'text' },
@@ -64,6 +91,7 @@ const PARENTS_CLUBS: OperatorContract = {
   ],
   actions: [
     { id: 'approve', title: 'Approve', resource: 'id_checks', action: 'op_approve_verification', params: { request_id: 'request_id' }, confirm: 'Approve this ID check?', step_up: true },
+    { id: 'uphold', title: 'Uphold', resource: 'flags', action: 'op_uphold_flag', params: { flag: 'flag_id', was: 'state' }, confirm: 'Uphold?', step_up: false, destructive: false, target: 'flag_id', transition: { from: ['new'], to: 'upheld' } },
   ],
 }
 
@@ -76,6 +104,9 @@ const ROWS: Record<string, unknown> = {
   moderation: { rows: [{ open_reports: 1234, suspended_users: 3 }], next_cursor: null },
   parents: { rows: [{ full_name: 'Grace', club_name: 'Chess', user_id: 'p/1' }], next_cursor: null },
   id_checks: { rows: [{ parent_name: 'Grace', request_id: 'r9' }], next_cursor: null },
+  reports: { rows: [{ reason: 'spam', status: 'open', report_id: 'r1' }, { reason: 'abuse', status: 'reviewing', report_id: 'r2' }, { reason: 'old', status: 'resolved', report_id: 'r3' }], next_cursor: null },
+  history: { rows: [{ user_id: 'u1', status: 'active', suspension_id: 's1' }, { user_id: 'u1', status: 'lifted', suspension_id: 's0' }], next_cursor: null },
+  flags: { rows: [{ post_title: 'Hi', state: 'new', flag_id: 'f1' }], next_cursor: null },
 }
 
 type Reply = { status: number; body: unknown }
@@ -156,7 +187,7 @@ describe('OperatorView — generic contract rendering', () => {
     expect(within(members).getAllByRole('button', { name: 'Suspend' })).toHaveLength(2)
     const moderation = screen.getByText('Moderation').closest('section')!
     expect(await within(moderation).findByText((1234).toLocaleString())).toBeTruthy()
-    expect(screen.getByText(/Not declared by this app: Reports, Suspensions, ID verification\./)).toBeTruthy()
+    expect(screen.getByText(/Not declared by this app: ID verification\./)).toBeTruthy()
   })
 
   it('renders app-supplied values as text, never HTML', async () => {
@@ -166,8 +197,8 @@ describe('OperatorView — generic contract rendering', () => {
     expect(container.querySelector('img')).toBeNull()
   })
 
-  it('runs a row action with params mapped from the row, only after confirmation, then reloads', async () => {
-    const fetchMock = serve({ ...baseline, contract: STASH }, { op_suspend_user: { status: 200, body: { meta: { changes: 1 } } } })
+  it('runs a row action through the operator route with the displayed row, only after confirmation, then reloads', async () => {
+    const fetchMock = serve({ ...baseline, contract: STASH }, { suspend_member: { status: 200, body: { ok: true, changes: 1 } } })
     const confirm = vi.fn(() => false)
     vi.stubGlobal('confirm', confirm)
     render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} />)
@@ -176,22 +207,23 @@ describe('OperatorView — generic contract rendering', () => {
 
     fireEvent.click(within(members).getAllByRole('button', { name: 'Suspend' })[0]!)
     expect(confirm).toHaveBeenCalledWith('Suspend this member?')
-    expect(callsTo(fetchMock, 'op_suspend_user')).toHaveLength(0)
+    expect(callsTo(fetchMock, 'suspend_member')).toHaveLength(0)
 
     confirm.mockReturnValue(true)
     fireEvent.click(within(members).getAllByRole('button', { name: 'Suspend' })[0]!)
     await within(members).findByText('Suspend: done.')
-    const [[url, init]] = callsTo(fetchMock, 'op_suspend_user') as unknown as [string, RequestInit][]
-    expect(url).toBe('https://api.proappstore.online/v1/apps/stash/actions/op_suspend_user')
+    const [[url, init]] = callsTo(fetchMock, 'suspend_member') as unknown as [string, RequestInit][]
+    expect(url).toBe('https://api.proappstore.online/v1/apps/stash/operator/actions/suspend_member')
     expect(init.method).toBe('POST')
-    expect(JSON.parse(String(init.body))).toEqual({ params: { user_id: 'u1' } })
+    // The row as displayed (declared columns only); the platform maps the action's params from it.
+    expect(JSON.parse(String(init.body))).toEqual({ row: { display_name: 'Ada', user_id: 'u1', suspended: 0 } })
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer tok')
     expect(readsOf(fetchMock, 'members')).toHaveLength(2) // reloaded
   })
 
   it('renders a second app (Parents Clubs) through the same code: verification queue, step-up refusal explained', async () => {
     serve({ ...baseline, app: { id: 'parents-clubs', createdAt: 1 }, contract: PARENTS_CLUBS }, {
-      op_approve_verification: { status: 403, body: { error: 'step_up_required', message: 'Recent authentication required', max_age: 300 } },
+      approve: { status: 403, body: { error: 'step_up_required', message: 'Recent authentication required', max_age: 300 } },
     })
     vi.stubGlobal('confirm', () => true)
     render(<OperatorView appId="parents-clubs" appName="Parents Clubs" getToken={() => 'tok'} />)
@@ -201,7 +233,7 @@ describe('OperatorView — generic contract rendering', () => {
     await within(checks).findByText('Grace')
     fireEvent.click(within(checks).getByRole('button', { name: 'Approve' }))
     expect(await within(checks).findByText(/Approve: This needs a recent sign-in/)).toBeTruthy()
-    expect(screen.getByText(/Not declared by this app: Metrics, Reports, Suspensions\./)).toBeTruthy()
+    expect(screen.getByText(/Not declared by this app: Metrics, Suspensions\./)).toBeTruthy()
   })
 
   it('a resource the owner lacks the role for fails in its own panel only', async () => {
@@ -265,7 +297,7 @@ describe('OperatorView — users: search, paging, detail (#240 slice 3)', () => 
     expect(screen.getAllByRole('term').map((t) => t.textContent)).toEqual(['Name', 'Email', 'Pockets'])
     expect(screen.getByText(XSS)).toBeTruthy()
     expect(document.querySelector('img')).toBeNull()
-    const [url, init] = fetchMock.mock.calls.at(-1)! as unknown as [string, RequestInit]
+    const [url, init] = fetchMock.mock.calls.find(([u]) => String(u).includes('/records/'))! as unknown as [string, RequestInit]
     expect(url).toBe('https://api.proappstore.online/v1/apps/stash/operator/resources/members/records/u1')
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer tok')
 
@@ -299,6 +331,96 @@ describe('OperatorView — users: search, paging, detail (#240 slice 3)', () => 
     go(href)
     expect(await screen.findByText(new Date(1700000000 * 1000).toLocaleString())).toBeTruthy()
     expect(String(fetchMock.mock.calls.at(-1)![0])).toBe('https://api.proappstore.online/v1/apps/parents-clubs/operator/resources/parents/records/p%2F1')
+  })
+})
+
+describe('OperatorView — reports & suspensions (#240)', () => {
+  afterEach(() => { history.replaceState(null, '', '#/') })
+  const go = (hash: string) => act(() => { location.hash = hash; window.dispatchEvent(new HashChangeEvent('hashchange')) })
+  const openReports = async (routes: Record<string, Route> = {}, onReauth?: () => void) => {
+    const fetchMock = serve({ ...baseline, contract: STASH }, routes)
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} onReauth={onReauth} />)
+    const reports = (await screen.findByText('Reports', { selector: 'h4' })).closest('section')!
+    await within(reports).findByText('spam')
+    return { fetchMock, reports }
+  }
+  const rowOf = (section: HTMLElement, text: string) => within(section).getByText(text).closest('tr')!
+
+  it('labels states, offers each transition only from the states it leaves, and filters by state', async () => {
+    const { fetchMock, reports } = await openReports({
+      'resource:reports': (url) => ({ status: 200, body: url.searchParams.get('status') === 'reviewing'
+        ? { rows: [{ reason: 'abuse', status: 'reviewing', report_id: 'r2' }], next_cursor: null }
+        : ROWS.reports }),
+    })
+    expect(within(rowOf(reports, 'spam')).getByText('Open')).toBeTruthy()
+    expect(within(rowOf(reports, 'abuse')).getByText('In review')).toBeTruthy()
+    const buttons = (text: string) => within(rowOf(reports, text)).queryAllByRole('button').map((b) => b.textContent)
+    expect(buttons('spam')).toEqual(['Start review', 'Resolve'])
+    expect(buttons('abuse')).toEqual(['Resolve'])
+    expect(buttons('old')).toEqual([])
+
+    const filter = within(reports).getByRole('group', { name: 'Filter Reports by status' })
+    fireEvent.click(within(filter).getByRole('button', { name: 'In review' }))
+    await waitFor(() => expect(within(reports).queryByText('spam')).toBeNull())
+    expect(within(filter).getByRole('button', { name: 'In review' }).getAttribute('aria-pressed')).toBe('true')
+    expect(readsOf(fetchMock, 'reports').at(-1)!.searchParams.get('status')).toBe('reviewing')
+  })
+
+  it('runs a transition with the displayed row and shows a conflict the platform reports', async () => {
+    vi.stubGlobal('confirm', () => true)
+    const { fetchMock, reports } = await openReports({
+      review: { status: 409, body: { error: 'the record changed since it was loaded; reload and try again' } },
+    })
+    fireEvent.click(within(rowOf(reports, 'spam')).getByRole('button', { name: 'Start review' }))
+    expect(await within(reports).findByText('Start review: the record changed since it was loaded; reload and try again')).toBeTruthy()
+    const [[url, init]] = callsTo(fetchMock, 'review') as unknown as [string, RequestInit][]
+    expect(url).toBe('https://api.proappstore.online/v1/apps/stash/operator/actions/review')
+    expect(JSON.parse(String(init.body))).toEqual({ row: { reason: 'spam', status: 'open', report_id: 'r1' } })
+  })
+
+  it('styles destructive actions and offers a fresh sign-in when one is required', async () => {
+    vi.stubGlobal('confirm', () => true)
+    const onReauth = vi.fn()
+    serve({ ...baseline, contract: STASH }, { suspend_member: { status: 403, body: { error: 'step_up_required', message: 'Recent authentication required', max_age: 300 } } })
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} onReauth={onReauth} />)
+    const members = (await screen.findByText('Members')).closest('section')!
+    await within(members).findByText('Ada')
+    const suspend = within(members).getAllByRole('button', { name: 'Suspend' })[0]!
+    expect(suspend.className).toContain('var(--error)')
+    expect(suspend.getAttribute('title')).toBe('Needs a recent sign-in')
+    fireEvent.click(suspend)
+    expect(await within(members).findByText(/Suspend: This needs a recent sign-in/)).toBeTruthy()
+    fireEvent.click(within(members).getByRole('button', { name: 'Sign in again' }))
+    expect(onReauth).toHaveBeenCalledOnce()
+  })
+
+  it("shows a member's suspension history on their record page, scoped to that member, with Lift only on active ones", async () => {
+    const fetchMock = serve({ ...baseline, contract: STASH }, {
+      'record:members': { status: 200, body: { record: { display_name: 'Ada', email: 'ada@x.test', pocket_count: 1 } } },
+    })
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} />)
+    await screen.findByText('Members')
+    go('#/apps/stash/operator/members/u1')
+    const history = (await screen.findByText('Suspension history', { selector: 'h4' })).closest('section')!
+    await within(history).findByText('s1')
+    expect(readsOf(fetchMock, 'history').at(-1)!.searchParams.get('related')).toBe('u1')
+    expect(within(rowOf(history, 's1')).getByRole('button', { name: 'Lift' })).toBeTruthy()
+    expect(within(rowOf(history, 's0')).queryByRole('button', { name: 'Lift' })).toBeNull()
+  })
+
+  it('a second app (Parents Clubs) gets its own workflow from its contract, same code', async () => {
+    vi.stubGlobal('confirm', () => true)
+    const fetchMock = serve({ ...baseline, app: { id: 'parents-clubs', createdAt: 1 }, contract: PARENTS_CLUBS }, { uphold: { status: 200, body: { ok: true, changes: 1 } } })
+    render(<OperatorView appId="parents-clubs" appName="Parents Clubs" getToken={() => 'tok'} />)
+    const flags = (await screen.findByText('Flagged posts')).closest('section')!
+    await within(flags).findByText('Hi')
+    expect(within(rowOf(flags, 'Hi')).getByText('New')).toBeTruthy()
+    expect(within(flags).getByRole('group', { name: 'Filter Flagged posts by status' })).toBeTruthy()
+    fireEvent.click(within(flags).getByRole('button', { name: 'Uphold' }))
+    await within(flags).findByText('Uphold: done.')
+    const [[url, init]] = callsTo(fetchMock, 'uphold') as unknown as [string, RequestInit][]
+    expect(url).toBe('https://api.proappstore.online/v1/apps/parents-clubs/operator/actions/uphold')
+    expect(JSON.parse(String(init.body))).toEqual({ row: { post_title: 'Hi', state: 'new', flag_id: 'f1' } })
   })
 })
 

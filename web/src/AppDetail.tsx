@@ -26,6 +26,8 @@ interface Props {
   appName: string | null
   getToken: () => string | null
   onDelete: () => Promise<void>
+  /** Start a fresh sign-in (operator actions that need a recent one). */
+  onReauth: () => void
   /** Which per-app workspace tab is active (navbar switcher). */
   tab: AppTab
   /** Which settings subtab is active when `tab` is settings. */
@@ -33,7 +35,7 @@ interface Props {
   onSettingsTab: (tab: AppSettingsTab) => void
 }
 
-export function AppDetail({ appId, appName, getToken, onDelete, tab, settingsTab, onSettingsTab }: Props) {
+export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, settingsTab, onSettingsTab }: Props) {
   const [listing, setListing] = useState<Listing | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -107,7 +109,7 @@ export function AppDetail({ appId, appName, getToken, onDelete, tab, settingsTab
 
       {tab === 'operator' && (
         <div className="max-w-4xl space-y-4 overflow-y-auto min-h-0 flex-1">
-          <OperatorView appId={appId} appName={appName} getToken={getToken} />
+          <OperatorView appId={appId} appName={appName} getToken={getToken} onReauth={onReauth} />
         </div>
       )}
 

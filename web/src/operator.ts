@@ -3,10 +3,10 @@
  * the platform answers 401 signed out and 403 for anyone but the app's owner.
  *
  * `contract` is the app's declared operator view (mcp.json `operator_view`,
- * validated by the platform) or null. Resources are read through the
- * owner-only operator resource routes, which return only the declared
- * columns/fields; row actions run through the ordinary actions route. Both use
- * the owner's session, so the app's role gates, step-up and audit apply.
+ * validated by the platform) or null. Resources are read and row actions run
+ * through the owner-only operator routes, which return only the declared
+ * columns/fields and build action params from declared columns. All use the
+ * owner's session, so the app's role gates, step-up and audit apply.
  */
 
 import { apiFetch, ApiError } from './api'
@@ -27,6 +27,10 @@ export interface OperatorResource {
   search?: { param: string } | null
   page?: { param: string; column: string; size: number } | null
   detail?: { action: string; param: string; key: string; fields: OperatorColumn[]; step_up: boolean } | null
+  /** A status workflow; `param` set means the list can be filtered by state. */
+  status?: { column: string; states: { value: string; label: string }[]; param: string | null } | null
+  /** Listed per record of another resource (e.g. a member's suspension history). */
+  related?: { resource: string; param: string } | null
 }
 
 export interface OperatorAction {
@@ -38,6 +42,11 @@ export interface OperatorAction {
   params: Record<string, string>
   confirm: string
   step_up: boolean
+  /** Offered only on rows whose status is in `from`. */
+  transition?: { from: string[]; to: string } | null
+  /** Irreversible or account-affecting; always needs a recent sign-in. */
+  destructive?: boolean
+  target?: string | null
 }
 
 export interface OperatorContract {
@@ -77,11 +86,13 @@ export async function fetchOperatorRows(
   token: string,
   appId: string,
   resourceId: string,
-  opts: { q?: string; cursor?: string | null } = {},
+  opts: { q?: string; cursor?: string | null; status?: string | null; related?: string | null } = {},
 ): Promise<{ rows: OperatorRow[]; next_cursor: string | null }> {
   const qs = new URLSearchParams()
   if (opts.q) qs.set('q', opts.q)
   if (opts.cursor) qs.set('cursor', opts.cursor)
+  if (opts.status) qs.set('status', opts.status)
+  if (opts.related) qs.set('related', opts.related)
   const query = qs.toString()
   return apiFetch(`/apps/${encodeURIComponent(appId)}/operator/resources/${encodeURIComponent(resourceId)}${query ? `?${query}` : ''}`, { token })
 }
@@ -91,23 +102,30 @@ export async function fetchOperatorRecord(token: string, appId: string, resource
   return apiFetch(`/apps/${encodeURIComponent(appId)}/operator/resources/${encodeURIComponent(resourceId)}/records/${encodeURIComponent(key)}`, { token })
 }
 
-/** Run one of the app's registered actions as the signed-in owner. */
-export async function runOperatorAction(
-  token: string,
-  appId: string,
-  action: string,
-  params: Record<string, unknown>,
-): Promise<unknown> {
-  return apiFetch(`/apps/${encodeURIComponent(appId)}/actions/${encodeURIComponent(action)}`, {
+/** Run a declared row action on `row` (as displayed). The platform maps its params from declared columns. */
+export async function runOperatorRowAction(token: string, appId: string, actionId: string, row: OperatorRow): Promise<{ ok: boolean; changes: number }> {
+  return apiFetch(`/apps/${encodeURIComponent(appId)}/operator/actions/${encodeURIComponent(actionId)}`, {
     token,
     method: 'POST',
-    body: JSON.stringify({ params }),
+    body: JSON.stringify({ row }),
   })
 }
 
-/** Params for a row action, taken from the columns the contract maps them to. */
-export function rowParams(action: OperatorAction, row: OperatorRow): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(action.params).map(([param, column]) => [param, row[column]]))
+/** Whether `action` is offered on `row`: a transition only from one of its `from` states. */
+export function actionAvailable(action: OperatorAction, resource: OperatorResource, row: OperatorRow): boolean {
+  if (!action.transition) return true
+  const status = resource.status ? row[resource.status.column] : undefined
+  return typeof status === 'string' && action.transition.from.includes(status)
+}
+
+/** A state's label, or the raw value when the app did not declare it. */
+export function statusLabel(resource: OperatorResource, value: unknown): string | null {
+  return resource.status?.states.find((s) => s.value === value)?.label ?? null
+}
+
+/** True when a refusal can be fixed by signing in again (the action needs a recent sign-in). */
+export function needsReauth(e: unknown): boolean {
+  return e instanceof ApiError && e.message === 'step_up_required'
 }
 
 /** A cell as plain text. Values come from the app; they are never rendered as HTML. */
@@ -126,7 +144,7 @@ export function formatCell(value: unknown, format: OperatorColumnFormat): string
 /** Why an operator read or action failed, in words the owner can act on. */
 export function operatorErrorMessage(e: unknown): string {
   if (e instanceof ApiError) {
-    if (e.message === 'step_up_required') return 'This needs a recent sign-in. Sign out and back in, then try again.'
+    if (e.message === 'step_up_required') return 'This needs a recent sign-in. Sign in again, then retry.'
     if (e.status === 403 && /app role/.test(e.message)) {
       return "You don't hold the app role this needs. Grant it to yourself under Settings → Access."
     }
