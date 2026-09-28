@@ -12,6 +12,7 @@ import { fetchOperatorContext, OPERATOR_KINDS, type OperatorContext } from './op
 import { formatNumber, formatDuration } from './usage'
 import { Kpi } from './sectionPrimitives'
 import { OperatorResourcePanel } from './OperatorResourcePanel'
+import { OperatorSeriesPanel } from './OperatorSeriesPanel'
 import { OperatorRecordView } from './OperatorRecordView'
 import { parseOperatorRecord } from './nav'
 
@@ -110,9 +111,10 @@ function DeclaredPanels({ appId, data, getToken, onReauth }: {
         return (
           <div key={kind} className="space-y-3">
             <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide">{label}</h3>
-            {ofKind.map((r) => (
-              <OperatorResourcePanel key={r.id} appId={appId} resource={r} getToken={getToken} onReauth={onReauth}
-                actions={actions.filter((a) => a.resource === r.id)} />
+            {ofKind.map((r) => (r.series
+              ? <OperatorSeriesPanel key={r.id} appId={appId} resource={r} getToken={getToken} onReauth={onReauth} />
+              : <OperatorResourcePanel key={r.id} appId={appId} resource={r} getToken={getToken} onReauth={onReauth}
+                  actions={actions.filter((a) => a.resource === r.id)} />
             ))}
           </div>
         )

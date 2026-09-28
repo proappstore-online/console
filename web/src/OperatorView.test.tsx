@@ -7,7 +7,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { OperatorView } from './OperatorView'
-import { formatCell } from './operator'
+import { formatCell, formatMeasure } from './operator'
+import { rangeFor } from './OperatorSeriesPanel'
+import { formatBucket } from './OperatorLineChart'
 import type { OperatorContract } from './operator'
 
 const baseline = {
@@ -62,6 +64,14 @@ const STASH: OperatorContract = {
       { key: 'document_path', label: 'ID document', format: 'text' },
       { key: 'selfie_path', label: 'Selfie', format: 'text' },
     ], evidence: [{ field: 'document_path', label: 'ID document' }, { field: 'selfie_path', label: 'Selfie' }] } },
+    { id: 'growth', kind: 'metrics', title: 'Sign-ups', description: null, action: 'op_daily_signups', columns: [
+      { key: 'day', label: 'Day', format: 'datetime' }, { key: 'plan', label: 'Plan', format: 'text' }, { key: 'signups', label: 'Sign-ups', format: 'number' },
+    ], series: {
+      time: { column: 'day', grain: 'day' },
+      range: { from_param: 'from', to_param: 'to', default_days: 30, max_days: 366 },
+      measures: [{ column: 'signups', label: 'Sign-ups', unit: 'count', currency: null, aggregation: 'sum' }],
+      dimension: { column: 'plan', label: 'Plan', max_values: 3 },
+    } },
     { id: 'moderation', kind: 'metrics', title: 'Moderation', description: null, action: 'op_report_metrics', columns: [
       { key: 'open_reports', label: 'Open reports', format: 'number' },
       { key: 'suspended_users', label: 'Suspended', format: 'number' },
@@ -103,6 +113,17 @@ const PARENTS_CLUBS: OperatorContract = {
       { key: 'flag_id', label: 'Flag', format: 'text' },
     ],
     status: { column: 'state', param: 'state', states: [{ value: 'new', label: 'New' }, { value: 'upheld', label: 'Upheld' }] } },
+    { id: 'club_trends', kind: 'metrics', title: 'Club trends', description: null, action: 'op_weekly_clubs', columns: [
+      { key: 'week_start', label: 'Week', format: 'datetime' }, { key: 'attendance_rate', label: 'Attendance', format: 'number' }, { key: 'fees', label: 'Fees', format: 'number' },
+    ], series: {
+      time: { column: 'week_start', grain: 'week' },
+      range: { from_param: 'since', to_param: 'until', default_days: 84, max_days: 366 },
+      measures: [
+        { column: 'attendance_rate', label: 'Attendance', unit: 'percent', currency: null, aggregation: 'avg' },
+        { column: 'fees', label: 'Fees collected', unit: 'currency', currency: 'GBP', aggregation: 'sum' },
+      ],
+      dimension: null,
+    } },
     { id: 'id_checks', kind: 'verification', title: 'ID checks', description: 'Pending ID checks.', action: 'op_pending_verifications', columns: [
       { key: 'parent_name', label: 'Parent', format: 'text' },
       { key: 'state', label: 'State', format: 'badge' },
@@ -146,7 +167,8 @@ function serve(context: unknown, routes: Record<string, Route> = {}) {
     if (url.pathname.endsWith('/operator')) return Response.json(context)
     const evidence = /\/records\/[^/]+\/evidence\/([^/]+)$/.exec(url.pathname)
     const m = /\/operator\/resources\/([^/]+)(\/records\/[^/]+)?$/.exec(url.pathname)
-    const name = evidence ? `evidence:${evidence[1]}`
+    const metrics = /\/operator\/metrics\/([^/]+)$/.exec(url.pathname)
+    const name = metrics ? `metrics:${metrics[1]}` : evidence ? `evidence:${evidence[1]}`
       : m ? `${m[2] ? 'record' : 'resource'}:${decodeURIComponent(m[1]!)}` : /\/actions\/([^/]+)$/.exec(url.pathname)?.[1] ?? ''
     const route = routes[name]
     const r = typeof route === 'function' ? route(url) : route ?? { status: 200, body: ROWS[name.replace('resource:', '')] ?? {} }
@@ -263,7 +285,7 @@ describe('OperatorView — generic contract rendering', () => {
     await within(checks).findByText('Grace')
     fireEvent.click(within(checks).getByRole('button', { name: 'Approve' }))
     expect(await within(checks).findByText(/Approve: This needs a recent sign-in/)).toBeTruthy()
-    expect(screen.getByText(/Not declared by this app: Metrics, Suspensions\./)).toBeTruthy()
+    expect(screen.getByText(/Not declared by this app: Suspensions\./)).toBeTruthy()
   })
 
   it('a resource the owner lacks the role for fails in its own panel only', async () => {
@@ -568,6 +590,145 @@ describe('OperatorView — ID verification (#240)', () => {
     expect(link.getAttribute('rel')).toBe('noopener noreferrer')
     expect(screen.getByText(XSS)).toBeTruthy() // app-supplied text stays text
     expect(document.querySelector('img')).toBeNull()
+  })
+})
+
+describe('OperatorView — metric time series (#240)', () => {
+  const growthData = {
+    from: '2026-09-01', to: '2026-09-04', grain: 'day', buckets: ['2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04'],
+    dimension: { column: 'plan', label: 'Plan' }, omitted: 2,
+    measures: [{ column: 'signups', label: 'Sign-ups', unit: 'count', currency: null, aggregation: 'sum', summary: 1234, series: [
+      { dimension: 'free', summary: 900, values: [300, null, 400, 200] },
+      { dimension: XSS, summary: 334, values: [100, 34, null, 200] },
+    ] }],
+  }
+  const trendsData = {
+    from: '2026-09-07', to: '2026-09-20', grain: 'week', buckets: ['2026-09-07', '2026-09-14'], dimension: null, omitted: 0,
+    measures: [
+      { column: 'attendance_rate', label: 'Attendance', unit: 'percent', currency: null, aggregation: 'avg', summary: 72.5, series: [{ dimension: null, summary: 72.5, values: [70, 75] }] },
+      { column: 'fees', label: 'Fees collected', unit: 'currency', currency: 'GBP', aggregation: 'sum', summary: 1234, series: [{ dimension: null, summary: 1234, values: [1000, 234] }] },
+    ],
+  }
+  const metricsCalls = (fetchMock: ReturnType<typeof serve>, id: string) =>
+    fetchMock.mock.calls.map(([u]) => new URL(String(u))).filter((u) => u.pathname.endsWith(`/operator/metrics/${id}`))
+  const openGrowth = async (routes: Record<string, Route> = {}, onReauth?: () => void) => {
+    const fetchMock = serve({ ...baseline, contract: STASH }, { 'metrics:growth': { status: 200, body: growthData }, ...routes })
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} onReauth={onReauth} />)
+    const panel = (await screen.findByText('Sign-ups', { selector: 'h4' })).closest('section')!
+    return { fetchMock, panel }
+  }
+
+  it('asks the metrics route for the declared default window and grain, then shows summary, legend and table', async () => {
+    const { fetchMock, panel } = await openGrowth()
+    await within(panel).findByText('1,234')
+    const [req] = metricsCalls(fetchMock, 'growth')
+    expect(req!.origin + req!.pathname).toBe('https://api.proappstore.online/v1/apps/stash/operator/metrics/growth')
+    expect(Object.fromEntries(req!.searchParams)).toEqual({ ...rangeFor(30), grain: 'day' })
+    expect(within(panel).getByText('Sign-ups · Total')).toBeTruthy()
+    const range = within(panel).getByRole('group', { name: 'Sign-ups range' })
+    expect(within(range).getAllByRole('button').map((b) => [b.textContent, b.getAttribute('aria-pressed')])).toEqual([
+      ['Last 7 days', 'false'], ['Last 30 days', 'true'], ['Last 90 days', 'false'], ['Last 365 days', 'false'],
+    ])
+    expect(within(panel).getByRole('combobox', { name: 'Group by' })).toBeTruthy()
+    expect(within(panel).getAllByRole('option').map((o) => o.textContent)).toEqual(['day', 'week', 'month'])
+    const legend = within(panel).getByRole('list', { name: 'Sign-ups series' })
+    expect(within(legend).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['free', XSS])
+    expect(within(panel).getByText('2 more plan values not shown (smallest totals).')).toBeTruthy()
+    const table = within(panel).getByRole('table')
+    expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Day', 'free', XSS])
+    expect(within(table).getAllByRole('row')[2]!.textContent).toContain('—') // Sep 2: free had no rows
+    expect(document.querySelector('img')).toBeNull()
+  })
+
+  it('draws gaps for empty buckets instead of zero', async () => {
+    const { panel } = await openGrowth()
+    await within(panel).findByText('1,234')
+    const svg = panel.querySelector('svg')!
+    // free: [300, null, 400, 200] → a lone point + a line; second: [100, 34, null, 200] → a line + a lone point.
+    expect(svg.querySelectorAll('path[stroke]').length).toBe(2)
+    expect(svg.querySelectorAll('circle').length).toBe(2)
+  })
+
+  it('refetches for a new range or grain, keeping the previous render dimmed meanwhile', async () => {
+    const { fetchMock, panel } = await openGrowth({
+      'metrics:growth': (url) => ({ status: 200, body: url.searchParams.get('grain') === 'month' ? { ...growthData, grain: 'month' } : growthData }),
+    })
+    await within(panel).findByText('1,234')
+    fireEvent.click(within(panel).getByRole('button', { name: 'Last 90 days' }))
+    // While the new range loads, the previous render stays, dimmed and marked busy.
+    expect(panel.getAttribute('aria-busy')).toBe('true')
+    expect(within(panel).getByText('1,234')).toBeTruthy()
+    expect(within(panel).getByText('1,234').closest('.opacity-50')).toBeTruthy()
+    await waitFor(() => expect(panel.getAttribute('aria-busy')).toBe('false'))
+    expect(metricsCalls(fetchMock, 'growth').at(-1)!.searchParams.get('from')).toBe(rangeFor(90).from)
+    fireEvent.change(within(panel).getByRole('combobox', { name: 'Group by' }), { target: { value: 'month' } })
+    await waitFor(() => expect(metricsCalls(fetchMock, 'growth').at(-1)!.searchParams.get('grain')).toBe('month'))
+  })
+
+  it('reads each bucket from the keyboard through a live region', async () => {
+    const { panel } = await openGrowth()
+    await within(panel).findByText('1,234')
+    const chart = within(panel).getByRole('group', { name: /Sign-ups over time/ })
+    const live = () => panel.querySelector('[aria-live="polite"]')!.textContent
+    fireEvent.focus(chart)
+    await waitFor(() => expect(live()).toContain(formatBucket('2026-09-04', 'day')))
+    expect(live()).toContain('free 200')
+    fireEvent.keyDown(chart, { key: 'ArrowLeft' })
+    await waitFor(() => expect(live()).toContain(formatBucket('2026-09-03', 'day')))
+    expect(live()).toContain('free 400')
+    expect(live()).toContain(`${XSS} —`)
+    fireEvent.keyDown(chart, { key: 'Home' })
+    await waitFor(() => expect(live()).toContain(formatBucket('2026-09-01', 'day')))
+    fireEvent.keyDown(chart, { key: 'Escape' })
+    await waitFor(() => expect(live()).toBe(''))
+  })
+
+  it('says so when the range has no data, and explains errors with a re-sign-in when needed', async () => {
+    const empty = { ...growthData, omitted: 0, measures: [{ ...growthData.measures[0]!, summary: null, series: [] }] }
+    const { panel } = await openGrowth({ 'metrics:growth': { status: 200, body: empty } })
+    expect(await within(panel).findByText('No data in this range.')).toBeTruthy()
+    expect(within(panel).getByText('—')).toBeTruthy()
+    expect(panel.querySelector('svg')).toBeNull()
+    cleanup()
+    const oversized = await openGrowth({ 'metrics:growth': { status: 400, body: { error: 'range is 400 days; this metric allows at most 366' } } })
+    expect((await within(oversized.panel).findByRole('alert')).textContent).toBe('range is 400 days; this metric allows at most 366')
+    cleanup()
+    const onReauth = vi.fn()
+    const stale = await openGrowth({ 'metrics:growth': { status: 403, body: { error: 'step_up_required' } } }, onReauth)
+    await within(stale.panel).findByRole('alert')
+    fireEvent.click(within(stale.panel).getByRole('button', { name: 'Sign in again' }))
+    expect(onReauth).toHaveBeenCalledOnce()
+  })
+
+  it('a second app (Parents Clubs) gets its own units, grain and one chart per measure from the same code', async () => {
+    const fetchMock = serve({ ...baseline, app: { id: 'parents-clubs', createdAt: 1 }, contract: PARENTS_CLUBS }, { 'metrics:club_trends': { status: 200, body: trendsData } })
+    render(<OperatorView appId="parents-clubs" appName="Parents Clubs" getToken={() => 'tok'} />)
+    const panel = (await screen.findByText('Club trends', { selector: 'h4' })).closest('section')!
+    await within(panel).findByText('72.5%')
+    expect(within(panel).getByText('Attendance · Average')).toBeTruthy()
+    expect(within(panel).getByText('£1,234.00')).toBeTruthy()
+    expect(within(panel).getAllByRole('option').map((o) => o.textContent)).toEqual(['week', 'month'])
+    expect(within(panel).getAllByRole('figure')).toHaveLength(2) // one chart per measure, never a shared axis
+    expect(within(panel).queryByRole('list', { name: /series/ })).toBeNull() // a single series needs no legend
+    expect(metricsCalls(fetchMock, 'club_trends')[0]!.searchParams.get('grain')).toBe('week')
+    expect(metricsCalls(fetchMock, 'club_trends')[0]!.searchParams.get('from')).toBe(rangeFor(84).from)
+  })
+})
+
+describe('formatMeasure', () => {
+  it('formats each unit, and a missing value as a dash', () => {
+    expect(formatMeasure(null, 'count')).toBe('—')
+    expect(formatMeasure(1234.5678, 'count')).toBe((1234.5678).toLocaleString(undefined, { maximumFractionDigits: 2 }))
+    expect(formatMeasure(12.345, 'percent')).toBe(`${(12.345).toLocaleString(undefined, { maximumFractionDigits: 1 })}%`)
+    expect(formatMeasure(5400, 'seconds')).toBe('1 hr 30 min')
+    expect(formatMeasure(1536, 'bytes')).toBe(`${(1.5).toLocaleString()} KB`)
+    expect(formatMeasure(10, 'bytes')).toBe('10 B')
+    expect(formatMeasure(9.5, 'currency', 'EUR')).toBe((9.5).toLocaleString(undefined, { style: 'currency', currency: 'EUR' }))
+  })
+
+  it('rangeFor counts the last N days including today, in UTC', () => {
+    expect(rangeFor(30, Date.parse('2026-09-28T23:30:00Z'))).toEqual({ from: '2026-08-30', to: '2026-09-28' })
+    expect(rangeFor(1, Date.parse('2026-09-28T00:10:00Z'))).toEqual({ from: '2026-09-28', to: '2026-09-28' })
   })
 })
 

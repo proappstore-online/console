@@ -10,6 +10,7 @@
  */
 
 import { apiFetch, ApiError, API_BASE, authHeaders } from './api'
+import { formatDuration } from './usage'
 
 export type OperatorResourceKind = 'users' | 'reports' | 'suspensions' | 'verification' | 'metrics'
 export type OperatorColumnFormat = 'text' | 'number' | 'datetime' | 'boolean' | 'badge'
@@ -39,6 +40,36 @@ export interface OperatorResource {
   status?: { column: string; states: { value: string; label: string }[]; param: string | null } | null
   /** Listed per record of another resource (e.g. a member's suspension history). */
   related?: { resource: string; param: string } | null
+  /** Metrics only: an app-wide time series, read through fetchOperatorSeries. */
+  series?: OperatorSeries | null
+}
+
+export type SeriesGrain = 'day' | 'week' | 'month'
+export const SERIES_GRAINS: SeriesGrain[] = ['day', 'week', 'month']
+export type SeriesUnit = 'count' | 'percent' | 'seconds' | 'bytes' | 'currency'
+type SeriesAggregation = 'sum' | 'avg' | 'min' | 'max'
+
+interface SeriesMeasure { column: string; label: string; unit: SeriesUnit; currency: string | null; aggregation: SeriesAggregation }
+
+export interface OperatorSeries {
+  time: { column: string; grain: SeriesGrain }
+  range: { from_param: string; to_param: string; default_days: number; max_days: number }
+  measures: SeriesMeasure[]
+  dimension: { column: string; label: string; max_values: number } | null
+}
+
+/** One metric time series as the platform rolls it up: every bucket of the range, null where it had no rows. */
+export interface OperatorSeriesData {
+  from: string
+  to: string
+  grain: SeriesGrain
+  buckets: string[]
+  dimension: { column: string; label: string } | null
+  omitted: number
+  measures: (SeriesMeasure & {
+    summary: number | null
+    series: { dimension: string | null; summary: number | null; values: (number | null)[] }[]
+  })[]
 }
 
 export interface OperatorAction {
@@ -126,6 +157,33 @@ export async function fetchOperatorEvidence(token: string, appId: string, resour
     throw new ApiError(res.status, body)
   }
   return res.blob()
+}
+
+/** A metric time series over [from, to] (UTC dates) at `grain`. */
+export async function fetchOperatorSeries(
+  token: string,
+  appId: string,
+  resourceId: string,
+  opts: { from: string; to: string; grain: SeriesGrain },
+): Promise<OperatorSeriesData> {
+  const qs = new URLSearchParams({ from: opts.from, to: opts.to, grain: opts.grain })
+  return apiFetch(`/apps/${encodeURIComponent(appId)}/operator/metrics/${encodeURIComponent(resourceId)}?${qs}`, { token })
+}
+
+/** A measure value in its declared unit. Percent values are 0-100. */
+export function formatMeasure(value: number | null, unit: SeriesUnit, currency: string | null = null): string {
+  if (value === null || !Number.isFinite(value)) return '—'
+  if (unit === 'percent') return `${value.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`
+  if (unit === 'seconds') return formatDuration(value)
+  if (unit === 'currency' && currency) return value.toLocaleString(undefined, { style: 'currency', currency })
+  if (unit === 'bytes') {
+    const units = ['B', 'KB', 'MB', 'GB', 'TB']
+    let n = value
+    let i = 0
+    while (Math.abs(n) >= 1024 && i < units.length - 1) { n /= 1024; i++ }
+    return `${n.toLocaleString(undefined, { maximumFractionDigits: i ? 1 : 0 })} ${units[i]}`
+  }
+  return value.toLocaleString(undefined, { maximumFractionDigits: 2 })
 }
 
 /** Run a declared row action on `row` (as displayed). The platform maps its params from declared columns. */
