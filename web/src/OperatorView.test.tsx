@@ -4,7 +4,7 @@
 // #240: the operator view renders only what the owner-gated API returns; a
 // refusal shows why and never renders app data. Declared contracts render
 // generically: two different sample apps go through the same component.
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { OperatorView } from './OperatorView'
 import { formatCell, formatMeasure } from './operator'
@@ -168,7 +168,8 @@ function serve(context: unknown, routes: Record<string, Route> = {}) {
     const evidence = /\/records\/[^/]+\/evidence\/([^/]+)$/.exec(url.pathname)
     const m = /\/operator\/resources\/([^/]+)(\/records\/[^/]+)?$/.exec(url.pathname)
     const metrics = /\/operator\/metrics\/([^/]+)$/.exec(url.pathname)
-    const name = metrics ? `metrics:${metrics[1]}` : evidence ? `evidence:${evidence[1]}`
+    const name = url.pathname.endsWith('/operator/entries') ? 'entries' : url.pathname.endsWith('/operator/audit') ? 'audit'
+      : metrics ? `metrics:${metrics[1]}` : evidence ? `evidence:${evidence[1]}`
       : m ? `${m[2] ? 'record' : 'resource'}:${decodeURIComponent(m[1]!)}` : /\/actions\/([^/]+)$/.exec(url.pathname)?.[1] ?? ''
     const route = routes[name]
     const r = typeof route === 'function' ? route(url) : route ?? { status: 200, body: ROWS[name.replace('resource:', '')] ?? {} }
@@ -729,6 +730,122 @@ describe('formatMeasure', () => {
   it('rangeFor counts the last N days including today, in UTC', () => {
     expect(rangeFor(30, Date.parse('2026-09-28T23:30:00Z'))).toEqual({ from: '2026-08-30', to: '2026-09-28' })
     expect(rangeFor(1, Date.parse('2026-09-28T00:10:00Z'))).toEqual({ from: '2026-09-28', to: '2026-09-28' })
+  })
+})
+
+describe('OperatorView — entry and audit trail (#240)', () => {
+  const entries = (fetchMock: ReturnType<typeof serve>) =>
+    fetchMock.mock.calls.filter(([u]) => String(u).endsWith('/operator/entries')) as unknown as [string, RequestInit][]
+  const auditCalls = (fetchMock: ReturnType<typeof serve>) =>
+    fetchMock.mock.calls.map(([u]) => new URL(String(u))).filter((u) => u.pathname.endsWith('/operator/audit'))
+  const trail = (overrides: Partial<Record<string, unknown>> = {}) => ({
+    rows: [
+      { id: 9, at: Date.UTC(2026, 8, 28, 9), actor: { id: 'gh:1', login: 'owner' }, role: 'operator', kind: 'evidence', resource: 'kyc', field: 'document_path', operation: 'evidence:kyc.document_path', action: 'op_kyc_detail', target: null, target_hidden: true, status: 200, outcome: 'success' },
+      { id: 8, at: Date.UTC(2026, 8, 28, 8), actor: { id: 'gh:1', login: null }, role: null, kind: 'action', resource: null, field: null, operation: 'review', action: null, target: null, target_hidden: false, status: 409, outcome: 'refused' },
+      { id: 7, at: Date.UTC(2026, 8, 28, 7), actor: { id: 'gh:1', login: 'owner' }, role: 'operator', kind: 'detail', resource: 'members', field: null, operation: 'detail:members', action: 'op_member_detail', target: XSS, target_hidden: false, status: 200, outcome: 'success' },
+      { id: 6, at: Date.UTC(2026, 8, 28, 6), actor: { id: 'gh:1', login: 'owner' }, role: null, kind: 'enter', resource: null, field: null, operation: 'enter', action: null, target: 'visit-1', target_hidden: false, status: 200, outcome: 'success' },
+    ],
+    next_cursor: null, targets_hidden: true, ...overrides,
+  })
+  beforeEach(() => sessionStorage.clear())
+
+  it('records entering once per visit, however often the view re-renders or remounts', async () => {
+    const fetchMock = serve({ ...baseline, contract: STASH }, { entries: { status: 200, body: { recorded: true } } })
+    const view = render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} />)
+    await screen.findByText('Members')
+    await waitFor(() => expect(entries(fetchMock)).toHaveLength(1))
+    const [[url, init]] = entries(fetchMock)
+    expect(url).toBe('https://api.proappstore.online/v1/apps/stash/operator/entries')
+    const visit = (JSON.parse(String(init.body)) as { visit: string }).visit
+    expect(visit).toBe(sessionStorage.getItem('pas:operator-visit:stash'))
+    view.rerender(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} />)
+    view.unmount()
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} />) // tab switch back
+    await screen.findByText('Members')
+    expect(entries(fetchMock)).toHaveLength(1)
+    // A new tab session is a new visit.
+    cleanup()
+    sessionStorage.clear()
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} />)
+    await screen.findByText('Members')
+    await waitFor(() => expect(entries(fetchMock)).toHaveLength(2))
+    expect((JSON.parse(String(entries(fetchMock)[1]![1].body)) as { visit: string }).visit).not.toBe(visit)
+  })
+
+  it('does not record entry when the view is refused, and records a second app separately', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('not the app owner', { status: 403 })))
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} />)
+    await screen.findByRole('alert')
+    expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.some(([u]) => String(u).endsWith('/entries'))).toBe(false)
+    cleanup()
+    const fetchMock = serve({ ...baseline, app: { id: 'parents-clubs', createdAt: 1 }, contract: PARENTS_CLUBS }, { entries: { status: 200, body: { recorded: true } } })
+    render(<OperatorView appId="parents-clubs" appName="Parents Clubs" getToken={() => 'tok'} />)
+    await waitFor(() => expect(entries(fetchMock)).toHaveLength(1))
+    expect(entries(fetchMock)[0]![0]).toBe('https://api.proappstore.online/v1/apps/parents-clubs/operator/entries')
+    expect(sessionStorage.getItem('pas:operator-visit:parents-clubs')).toBeTruthy()
+  })
+
+  it('loads the trail only when opened, then shows who did what to which record, redacting identity targets', async () => {
+    const onReauth = vi.fn()
+    const fetchMock = serve({ ...baseline, contract: STASH }, { audit: { status: 200, body: trail() } })
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} onReauth={onReauth} />)
+    const toggle = await screen.findByRole('button', { name: 'Show audit trail' })
+    expect(auditCalls(fetchMock)).toHaveLength(0)
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(toggle)
+    expect(screen.getByRole('button', { name: 'Hide audit trail' }).getAttribute('aria-expanded')).toBe('true')
+    const table = await screen.findByRole('table', { name: 'Operator audit trail, newest first' })
+    const cells = within(table).getAllByRole('row').slice(1).map((r) => within(r).getAllByRole('cell').slice(1).map((c) => c.textContent))
+    expect(cells).toEqual([
+      ['owneras operator', 'Viewed document: Identity checks · ID document', 'Hidden', '✓ Success'],
+      ['gh:1', 'Ran action: Start review', '—', '✕ Refused (409)'],
+      ['owneras operator', 'Opened record: Members', XSS, '✓ Success'],
+      ['owner', 'Opened operator view', 'visit-1', '✓ Success'],
+    ])
+    expect(document.querySelector('img')).toBeNull()
+    expect(screen.getByText(/hidden until you sign in again/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in again' }))
+    expect(onReauth).toHaveBeenCalledOnce()
+    // Narrow screens get the same rows as a stacked list.
+    expect(within(screen.getByRole('list', { name: 'Operator audit trail, newest first' })).getAllByRole('listitem')).toHaveLength(4)
+  })
+
+  it('filters with ordinary form controls and pages with the returned cursor', async () => {
+    const fetchMock = serve({ ...baseline, contract: STASH }, {
+      audit: (url) => ({ status: 200, body: url.searchParams.get('cursor') === '6'
+        ? trail({ rows: [{ ...trail().rows[3], id: 5, operation: 'enter', target: 'visit-0' }], next_cursor: null, targets_hidden: false })
+        : trail({ next_cursor: '6' }) }),
+    })
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Show audit trail' }))
+    await screen.findByRole('table', { name: 'Operator audit trail, newest first' })
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await screen.findAllByText('visit-0')
+    expect(auditCalls(fetchMock).at(-1)!.searchParams.get('cursor')).toBe('6')
+    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
+
+    const form = screen.getByRole('form', { name: 'Filter the audit trail' })
+    fireEvent.change(within(form).getByLabelText('What'), { target: { value: 'detail' } })
+    fireEvent.change(within(form).getByLabelText('Outcome'), { target: { value: 'refused' } })
+    fireEvent.change(within(form).getByLabelText('Record'), { target: { value: '  k1 ' } })
+    fireEvent.change(within(form).getByLabelText('From'), { target: { value: '2026-09-01' } })
+    fireEvent.change(within(form).getByLabelText('To'), { target: { value: '2026-09-28' } })
+    fireEvent.submit(form)
+    await waitFor(() => expect(Object.fromEntries(auditCalls(fetchMock).at(-1)!.searchParams)).toEqual({ kind: 'detail', outcome: 'refused', target: 'k1', from: '2026-09-01', to: '2026-09-28' }))
+    fireEvent.click(within(form).getByRole('button', { name: 'Clear' }))
+    await waitFor(() => expect(auditCalls(fetchMock).at(-1)!.search).toBe(''))
+  })
+
+  it('says when nothing matches, and explains a refusal (Parents Clubs declares an audit role)', async () => {
+    serve({ ...baseline, contract: STASH }, { audit: { status: 200, body: trail({ rows: [], targets_hidden: false }) } })
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Show audit trail' }))
+    expect(await screen.findByText('Nothing recorded for these filters.')).toBeTruthy()
+    cleanup()
+    serve({ ...baseline, app: { id: 'parents-clubs', createdAt: 1 }, contract: PARENTS_CLUBS }, { audit: { status: 403, body: { error: 'requires app role' } } })
+    render(<OperatorView appId="parents-clubs" appName="Parents Clubs" getToken={() => 'tok'} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Show audit trail' }))
+    expect((await screen.findByRole('alert')).textContent).toContain('Grant it to yourself under Settings → Access')
   })
 })
 

@@ -8,13 +8,21 @@
 
 import { useState, useEffect } from 'react'
 import { ApiError } from './api'
-import { fetchOperatorContext, OPERATOR_KINDS, type OperatorContext } from './operator'
+import { fetchOperatorContext, recordOperatorEntry, operatorVisitId, OPERATOR_KINDS, type OperatorContext } from './operator'
 import { formatNumber, formatDuration } from './usage'
 import { Kpi } from './sectionPrimitives'
 import { OperatorResourcePanel } from './OperatorResourcePanel'
 import { OperatorSeriesPanel } from './OperatorSeriesPanel'
 import { OperatorRecordView } from './OperatorRecordView'
+import { OperatorAuditPanel } from './OperatorAuditPanel'
 import { parseOperatorRecord } from './nav'
+
+/**
+ * Visits whose entry this page has already sent. With the per-tab visit id and
+ * the platform's once-per-visit insert, entering is recorded exactly once per
+ * tab session, however often the view re-renders, remounts or re-fetches.
+ */
+const enteredVisits = new Set<string>()
 
 function errorMessage(e: unknown): string {
   if (e instanceof ApiError) {
@@ -55,6 +63,18 @@ export function OperatorView({ appId, appName, getToken, onReauth }: {
     return () => { cancelled = true }
   }, [appId, getToken])
 
+  // Entering the view is recorded once the owner-gated context has loaded, once per visit.
+  const loaded = data !== null
+  useEffect(() => {
+    const token = getToken()
+    if (!loaded || !token) return
+    const visit = operatorVisitId(appId)
+    const key = `${appId}:${visit}`
+    if (enteredVisits.has(key)) return
+    enteredVisits.add(key)
+    recordOperatorEntry(token, appId, visit).catch(() => { enteredVisits.delete(key) }) // retried on the next visit to the tab
+  }, [appId, loaded, getToken])
+
   return (
     <div className="space-y-4">
       <header className="flex items-center gap-2 flex-wrap">
@@ -86,6 +106,7 @@ export function OperatorView({ appId, appName, getToken, onReauth }: {
           </section>
 
           <DeclaredPanels appId={appId} data={data} getToken={getToken} onReauth={onReauth} />
+          <OperatorAuditPanel appId={appId} contract={data.contract} getToken={getToken} onReauth={onReauth} />
         </>
       )}
     </div>

@@ -186,6 +186,58 @@ export function formatMeasure(value: number | null, unit: SeriesUnit, currency: 
   return value.toLocaleString(undefined, { maximumFractionDigits: 2 })
 }
 
+/** One row of the operator audit trail: who did what to which record, and how it went. Never params or results. */
+export interface OperatorAuditRow {
+  id: number
+  at: number
+  actor: { id: string; login: string | null }
+  role: string | null
+  kind: 'enter' | 'audit' | 'read' | 'detail' | 'evidence' | 'series' | 'action'
+  resource: string | null
+  field: string | null
+  operation: string
+  action: string | null
+  target: string | null
+  /** The target exists but needs a recent sign-in to be shown (identity data). */
+  target_hidden: boolean
+  status: number
+  outcome: 'success' | 'refused'
+}
+
+export interface OperatorAuditFilters { kind?: string; outcome?: string; actor?: string; target?: string; from?: string; to?: string }
+
+export async function fetchOperatorAudit(
+  token: string,
+  appId: string,
+  filters: OperatorAuditFilters,
+  cursor: string | null,
+): Promise<{ rows: OperatorAuditRow[]; next_cursor: string | null; targets_hidden: boolean }> {
+  const qs = new URLSearchParams()
+  for (const [k, v] of Object.entries(filters)) if (v) qs.set(k, v)
+  if (cursor) qs.set('cursor', cursor)
+  const query = qs.toString()
+  return apiFetch(`/apps/${encodeURIComponent(appId)}/operator/audit${query ? `?${query}` : ''}`, { token })
+}
+
+/** This tab's visit of an app's operator view: one id per browser tab session per app. */
+export function operatorVisitId(appId: string): string {
+  const key = `pas:operator-visit:${appId}`
+  try {
+    const existing = sessionStorage.getItem(key)
+    if (existing) return existing
+    const id = crypto.randomUUID()
+    sessionStorage.setItem(key, id)
+    return id
+  } catch {
+    return crypto.randomUUID() // storage unavailable: the server still records a visit only once per id
+  }
+}
+
+/** Record entering the operator view. The platform writes it once per visit. */
+export async function recordOperatorEntry(token: string, appId: string, visit: string): Promise<void> {
+  await apiFetch(`/apps/${encodeURIComponent(appId)}/operator/entries`, { token, method: 'POST', body: JSON.stringify({ visit }) })
+}
+
 /** Run a declared row action on `row` (as displayed). The platform maps its params from declared columns. */
 export async function runOperatorRowAction(token: string, appId: string, actionId: string, row: OperatorRow): Promise<{ ok: boolean; changes: number }> {
   return apiFetch(`/apps/${encodeURIComponent(appId)}/operator/actions/${encodeURIComponent(actionId)}`, {
