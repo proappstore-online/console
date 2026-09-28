@@ -9,7 +9,7 @@
  * owner's session, so the app's role gates, step-up and audit apply.
  */
 
-import { apiFetch, ApiError } from './api'
+import { apiFetch, ApiError, API_BASE, authHeaders } from './api'
 
 export type OperatorResourceKind = 'users' | 'reports' | 'suspensions' | 'verification' | 'metrics'
 export type OperatorColumnFormat = 'text' | 'number' | 'datetime' | 'boolean' | 'badge'
@@ -26,7 +26,15 @@ export interface OperatorResource {
   /** Users only (absent on contracts stored before search/paging existed). */
   search?: { param: string } | null
   page?: { param: string; column: string; size: number } | null
-  detail?: { action: string; param: string; key: string; fields: OperatorColumn[]; step_up: boolean } | null
+  detail?: {
+    action: string
+    param: string
+    key: string
+    fields: OperatorColumn[]
+    step_up: boolean
+    /** Verification only: fields that are documents. The record carries true/false for each, never a path. */
+    evidence?: { field: string; label: string }[] | null
+  } | null
   /** A status workflow; `param` set means the list can be filtered by state. */
   status?: { column: string; states: { value: string; label: string }[]; param: string | null } | null
   /** Listed per record of another resource (e.g. a member's suspension history). */
@@ -100,6 +108,24 @@ export async function fetchOperatorRows(
 /** One record of a declared resource: its declared detail fields only. */
 export async function fetchOperatorRecord(token: string, appId: string, resourceId: string, key: string): Promise<{ record: OperatorRow }> {
   return apiFetch(`/apps/${encodeURIComponent(appId)}/operator/resources/${encodeURIComponent(resourceId)}/records/${encodeURIComponent(key)}`, { token })
+}
+
+/**
+ * One evidence document of a verification record, as a Blob. The platform
+ * resolves the document from the record itself; the console never sees a path.
+ */
+export async function fetchOperatorEvidence(token: string, appId: string, resourceId: string, key: string, field: string): Promise<Blob> {
+  const res = await fetch(
+    `${API_BASE}/apps/${encodeURIComponent(appId)}/operator/resources/${encodeURIComponent(resourceId)}/records/${encodeURIComponent(key)}/evidence/${encodeURIComponent(field)}`,
+    { headers: authHeaders(token) },
+  )
+  if (!res.ok) {
+    const text = await res.text()
+    let body: unknown = text
+    try { body = JSON.parse(text) } catch { /* plain text error */ }
+    throw new ApiError(res.status, body)
+  }
+  return res.blob()
 }
 
 /** Run a declared row action on `row` (as displayed). The platform maps its params from declared columns. */

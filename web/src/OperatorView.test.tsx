@@ -48,6 +48,20 @@ const STASH: OperatorContract = {
     ],
     related: { resource: 'members', param: 'user' },
     status: { column: 'status', param: null, states: [{ value: 'active', label: 'Active' }, { value: 'lifted', label: 'Lifted' }] } },
+    { id: 'kyc', kind: 'verification', title: 'Identity checks', description: null, action: 'op_list_kyc', columns: [
+      { key: 'full_name', label: 'Name', format: 'text' },
+      { key: 'status', label: 'Status', format: 'badge' },
+      { key: 'request_id', label: 'Request', format: 'text' },
+    ],
+    search: { param: 'q' },
+    status: { column: 'status', param: 'status', states: [{ value: 'pending', label: 'Pending' }, { value: 'approved', label: 'Approved' }, { value: 'rejected', label: 'Rejected' }] },
+    detail: { action: 'op_kyc_detail', param: 'request_id', key: 'request_id', step_up: true, fields: [
+      { key: 'full_name', label: 'Name', format: 'text' },
+      { key: 'status', label: 'Status', format: 'badge' },
+      { key: 'request_id', label: 'Request', format: 'text' },
+      { key: 'document_path', label: 'ID document', format: 'text' },
+      { key: 'selfie_path', label: 'Selfie', format: 'text' },
+    ], evidence: [{ field: 'document_path', label: 'ID document' }, { field: 'selfie_path', label: 'Selfie' }] } },
     { id: 'moderation', kind: 'metrics', title: 'Moderation', description: null, action: 'op_report_metrics', columns: [
       { key: 'open_reports', label: 'Open reports', format: 'number' },
       { key: 'suspended_users', label: 'Suspended', format: 'number' },
@@ -59,6 +73,11 @@ const STASH: OperatorContract = {
       id, title: id === 'review' ? 'Start review' : 'Resolve', resource: 'reports', action: `op_${id}_report`,
       params: { report_id: 'report_id', from_status: 'status' }, confirm: `${id}?`, step_up: false, destructive: false, target: 'report_id',
       transition: id === 'review' ? { from: ['open'], to: 'reviewing' } : { from: ['open', 'reviewing'], to: 'resolved' },
+    })),
+    ...(['approve', 'reject'] as const).map((verb) => ({
+      id: `${verb}_kyc`, title: verb === 'approve' ? 'Approve' : 'Reject', resource: 'kyc', action: `op_${verb}_kyc`,
+      params: { request_id: 'request_id', from_status: 'status' }, confirm: `${verb}?`, step_up: true, destructive: false, target: 'request_id',
+      transition: { from: ['pending'], to: verb === 'approve' ? 'approved' : 'rejected' },
     })),
     { id: 'lift', title: 'Lift', resource: 'history', action: 'op_lift_suspension', params: { suspension_id: 'suspension_id', from_status: 'status', user_id: 'user_id' }, confirm: 'Lift?', step_up: false, destructive: false, target: 'user_id', transition: { from: ['active'], to: 'lifted' } },
   ],
@@ -86,11 +105,19 @@ const PARENTS_CLUBS: OperatorContract = {
     status: { column: 'state', param: 'state', states: [{ value: 'new', label: 'New' }, { value: 'upheld', label: 'Upheld' }] } },
     { id: 'id_checks', kind: 'verification', title: 'ID checks', description: 'Pending ID checks.', action: 'op_pending_verifications', columns: [
       { key: 'parent_name', label: 'Parent', format: 'text' },
+      { key: 'state', label: 'State', format: 'badge' },
       { key: 'request_id', label: 'Request', format: 'text' },
-    ] },
+    ],
+    status: { column: 'state', param: 'state', states: [{ value: 'pending', label: 'Pending' }, { value: 'approved', label: 'Approved' }, { value: 'declined', label: 'Declined' }] },
+    detail: { action: 'op_verification_detail', param: 'id', key: 'request_id', step_up: true, fields: [
+      { key: 'parent_name', label: 'Parent', format: 'text' },
+      { key: 'state', label: 'State', format: 'badge' },
+      { key: 'request_id', label: 'Request', format: 'text' },
+      { key: 'licence_path', label: "Driver's licence", format: 'text' },
+    ], evidence: [{ field: 'licence_path', label: "Driver's licence" }] } },
   ],
   actions: [
-    { id: 'approve', title: 'Approve', resource: 'id_checks', action: 'op_approve_verification', params: { request_id: 'request_id' }, confirm: 'Approve this ID check?', step_up: true },
+    { id: 'approve', title: 'Approve', resource: 'id_checks', action: 'op_approve_verification', params: { request_id: 'request_id', was: 'state' }, confirm: 'Approve this ID check?', step_up: true, destructive: false, target: 'request_id', transition: { from: ['pending'], to: 'approved' } },
     { id: 'uphold', title: 'Uphold', resource: 'flags', action: 'op_uphold_flag', params: { flag: 'flag_id', was: 'state' }, confirm: 'Uphold?', step_up: false, destructive: false, target: 'flag_id', transition: { from: ['new'], to: 'upheld' } },
   ],
 }
@@ -103,25 +130,28 @@ const ROWS: Record<string, unknown> = {
   members: { rows: [{ display_name: 'Ada', user_id: 'u1', suspended: 0 }, { display_name: XSS, user_id: 'u2', suspended: 1 }], next_cursor: null },
   moderation: { rows: [{ open_reports: 1234, suspended_users: 3 }], next_cursor: null },
   parents: { rows: [{ full_name: 'Grace', club_name: 'Chess', user_id: 'p/1' }], next_cursor: null },
-  id_checks: { rows: [{ parent_name: 'Grace', request_id: 'r9' }], next_cursor: null },
+  id_checks: { rows: [{ parent_name: 'Grace', state: 'pending', request_id: 'r9' }, { parent_name: 'Hal', state: 'approved', request_id: 'r8' }], next_cursor: null },
+  kyc: { rows: [{ full_name: 'Ada', status: 'pending', request_id: 'k1' }, { full_name: 'Bo', status: 'rejected', request_id: 'k2' }], next_cursor: null },
   reports: { rows: [{ reason: 'spam', status: 'open', report_id: 'r1' }, { reason: 'abuse', status: 'reviewing', report_id: 'r2' }, { reason: 'old', status: 'resolved', report_id: 'r3' }], next_cursor: null },
   history: { rows: [{ user_id: 'u1', status: 'active', suspension_id: 's1' }, { user_id: 'u1', status: 'lifted', suspension_id: 's0' }], next_cursor: null },
   flags: { rows: [{ post_title: 'Hi', state: 'new', flag_id: 'f1' }], next_cursor: null },
 }
 
-type Reply = { status: number; body: unknown }
+type Reply = { status: number; body: unknown; type?: string }
 type Route = Reply | ((url: URL) => Reply)
 /** The operator context, resource reads (`resource:<id>`, `record:<id>`) and action posts (`<action name>`). */
 function serve(context: unknown, routes: Record<string, Route> = {}) {
   const fetchMock = vi.fn(async (raw: string, init?: RequestInit) => {
     const url = new URL(raw)
     if (url.pathname.endsWith('/operator')) return Response.json(context)
+    const evidence = /\/records\/[^/]+\/evidence\/([^/]+)$/.exec(url.pathname)
     const m = /\/operator\/resources\/([^/]+)(\/records\/[^/]+)?$/.exec(url.pathname)
-    const name = m ? `${m[2] ? 'record' : 'resource'}:${decodeURIComponent(m[1]!)}` : /\/actions\/([^/]+)$/.exec(url.pathname)?.[1] ?? ''
+    const name = evidence ? `evidence:${evidence[1]}`
+      : m ? `${m[2] ? 'record' : 'resource'}:${decodeURIComponent(m[1]!)}` : /\/actions\/([^/]+)$/.exec(url.pathname)?.[1] ?? ''
     const route = routes[name]
     const r = typeof route === 'function' ? route(url) : route ?? { status: 200, body: ROWS[name.replace('resource:', '')] ?? {} }
     void init
-    return new Response(typeof r.body === 'string' ? r.body : JSON.stringify(r.body), { status: r.status })
+    return new Response(typeof r.body === 'string' ? r.body : JSON.stringify(r.body), { status: r.status, headers: r.type ? { 'content-type': r.type } : {} })
   })
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
@@ -187,7 +217,7 @@ describe('OperatorView — generic contract rendering', () => {
     expect(within(members).getAllByRole('button', { name: 'Suspend' })).toHaveLength(2)
     const moderation = screen.getByText('Moderation').closest('section')!
     expect(await within(moderation).findByText((1234).toLocaleString())).toBeTruthy()
-    expect(screen.getByText(/Not declared by this app: ID verification\./)).toBeTruthy()
+    expect(screen.queryByText(/Not declared by this app/)).toBeNull() // Stash declares every kind
   })
 
   it('renders app-supplied values as text, never HTML', async () => {
@@ -421,6 +451,123 @@ describe('OperatorView — reports & suspensions (#240)', () => {
     const [[url, init]] = callsTo(fetchMock, 'uphold') as unknown as [string, RequestInit][]
     expect(url).toBe('https://api.proappstore.online/v1/apps/parents-clubs/operator/actions/uphold')
     expect(JSON.parse(String(init.body))).toEqual({ row: { post_title: 'Hi', state: 'new', flag_id: 'f1' } })
+  })
+})
+
+describe('OperatorView — ID verification (#240)', () => {
+  afterEach(() => { history.replaceState(null, '', '#/') })
+  const go = (hash: string) => act(() => { location.hash = hash; window.dispatchEvent(new HashChangeEvent('hashchange')) })
+  const blobUrls = () => {
+    let n = 0
+    const create = vi.fn(() => `blob:test/${++n}`)
+    const revoke = vi.fn()
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: create, revokeObjectURL: revoke }))
+    return { create, revoke }
+  }
+  const kycRecord = { full_name: 'Ada', status: 'pending', request_id: 'k1', document_path: true, selfie_path: false }
+  const openKyc = async (routes: Record<string, Route> = {}, onReauth?: () => void) => {
+    const fetchMock = serve({ ...baseline, contract: STASH }, { 'record:kyc': { status: 200, body: { record: kycRecord } }, ...routes })
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} onReauth={onReauth} />)
+    await screen.findByText('Identity checks', { selector: 'h4' })
+    go('#/apps/stash/operator/kyc/k1')
+    await screen.findByText('Evidence')
+    return fetchMock
+  }
+
+  it('the queue filters by state and offers decisions only on pending checks', async () => {
+    serve({ ...baseline, contract: STASH })
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} />)
+    const queue = (await screen.findByText('Identity checks', { selector: 'h4' })).closest('section')!
+    await within(queue).findByText('Ada')
+    expect(within(queue).getByRole('group', { name: 'Filter Identity checks by status' })).toBeTruthy()
+    const row = (text: string) => within(queue).getByText(text).closest('tr')!
+    expect(within(row('Ada')).queryAllByRole('button').map((b) => b.textContent)).toEqual(['Approve', 'Reject'])
+    expect(within(row('Bo')).queryAllByRole('button')).toHaveLength(0)
+    expect(within(row('Ada')).getByRole('link', { name: 'Open' }).getAttribute('href')).toBe('#/apps/stash/operator/kyc/k1')
+  })
+
+  it('the record shows fields without document paths, and decisions from the current state', async () => {
+    await openKyc()
+    expect(screen.getAllByRole('term').map((t) => t.textContent)).toEqual(['Name', 'Status', 'Request'])
+    expect(screen.getByText('Pending')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'View ID document' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'View Selfie' })).toBeNull()
+    expect(screen.getByText('No document on file.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Approve' }).getAttribute('title')).toBe('Needs a recent sign-in')
+    expect(screen.getByRole('button', { name: 'Reject' })).toBeTruthy()
+  })
+
+  it('views an image document only on request, through the evidence route, from an object URL', async () => {
+    const { create } = blobUrls()
+    const fetchMock = await openKyc({ 'evidence:document_path': { status: 200, body: 'PNGDATA', type: 'image/png' } })
+    expect(fetchMock.mock.calls.some(([u]) => String(u).includes('/evidence/'))).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'View ID document' }))
+    const img = await screen.findByRole('img', { name: 'ID document' })
+    expect(img.getAttribute('src')).toBe('blob:test/1')
+    expect(create).toHaveBeenCalledOnce()
+    const [url, init] = fetchMock.mock.calls.find(([u]) => String(u).includes('/evidence/'))! as unknown as [string, RequestInit]
+    expect(url).toBe('https://api.proappstore.online/v1/apps/stash/operator/resources/kyc/records/k1/evidence/document_path')
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer tok')
+  })
+
+  it('explains a refused document and offers a fresh sign-in when one is required', async () => {
+    const onReauth = vi.fn()
+    await openKyc({ 'evidence:document_path': { status: 403, body: { error: 'step_up_required' } } }, onReauth)
+    fireEvent.click(screen.getByRole('button', { name: 'View ID document' }))
+    expect((await screen.findByRole('alert')).textContent).toContain('recent sign-in')
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in again' }))
+    expect(onReauth).toHaveBeenCalledOnce()
+    cleanup()
+    history.replaceState(null, '', '#/')
+    await openKyc({ 'evidence:document_path': { status: 403, body: { error: 'not a reviewer for this app' } } })
+    fireEvent.click(screen.getByRole('button', { name: 'View ID document' }))
+    expect((await screen.findByRole('alert')).textContent).toBe('not a reviewer for this app')
+  })
+
+  it('a stale session on the record itself is explained with a re-sign-in', async () => {
+    const onReauth = vi.fn()
+    serve({ ...baseline, contract: STASH }, { 'record:kyc': { status: 403, body: { error: 'step_up_required' } } })
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} onReauth={onReauth} />)
+    await screen.findByText('Identity checks', { selector: 'h4' })
+    go('#/apps/stash/operator/kyc/k1')
+    expect((await screen.findByRole('alert')).textContent).toContain('recent sign-in')
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in again' }))
+    expect(onReauth).toHaveBeenCalledOnce()
+    expect(screen.queryByText('Evidence')).toBeNull()
+  })
+
+  it('decides from the record with the record as the row, then reloads it', async () => {
+    vi.stubGlobal('confirm', () => true)
+    let decided = false
+    const fetchMock = await openKyc({
+      approve_kyc: () => { decided = true; return { status: 200, body: { ok: true, changes: 1 } } },
+      'record:kyc': () => ({ status: 200, body: { record: decided ? { ...kycRecord, status: 'approved' } : kycRecord } }),
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    expect(await screen.findByText('Approve: done.')).toBeTruthy()
+    await screen.findByText('Approved')
+    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull()
+    const [[url, init]] = callsTo(fetchMock, 'approve_kyc') as unknown as [string, RequestInit][]
+    expect(url).toBe('https://api.proappstore.online/v1/apps/stash/operator/actions/approve_kyc')
+    expect(JSON.parse(String(init.body))).toEqual({ row: kycRecord })
+    expect(fetchMock.mock.calls.filter(([u]) => String(u).endsWith('/records/k1'))).toHaveLength(2)
+  })
+
+  it('a second app (Parents Clubs) opens its licence PDF through the same code', async () => {
+    blobUrls()
+    serve({ ...baseline, app: { id: 'parents-clubs', createdAt: 1 }, contract: PARENTS_CLUBS }, {
+      'record:id_checks': { status: 200, body: { record: { parent_name: XSS, state: 'pending', request_id: 'r9', licence_path: true } } },
+      'evidence:licence_path': { status: 200, body: '%PDF-1', type: 'application/pdf' },
+    })
+    render(<OperatorView appId="parents-clubs" appName="Parents Clubs" getToken={() => 'tok'} />)
+    await screen.findByText('ID checks')
+    go('#/apps/parents-clubs/operator/id_checks/r9')
+    fireEvent.click(await screen.findByRole('button', { name: "View Driver's licence" }))
+    const link = await screen.findByRole('link', { name: "Open Driver's licence (PDF)" })
+    expect(link.getAttribute('href')).toBe('blob:test/1')
+    expect(link.getAttribute('rel')).toBe('noopener noreferrer')
+    expect(screen.getByText(XSS)).toBeTruthy() // app-supplied text stays text
+    expect(document.querySelector('img')).toBeNull()
   })
 })
 

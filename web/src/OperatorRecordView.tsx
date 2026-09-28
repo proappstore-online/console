@@ -1,14 +1,19 @@
 /**
  * One record of a declared operator resource (#240): the resource's declared
- * detail fields, read through the owner-only record route, then every resource
- * declared `related` to it listed for this record (e.g. a member's suspension
- * history, with its row actions). Reached by
+ * detail fields, read through the owner-only record route; for a verification
+ * record, its evidence documents and the decisions open from its current
+ * state; then every resource declared `related` to it listed for this record
+ * (e.g. a member's suspension history, with its row actions). Reached by
  * `#/apps/<slug>/operator/<resource>/<key>`. Values render as text.
  */
 
 import { useState, useEffect } from 'react'
-import { fetchOperatorRecord, formatCell, operatorErrorMessage, type OperatorContract, type OperatorRow } from './operator'
+import {
+  fetchOperatorRecord, runOperatorRowAction, actionAvailable, needsReauth, formatCell, operatorErrorMessage,
+  type OperatorAction, type OperatorContract, type OperatorRow,
+} from './operator'
 import { OperatorResourcePanel } from './OperatorResourcePanel'
+import { OperatorEvidence } from './OperatorEvidence'
 
 export function OperatorRecordView({ appId, contract, resourceId, recordKey, getToken, onReauth }: {
   appId: string
@@ -22,7 +27,16 @@ export function OperatorRecordView({ appId, contract, resourceId, recordKey, get
   const related = contract?.resources.filter((r) => r.related?.resource === resourceId) ?? []
   const [record, setRecord] = useState<OperatorRow | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [reauth, setReauth] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [version, setVersion] = useState(0)
   const detail = resource?.detail
+  const evidence = detail?.evidence ?? []
+  // Verification decisions are taken here, after the evidence has been seen.
+  const decisions = resource?.kind === 'verification' && record
+    ? (contract?.actions ?? []).filter((a) => a.resource === resourceId && actionAvailable(a, resource, record))
+    : []
 
   useEffect(() => {
     let cancelled = false
@@ -33,9 +47,27 @@ export function OperatorRecordView({ appId, contract, resourceId, recordKey, get
     if (!token) { setError('Your session has expired. Sign in again.'); return }
     fetchOperatorRecord(token, appId, resource.id, recordKey)
       .then((r) => { if (!cancelled) setRecord(r.record) })
-      .catch((e) => { if (!cancelled) setError(operatorErrorMessage(e)) })
+      .catch((e) => { if (!cancelled) { setError(operatorErrorMessage(e)); setReauth(needsReauth(e)) } })
     return () => { cancelled = true }
-  }, [appId, resource, detail, recordKey, getToken])
+  }, [appId, resource, detail, recordKey, getToken, version])
+
+  const decide = async (action: OperatorAction) => {
+    const token = getToken()
+    if (!token || !record || !window.confirm(action.confirm)) return
+    setBusy(true)
+    setNotice(null)
+    setReauth(false)
+    try {
+      await runOperatorRowAction(token, appId, action.id, record)
+      setNotice(`${action.title}: done.`)
+      setVersion((v) => v + 1)
+    } catch (e) {
+      setNotice(`${action.title}: ${operatorErrorMessage(e)}`)
+      setReauth(needsReauth(e))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -49,16 +81,40 @@ export function OperatorRecordView({ appId, contract, resourceId, recordKey, get
           {!error && !record && <p className="text-sm text-[var(--muted)]">Loading...</p>}
           {!error && record && detail && (
             <dl className="grid grid-cols-1 sm:grid-cols-[12rem_1fr] gap-x-4 gap-y-2 text-sm">
-              {detail.fields.map((f) => (
+              {detail.fields.filter((f) => !evidence.some((e) => e.field === f.key)).map((f) => (
                 <div key={f.key} className="contents">
                   <dt className="font-semibold text-[var(--muted)]">{f.label}</dt>
-                  <dd className="text-[var(--ink)] break-words">{formatCell(record[f.key], f.format)}</dd>
+                  <dd className="text-[var(--ink)] break-words">
+                    {(f.key === resource?.status?.column && resource.status.states.find((s) => s.value === record[f.key])?.label) || formatCell(record[f.key], f.format)}
+                  </dd>
                 </div>
               ))}
             </dl>
           )}
+          {decisions.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {decisions.map((a) => (
+                <button key={a.id} type="button" title={a.step_up ? 'Needs a recent sign-in' : undefined}
+                  disabled={busy} onClick={() => decide(a)}
+                  className={`rounded-lg border px-3 py-1.5 text-sm font-medium disabled:opacity-50 ${a.destructive ? 'border-[var(--error)] text-[var(--error)]' : 'border-[var(--line-strong)] text-[var(--ink)]'}`}>
+                  {a.title}
+                </button>
+              ))}
+            </div>
+          )}
+          {notice && <p className="mt-3 text-sm text-[var(--muted)]">{notice}</p>}
+          {reauth && onReauth && (
+            <button type="button" onClick={onReauth}
+              className="mt-2 rounded-lg border border-[var(--line-strong)] px-3 py-1.5 text-sm font-medium text-[var(--ink)]">
+              Sign in again
+            </button>
+          )}
         </div>
       </section>
+      {record && evidence.length > 0 && (
+        <OperatorEvidence appId={appId} resourceId={resourceId} recordKey={recordKey} record={record}
+          evidence={evidence} getToken={getToken} onReauth={onReauth} />
+      )}
       {record && related.map((r) => (
         <OperatorResourcePanel key={r.id} appId={appId} resource={r} getToken={getToken} related={recordKey} onReauth={onReauth}
           actions={contract?.actions.filter((a) => a.resource === r.id) ?? []} />
