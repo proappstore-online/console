@@ -1,23 +1,17 @@
 /**
  * Operator view (#240) — the owner's oversight surface for one app they own.
- * This is the shell: baseline context the platform already has, plus the
- * panels later children fill in (users, reports, ID checks, metrics, actions).
- * Ownership is enforced by the API; this only renders what it returns.
+ * The baseline context the platform already has, plus whatever the app
+ * declares in its operator-view contract, rendered generically by kind — no
+ * per-app code here. Ownership is enforced by the API; this only renders what
+ * it returns.
  */
 
 import { useState, useEffect } from 'react'
 import { ApiError } from './api'
-import { fetchOperatorContext, type OperatorContext } from './operator'
+import { fetchOperatorContext, OPERATOR_KINDS, type OperatorContext } from './operator'
 import { formatNumber, formatDuration } from './usage'
 import { Kpi } from './sectionPrimitives'
-
-const UPCOMING: { title: string; body: string }[] = [
-  { title: 'Users', body: 'Everyone using the app, across tenants.' },
-  { title: 'Reports & suspensions', body: 'Problem reports and suspended accounts the app exposes.' },
-  { title: 'ID verification', body: 'The verification queue, with re-authentication before viewing a document.' },
-  { title: 'App-wide metrics', body: 'Aggregate metrics beyond a single tenant.' },
-  { title: 'Account actions', body: 'Investigate and act on a flagged account, audit-logged.' },
-]
+import { OperatorResourcePanel } from './OperatorResourcePanel'
 
 function errorMessage(e: unknown): string {
   if (e instanceof ApiError) {
@@ -73,17 +67,43 @@ export function OperatorView({ appId, appName, getToken }: {
             </div>
           </section>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {UPCOMING.map((p) => (
-              <section key={p.title} className="rounded-2xl border border-dashed border-[var(--line-strong)] p-5">
-                <h3 className="text-sm font-semibold text-[var(--ink)]">{p.title}</h3>
-                <p className="mt-1 text-sm text-[var(--muted)]">{p.body}</p>
-                <p className="mt-2 text-xs text-[var(--muted)]">Not available yet.</p>
-              </section>
-            ))}
-          </div>
+          <DeclaredPanels appId={appId} data={data} getToken={getToken} />
         </>
       )}
     </div>
+  )
+}
+
+/** The app's declared resources grouped by kind, each with its row actions. */
+function DeclaredPanels({ appId, data, getToken }: {
+  appId: string
+  data: OperatorContext
+  getToken: () => string | null
+}) {
+  const resources = data.contract?.resources ?? []
+  const actions = data.contract?.actions ?? []
+  const undeclared = OPERATOR_KINDS.filter((k) => !resources.some((r) => r.kind === k.kind)).map((k) => k.label)
+
+  return (
+    <>
+      {OPERATOR_KINDS.map(({ kind, label }) => {
+        const ofKind = resources.filter((r) => r.kind === kind)
+        if (ofKind.length === 0) return null
+        return (
+          <div key={kind} className="space-y-3">
+            <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide">{label}</h3>
+            {ofKind.map((r) => (
+              <OperatorResourcePanel key={r.id} appId={appId} resource={r} getToken={getToken}
+                actions={actions.filter((a) => a.resource === r.id)} />
+            ))}
+          </div>
+        )
+      })}
+      <p className="text-sm text-[var(--muted)]">
+        {data.contract
+          ? undeclared.length > 0 && <>Not declared by this app: {undeclared.join(', ')}.</>
+          : <>This app declares no operator view yet, so only the overview is shown. Declare <code>operator_view</code> in the app's <code>mcp.json</code> to add users, reports, suspensions, ID verification, metrics and account actions here.</>}
+      </p>
+    </>
   )
 }
