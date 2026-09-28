@@ -12,6 +12,8 @@ import { fetchOperatorContext, OPERATOR_KINDS, type OperatorContext } from './op
 import { formatNumber, formatDuration } from './usage'
 import { Kpi } from './sectionPrimitives'
 import { OperatorResourcePanel } from './OperatorResourcePanel'
+import { OperatorRecordView } from './OperatorRecordView'
+import { parseOperatorRecord } from './nav'
 
 function errorMessage(e: unknown): string {
   if (e instanceof ApiError) {
@@ -29,6 +31,14 @@ export function OperatorView({ appId, appName, getToken }: {
 }) {
   const [data, setData] = useState<OperatorContext | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // A record's detail page is a deep link under this tab: #/apps/<slug>/operator/<resource>/<key>.
+  const [record, setRecord] = useState(() => parseOperatorRecord(location.hash))
+
+  useEffect(() => {
+    const onHash = () => setRecord(parseOperatorRecord(location.hash))
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -52,7 +62,12 @@ export function OperatorView({ appId, appName, getToken }: {
       {error && <p role="alert" className="text-sm text-[var(--error)]">{error}</p>}
       {!error && !data && <p className="text-sm text-[var(--muted)]">Loading...</p>}
 
-      {data && (
+      {data && record && (
+        <OperatorRecordView appId={appId} recordKey={record.key} getToken={getToken}
+          resource={data.contract?.resources.find((r) => r.id === record.resourceId)} />
+      )}
+
+      {data && !record && (
         <>
           <section className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
             <div className="flex items-baseline justify-between mb-4">

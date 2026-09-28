@@ -3,9 +3,10 @@
  * the platform answers 401 signed out and 403 for anyone but the app's owner.
  *
  * `contract` is the app's declared operator view (mcp.json `operator_view`,
- * validated by the platform) or null. Its resources and actions run through
- * the ordinary actions route with the owner's session, so the app's role
- * gates, step-up and audit apply to every call.
+ * validated by the platform) or null. Resources are read through the
+ * owner-only operator resource routes, which return only the declared
+ * columns/fields; row actions run through the ordinary actions route. Both use
+ * the owner's session, so the app's role gates, step-up and audit apply.
  */
 
 import { apiFetch, ApiError } from './api'
@@ -13,13 +14,19 @@ import { apiFetch, ApiError } from './api'
 export type OperatorResourceKind = 'users' | 'reports' | 'suspensions' | 'verification' | 'metrics'
 export type OperatorColumnFormat = 'text' | 'number' | 'datetime' | 'boolean' | 'badge'
 
+export interface OperatorColumn { key: string; label: string; format: OperatorColumnFormat }
+
 export interface OperatorResource {
   id: string
   kind: OperatorResourceKind
   title: string
   description: string | null
   action: string
-  columns: { key: string; label: string; format: OperatorColumnFormat }[]
+  columns: OperatorColumn[]
+  /** Users only (absent on contracts stored before search/paging existed). */
+  search?: { param: string } | null
+  page?: { param: string; column: string; size: number } | null
+  detail?: { action: string; param: string; key: string; fields: OperatorColumn[]; step_up: boolean } | null
 }
 
 export interface OperatorAction {
@@ -65,13 +72,32 @@ export async function fetchOperatorContext(token: string, appId: string): Promis
   return apiFetch<OperatorContext>(`/apps/${encodeURIComponent(appId)}/operator`, { token })
 }
 
+/** One page of a declared resource: declared columns only. `q` / `cursor` only where declared. */
+export async function fetchOperatorRows(
+  token: string,
+  appId: string,
+  resourceId: string,
+  opts: { q?: string; cursor?: string | null } = {},
+): Promise<{ rows: OperatorRow[]; next_cursor: string | null }> {
+  const qs = new URLSearchParams()
+  if (opts.q) qs.set('q', opts.q)
+  if (opts.cursor) qs.set('cursor', opts.cursor)
+  const query = qs.toString()
+  return apiFetch(`/apps/${encodeURIComponent(appId)}/operator/resources/${encodeURIComponent(resourceId)}${query ? `?${query}` : ''}`, { token })
+}
+
+/** One record of a declared resource: its declared detail fields only. */
+export async function fetchOperatorRecord(token: string, appId: string, resourceId: string, key: string): Promise<{ record: OperatorRow }> {
+  return apiFetch(`/apps/${encodeURIComponent(appId)}/operator/resources/${encodeURIComponent(resourceId)}/records/${encodeURIComponent(key)}`, { token })
+}
+
 /** Run one of the app's registered actions as the signed-in owner. */
 export async function runOperatorAction(
   token: string,
   appId: string,
   action: string,
   params: Record<string, unknown>,
-): Promise<{ rows?: OperatorRow[] }> {
+): Promise<unknown> {
   return apiFetch(`/apps/${encodeURIComponent(appId)}/actions/${encodeURIComponent(action)}`, {
     token,
     method: 'POST',
@@ -105,6 +131,7 @@ export function operatorErrorMessage(e: unknown): string {
       return "You don't hold the app role this needs. Grant it to yourself under Settings → Access."
     }
     if (e.status === 401) return 'Your session has expired. Sign in again.'
+    if (e.status === 404 && e.message === 'record not found') return 'This record no longer exists.'
   }
   return (e as Error).message
 }

@@ -140,3 +140,19 @@ export function mergeApps(
   }
   return [...byId.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 }
+
+/** Deep link to one record of an operator resource (#240): `#/apps/<slug>/operator/<resource>/<key>`. */
+export function operatorRecordHash(appId: string, resourceId: string, key: string): string {
+  return `#/apps/${appId}/operator/${encodeURIComponent(resourceId)}/${encodeURIComponent(key)}`
+}
+
+/** The record an operator deep link names, or null on any other route. */
+export function parseOperatorRecord(rawHash: string): { resourceId: string; key: string } | null {
+  const [apps, , tab, resourceId, key, ...rest] = rawHash.replace(/^#\/?/, '').split('/')
+  if (apps !== 'apps' || tab !== 'operator' || !resourceId || !key || rest.length) return null
+  try {
+    return { resourceId: decodeURIComponent(resourceId), key: decodeURIComponent(key) }
+  } catch {
+    return null // malformed %-escape
+  }
+}

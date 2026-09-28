@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseHash, hashFor, deriveSlug, mergeApps, appTabsFor, type AppEntry } from './nav'
+import { parseHash, hashFor, deriveSlug, mergeApps, appTabsFor, operatorRecordHash, parseOperatorRecord, type AppEntry } from './nav'
 
 describe('parseHash', () => {
   it('defaults to dashboard for empty/`#`/`#/`', () => {
@@ -194,5 +194,21 @@ describe('operator tab (#240)', () => {
   it('keeps the owner role through mergeApps', () => {
     const [merged] = mergeApps([{ ...base, teamRole: 'owner' }], [])
     expect(keys(merged)).toContain('operator')
+  })
+})
+
+describe('operator record deep links (#240)', () => {
+  it('round-trips resource and key, escaping both', () => {
+    const hash = operatorRecordHash('stash', 'members', 'a/b c#?')
+    expect(hash).toBe('#/apps/stash/operator/members/a%2Fb%20c%23%3F')
+    expect(parseOperatorRecord(hash)).toEqual({ resourceId: 'members', key: 'a/b c#?' })
+    // The app route still lands on the operator tab.
+    expect(parseHash(hash)).toMatchObject({ view: 'app-detail', param: 'stash', tab: 'operator' })
+  })
+
+  it('is null for any other route or a malformed escape', () => {
+    for (const h of ['#/apps/stash/operator', '#/apps/stash/operator/members', '#/apps/stash/build/members/u1', '#/apps/stash/operator/members/u1/extra', '#/profile', '#/apps/stash/operator/members/%E0%A4%A']) {
+      expect(parseOperatorRecord(h), h).toBeNull()
+    }
   })
 })
