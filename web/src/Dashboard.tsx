@@ -115,10 +115,10 @@ export function Dashboard({
               <button
                 key={a.id}
                 onClick={() => onOpenApp(a.id, 'build')}
-                className="text-left rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4 hover:bg-[var(--panel-hover)] shadow-sm"
+                className="w-full min-w-0 text-left rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4 hover:bg-[var(--panel-hover)] shadow-sm"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-semibold text-[var(--ink)] truncate">{a.name}</span>
+                  <span className="min-w-0 font-semibold text-[var(--ink)] truncate" title={a.name}>{a.name}</span>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     {a.published === false && (
                       <span className="rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">Building</span>
@@ -129,7 +129,7 @@ export function Dashboard({
                     <AppStatusBadge submissionStatus={a.submissionStatus} hasSubmission={a.hasSubmission} />
                   </div>
                 </div>
-                <p className="mt-1 text-xs text-[var(--muted)] font-mono">{a.id}</p>
+                <p className="mt-1 text-xs text-[var(--muted)] font-mono truncate" title={a.id}>{a.id}</p>
                 <p className="mt-1 text-xs text-[var(--muted)]">
                   {a.published === false ? 'In progress · ' : ''}Created {new Date(a.createdAt).toLocaleDateString()}
                 </p>
