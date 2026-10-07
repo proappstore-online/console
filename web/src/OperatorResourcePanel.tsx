@@ -12,6 +12,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   fetchOperatorRows, runOperatorRowAction, actionAvailable, statusLabel, needsReauth, formatCell, operatorErrorMessage,
+  returnedKeys, confirmText, isConflict,
   type OperatorResource, type OperatorAction, type OperatorRow,
 } from './operator'
 import { operatorRecordHash } from './nav'
@@ -57,7 +58,7 @@ export function OperatorResourcePanel({ appId, resource, actions, getToken, rela
 
   const run = async (action: OperatorAction, row: OperatorRow) => {
     const token = getToken()
-    if (!token || !window.confirm(action.confirm)) return
+    if (!token || !window.confirm(confirmText(action))) return
     setBusy(true)
     setNotice(null)
     setReauth(false)
@@ -68,12 +69,15 @@ export function OperatorResourcePanel({ appId, resource, actions, getToken, rela
     } catch (e) {
       setNotice(`${action.title}: ${operatorErrorMessage(e)}`)
       setReauth(needsReauth(e))
+      if (isConflict(e)) await load() // the row moved on: show its current state
     } finally {
       setBusy(false)
     }
   }
 
   const filter = resource.status?.param ? resource.status : null
+  // Only what the backend returned renders: a blocked field (platform#294) has no column at all.
+  const columns = rows ? returnedKeys(resource.columns, rows) : []
 
   return (
     <section className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
@@ -107,7 +111,7 @@ export function OperatorResourcePanel({ appId, resource, actions, getToken, rela
 
         {!error && rows && rows.length > 0 && resource.kind === 'metrics' && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {resource.columns.map((col) => (
+            {columns.map((col) => (
               <Kpi key={col.key} label={col.label} value={formatCell(rows[0]![col.key], col.format)} />
             ))}
           </div>
@@ -118,14 +122,14 @@ export function OperatorResourcePanel({ appId, resource, actions, getToken, rela
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-[var(--muted)]">
-                  {resource.columns.map((col) => <th key={col.key} className="py-2 pr-4 font-semibold">{col.label}</th>)}
+                  {columns.map((col) => <th key={col.key} className="py-2 pr-4 font-semibold">{col.label}</th>)}
                   {(actions.length > 0 || resource.detail) && <th className="py-2 font-semibold"><span className="sr-only">Actions</span></th>}
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row, i) => (
                   <tr key={i} className="border-t border-[var(--line)]">
-                    {resource.columns.map((col) => {
+                    {columns.map((col) => {
                       const shown = (col.key === resource.status?.column && statusLabel(resource, row[col.key])) || formatCell(row[col.key], col.format)
                       return (
                         <td key={col.key} className="py-2 pr-4 text-[var(--ink)]">

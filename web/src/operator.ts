@@ -1,12 +1,14 @@
 /**
- * Operator view API client (#240) — GET /v1/apps/:id/operator. Owner-only:
- * the platform answers 401 signed out and 403 for anyone but the app's owner.
+ * Operator view API client (#240) — GET /v1/apps/:id/operator. For the app's
+ * owner and holders of its declared admin_access roles (platform#293): the
+ * platform answers 401 signed out and 403 for anyone else.
  *
  * `contract` is the app's declared operator view (mcp.json `operator_view`,
  * validated by the platform) or null. Resources are read and row actions run
- * through the owner-only operator routes, which return only the declared
- * columns/fields and build action params from declared columns. All use the
- * owner's session, so the app's role gates, step-up and audit apply.
+ * through the operator routes, which return only the declared columns/fields
+ * (never one on the sensitive-field list, platform#294) and build action params
+ * from declared columns. All use the caller's own session, so the app's role
+ * gates, step-up and audit apply to an admin exactly as to the owner.
  */
 
 import { apiFetch, ApiError, API_BASE, authHeaders } from './api'
@@ -290,6 +292,26 @@ export function needsPasskey(e: unknown): boolean {
   return e instanceof ApiError && e.message === 'step_up_required' && (e.body as { method?: unknown } | null)?.method === 'passkey'
 }
 
+/**
+ * The declared columns or fields the backend actually returned (platform#298):
+ * a key absent from every returned row — blocked by the sensitive-field list
+ * (#294), or simply not sent — is not rendered at all, not even as an empty
+ * cell or a header. A key returned as null still renders (as —).
+ */
+export function returnedKeys<T extends { key: string }>(declared: T[], rows: OperatorRow[]): T[] {
+  return declared.filter((d) => rows.some((r) => Object.prototype.hasOwnProperty.call(r, d.key)))
+}
+
+/** The question asked before a row action runs; a destructive one says it cannot be undone. */
+export function confirmText(action: OperatorAction): string {
+  return action.destructive ? `${action.confirm}\n\nThis can't be undone.` : action.confirm
+}
+
+/** True when the platform refused a row action with 409 (the row's state moved on). */
+export function isConflict(e: unknown): boolean {
+  return e instanceof ApiError && e.status === 409
+}
+
 /** A cell as plain text. Values come from the app; they are never rendered as HTML. */
 export function formatCell(value: unknown, format: OperatorColumnFormat): string {
   if (value === null || value === undefined || value === '') return '—'
@@ -303,14 +325,19 @@ export function formatCell(value: unknown, format: OperatorColumnFormat): string
   return typeof value === 'object' ? JSON.stringify(value) : String(value)
 }
 
-/** Why an operator read or action failed, in words the owner can act on. */
+/** Why an operator read or action failed, in words the owner or an admin can act on. */
 export function operatorErrorMessage(e: unknown): string {
   if (e instanceof ApiError) {
     if (needsPasskey(e)) return 'Opening a document needs a passkey check.'
     if (e.message === 'step_up_required') return 'This needs a recent sign-in. Sign in again, then retry.'
     if (e.status === 403 && /app role/.test(e.message)) {
-      return "You don't hold the app role this needs. Grant it to yourself under Settings → Access."
+      return "You don't hold the app role this needs. The app's owner grants roles under Settings → Access."
     }
+    if (e.status === 403 && /owner/.test(e.message)) return "Only the app's owner can see this."
+    // 409: a transition from a status the row has left, or a guarded write that matched nothing.
+    if (e.status === 409 && /changed since/.test(e.message)) return 'This record changed since you loaded it, so nothing was changed. It has been reloaded: check it and try again.'
+    if (e.status === 409 && /not available from status/.test(e.message)) return "This action doesn't apply to the record's current status any more. It has been reloaded."
+    if (e.status === 409) return `Not done: ${e.message}`
     if (e.status === 401) return 'Your session has expired. Sign in again.'
     if (e.status === 404 && e.message === 'record not found') return 'This record no longer exists.'
   }

@@ -281,7 +281,7 @@ describe('OperatorView — generic contract rendering', () => {
     await within(members).findByText('Ada')
 
     fireEvent.click(within(members).getAllByRole('button', { name: 'Suspend' })[0]!)
-    expect(confirm).toHaveBeenCalledWith('Suspend this member?')
+    expect(confirm).toHaveBeenCalledWith("Suspend this member?\n\nThis can't be undone.")
     expect(callsTo(fetchMock, 'suspend_member')).toHaveLength(0)
 
     confirm.mockReturnValue(true)
@@ -315,7 +315,7 @@ describe('OperatorView — generic contract rendering', () => {
     serve({ ...baseline, contract: STASH }, { 'resource:members': { status: 403, body: { error: 'requires app role' } } })
     render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} />)
     const members = (await screen.findByText('Members')).closest('section')!
-    expect((await within(members).findByRole('alert')).textContent).toContain('Grant it to yourself under Settings → Access')
+    expect((await within(members).findByRole('alert')).textContent).toContain("The app's owner grants roles under Settings → Access")
     const moderation = screen.getByText('Moderation').closest('section')!
     await waitFor(() => expect(within(moderation).getByText('3')).toBeTruthy())
   })
@@ -383,7 +383,7 @@ describe('OperatorView — users: search, paging, detail (#240 slice 3)', () => 
   it('explains a refused or missing record, and never fetches an undeclared detail', async () => {
     await openStash({ 'record:members': { status: 403, body: { error: 'requires app role' } } })
     go('#/apps/stash/operator/members/u1')
-    expect((await screen.findByRole('alert')).textContent).toContain('Grant it to yourself under Settings → Access')
+    expect((await screen.findByRole('alert')).textContent).toContain("The app's owner grants roles under Settings → Access")
     cleanup()
     const fetchMock = serve({ ...baseline, contract: STASH }, { 'record:members': { status: 404, body: { error: 'record not found' } } })
     render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} />)
@@ -447,7 +447,9 @@ describe('OperatorView — reports & suspensions (#240)', () => {
       review: { status: 409, body: { error: 'the record changed since it was loaded; reload and try again' } },
     })
     fireEvent.click(within(rowOf(reports, 'spam')).getByRole('button', { name: 'Start review' }))
-    expect(await within(reports).findByText('Start review: the record changed since it was loaded; reload and try again')).toBeTruthy()
+    // platform#298: a 409 reads as what happened, and the list is reloaded to the row's current state.
+    expect(await within(reports).findByText('Start review: This record changed since you loaded it, so nothing was changed. It has been reloaded: check it and try again.')).toBeTruthy()
+    await waitFor(() => expect(readsOf(fetchMock, 'reports').length).toBeGreaterThan(1))
     const [[url, init]] = callsTo(fetchMock, 'review') as unknown as [string, RequestInit][]
     expect(url).toBe('https://api.proappstore.online/v1/apps/stash/operator/actions/review')
     expect(JSON.parse(String(init.body))).toEqual({ row: { reason: 'spam', status: 'open', report_id: 'r1' } })
@@ -877,7 +879,7 @@ describe('OperatorView — entry and audit trail (#240)', () => {
     serve({ ...baseline, app: { id: 'parents-clubs', createdAt: 1 }, contract: PARENTS_CLUBS }, { audit: { status: 403, body: { error: 'requires app role' } } })
     render(<OperatorView appId="parents-clubs" appName="Parents Clubs" getToken={() => 'tok'} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Show audit trail' }))
-    expect((await screen.findByRole('alert')).textContent).toContain('Grant it to yourself under Settings → Access')
+    expect((await screen.findByRole('alert')).textContent).toContain("The app's owner grants roles under Settings → Access")
   })
 })
 
@@ -911,5 +913,118 @@ describe('probeOperatorAccess (platform#297)', () => {
     vi.stubGlobal('fetch', fetchMock)
     expect(await probeOperatorAccess(null, 'stash')).toEqual({ status: 'refused', httpStatus: 401 })
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+// platform#298: the same #240 components, from an app admin's side — an admin
+// the platform admitted (not the owner) browses, searches, opens records and runs
+// permitted actions on both sample apps; only what the backend returned renders.
+describe('OperatorView — app admin CRUD (platform#298)', () => {
+  const asAdmin = (contract: OperatorContract) => ({ status: 'allowed' as const, context: { ...baseline, operator: { userId: 'gh:4', login: 'admina' }, contract } })
+  const go = (hash: string) => act(() => { location.hash = hash; window.dispatchEvent(new HashChangeEvent('hashchange')) })
+  afterEach(() => { location.hash = '' })
+  const rowOf = (section: HTMLElement, text: string) => within(section).getByText(text).closest('tr')!
+  /** The section a resource renders in (its title can also be a kind heading, e.g. Reports). */
+  const sectionOf = async (title: string) => (await screen.findAllByText(title)).map((e) => e.closest('section')).find((s): s is HTMLElement => !!s)!
+
+  it('Stash: an admin browses, searches, opens a record and runs a permitted destructive action (confirmed first)', async () => {
+    const confirm = vi.fn(() => true)
+    vi.stubGlobal('confirm', confirm)
+    const fetchMock = serve(null, {
+      'record:members': { status: 200, body: { record: { display_name: 'Ada', email: 'ada@x.test', pocket_count: 2 } } },
+      suspend_member: { status: 200, body: { ok: true, changes: 2 } },
+    })
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} access={asAdmin(STASH)} />)
+    const members = (await screen.findByText('Members')).closest('section')!
+    expect(await within(members).findByText('Ada')).toBeTruthy()
+    // Not the owner's view: the header names who it is for.
+    expect(screen.getByText('Owner and admins')).toBeTruthy()
+
+    fireEvent.change(within(members).getByRole('searchbox', { name: 'Search Members' }), { target: { value: 'Ada' } })
+    fireEvent.click(within(members).getByRole('button', { name: 'Search' }))
+    await waitFor(() => expect(readsOf(fetchMock, 'members').at(-1)!.searchParams.get('q')).toBe('Ada'))
+
+    fireEvent.click(within(rowOf(members, 'Ada')).getByRole('button', { name: 'Suspend' }))
+    expect(confirm).toHaveBeenCalledWith("Suspend this member?\n\nThis can't be undone.")
+    expect(await within(members).findByText('Suspend: done.')).toBeTruthy()
+    expect(JSON.parse(String((callsTo(fetchMock, 'suspend_member')[0]![1] as RequestInit).body))).toEqual({ row: { display_name: 'Ada', user_id: 'u1', suspended: 0 } })
+
+    await go('#/apps/stash/operator/members/u1')
+    expect(await screen.findByText('ada@x.test')).toBeTruthy()
+  })
+
+  it('Parents Clubs: an admin browses, searches, opens a record and runs a non-destructive transition', async () => {
+    const confirm = vi.fn(() => true)
+    vi.stubGlobal('confirm', confirm)
+    const fetchMock = serve(null, {
+      'record:parents': { status: 200, body: { record: { full_name: 'Grace', joined_at: 1_700_000_000_000 } } },
+      uphold: { status: 200, body: { ok: true, changes: 1 } },
+    })
+    render(<OperatorView appId="parents-clubs" appName="Parents Clubs" getToken={() => 'tok'} access={asAdmin(PARENTS_CLUBS)} />)
+    const parents = (await screen.findByText('Parents')).closest('section')!
+    expect(await within(parents).findByText('Grace')).toBeTruthy()
+    fireEvent.change(within(parents).getByRole('searchbox', { name: 'Search Parents' }), { target: { value: 'Gr' } })
+    fireEvent.click(within(parents).getByRole('button', { name: 'Search' }))
+    await waitFor(() => expect(readsOf(fetchMock, 'parents').at(-1)!.searchParams.get('q')).toBe('Gr'))
+
+    const flags = (await screen.findByText('Flagged posts')).closest('section')!
+    fireEvent.click(await within(flags).findByRole('button', { name: 'Uphold' }))
+    expect(confirm).toHaveBeenCalledWith('Uphold?')
+    expect(await within(flags).findByText('Uphold: done.')).toBeTruthy()
+
+    await go('#/apps/parents-clubs/operator/parents/p%2F1')
+    expect(await screen.findByText('Grace')).toBeTruthy()
+    expect(screen.getByText('Joined')).toBeTruthy()
+  })
+
+  it('renders only the fields the backend returned: a blocked column, KPI or detail field is absent, a null is "—"', async () => {
+    serve(null, {
+      'resource:members': { status: 200, body: { rows: [{ display_name: 'Ada', user_id: 'u1' }], next_cursor: null } },
+      'resource:moderation': { status: 200, body: { rows: [{ open_reports: 7 }], next_cursor: null } },
+      'resource:reports': { status: 200, body: { rows: [{ reason: 'spam', status: 'open', report_id: null }], next_cursor: null } },
+      'record:members': { status: 200, body: { record: { display_name: 'Ada', pocket_count: 2 } } },
+    })
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} access={asAdmin(STASH)} />)
+    const members = (await screen.findByText('Members')).closest('section')!
+    await within(members).findByText('Ada')
+    expect(within(members).queryByText('Suspended')).toBeNull() // never returned: no header, no empty cell
+    const moderation = (await screen.findByText('Moderation')).closest('section')!
+    expect(await within(moderation).findByText('Open reports')).toBeTruthy()
+    expect(within(moderation).queryByText('Suspended')).toBeNull()
+    const reports = await sectionOf('Reports')
+    await within(reports).findByText('spam')
+    expect(within(reports).getByText('Report')).toBeTruthy() // returned as null: the column stays, the cell reads —
+    expect(within(rowOf(reports, 'spam')).getByText('—')).toBeTruthy()
+
+    await go('#/apps/stash/operator/members/u1')
+    await screen.findByText('Pockets')
+    expect(screen.queryByText('Email')).toBeNull()
+    expect(screen.queryByText('—')).toBeNull()
+  })
+
+  it('a transition from a status the row has left reads clearly and reloads the list', async () => {
+    vi.stubGlobal('confirm', () => true)
+    const fetchMock = serve(null, { review: { status: 409, body: { error: '"Start review" is not available from status "reviewing"' } } })
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} access={asAdmin(STASH)} />)
+    const reports = await sectionOf('Reports')
+    fireEvent.click(within(rowOf(reports, 'spam')).getByRole('button', { name: 'Start review' }))
+    expect(await within(reports).findByText("Start review: This action doesn't apply to the record's current status any more. It has been reloaded.")).toBeTruthy()
+    await waitFor(() => expect(readsOf(fetchMock, 'reports').length).toBeGreaterThan(1))
+  })
+
+  it('a declined confirmation runs nothing', async () => {
+    vi.stubGlobal('confirm', () => false)
+    const fetchMock = serve(null)
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} access={asAdmin(STASH)} />)
+    const members = (await screen.findByText('Members')).closest('section')!
+    fireEvent.click(within(rowOf(members, 'Ada')).getByRole('button', { name: 'Suspend' }))
+    expect(callsTo(fetchMock, 'suspend_member')).toEqual([])
+  })
+
+  it('the owner-only audit trail tells an admin so, in words', async () => {
+    serve(null, { audit: { status: 403, body: { error: 'not the app owner' } } })
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} access={asAdmin(STASH)} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Show audit trail' }))
+    expect((await screen.findByRole('alert')).textContent).toBe("Only the app's owner can see this.")
   })
 })

@@ -1,6 +1,6 @@
 /**
  * The evidence documents of one verification record (#240). Each is fetched
- * only when the owner asks, through the platform's evidence route (a recent
+ * only when the owner or an admin asks, through the platform's evidence route (a recent
  * passkey step-up (#244) and a review role are required there), and shown
  * from an in-memory object URL: images inline, PDFs in a new tab. The URLs are
  * revoked when the page closes. The console never sees or shows a storage path.

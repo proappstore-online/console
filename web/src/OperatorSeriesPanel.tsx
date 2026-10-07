@@ -3,7 +3,7 @@
  * (range presets within the declared max_days, a grain no finer than declared),
  * a summary tile per measure (its aggregation over the range), and one line
  * chart per measure — measures never share an axis. Reads go through the
- * owner-only metrics route, which validates and bounds every request. A refetch
+ * operator metrics route (owner or a declared admin), which validates and bounds every request. A refetch
  * keeps the previous render, dimmed; empty, error and re-sign-in states are
  * explained in place.
  */

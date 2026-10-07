@@ -1,6 +1,7 @@
 /**
- * The operator audit trail (#240): what the app's owner did in this operator
- * view — entries, reads, document views, metric reads, actions and every
+ * The operator audit trail (#240): what the app's owner and its admins did in
+ * this operator view (each under their own id). Owner-only on the platform —
+ * an admin opening it is told so in words, not an error code — entries, reads, document views, metric reads, actions and every
  * refused attempt — newest first, 50 at a time. Opened on request (reading the
  * trail is itself recorded), filtered with ordinary form controls, a table on
  * wide screens and a stacked list on narrow ones. Targets of identity data are

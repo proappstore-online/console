@@ -1,6 +1,7 @@
 /**
  * One record of a declared operator resource (#240): the resource's declared
- * detail fields, read through the owner-only record route; for a verification
+ * detail fields, read through the operator record route (owner or a declared
+ * admin, platform#293) — only the fields it returned render; for a verification
  * record, its evidence documents and the decisions open from its current
  * state; then every resource declared `related` to it listed for this record
  * (e.g. a member's suspension history, with its row actions). Reached by
@@ -10,6 +11,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   fetchOperatorRecord, runOperatorRowAction, actionAvailable, needsReauth, formatCell, operatorErrorMessage,
+  returnedKeys, confirmText, isConflict,
   type OperatorAction, type OperatorContract, type OperatorRow,
 } from './operator'
 import { OperatorResourcePanel } from './OperatorResourcePanel'
@@ -59,7 +61,7 @@ export function OperatorRecordView({ appId, contract, resourceId, recordKey, get
 
   const decide = async (action: OperatorAction) => {
     const token = operatorToken()
-    if (!token || !record || !window.confirm(action.confirm)) return
+    if (!token || !record || !window.confirm(confirmText(action))) return
     setBusy(true)
     setNotice(null)
     setReauth(false)
@@ -71,6 +73,7 @@ export function OperatorRecordView({ appId, contract, resourceId, recordKey, get
       setNotice(`${action.title}: ${operatorErrorMessage(e)}`)
       setReauth(needsReauth(e))
       setStepUpSeconds(stepUpWindow(e))
+      if (isConflict(e)) setVersion((v) => v + 1) // the record moved on: show its current state
     } finally {
       setBusy(false)
     }
@@ -88,7 +91,7 @@ export function OperatorRecordView({ appId, contract, resourceId, recordKey, get
           {!error && !record && <p className="text-sm text-[var(--muted)]">Loading...</p>}
           {!error && record && detail && (
             <dl className="grid grid-cols-1 sm:grid-cols-[12rem_1fr] gap-x-4 gap-y-2 text-sm">
-              {detail.fields.filter((f) => !evidence.some((e) => e.field === f.key)).map((f) => (
+              {returnedKeys(detail.fields, [record]).filter((f) => !evidence.some((e) => e.field === f.key)).map((f) => (
                 <div key={f.key} className="contents">
                   <dt className="font-semibold text-[var(--muted)]">{f.label}</dt>
                   <dd className="text-[var(--ink)] break-words">
@@ -122,9 +125,9 @@ export function OperatorRecordView({ appId, contract, resourceId, recordKey, get
           )}
         </div>
       </section>
-      {record && evidence.length > 0 && (
+      {record && returnedKeys(evidence.map((e) => ({ ...e, key: e.field })), [record]).length > 0 && (
         <OperatorEvidence appId={appId} resourceId={resourceId} recordKey={recordKey} record={record}
-          evidence={evidence} getToken={getToken} onReauth={onReauth} />
+          evidence={returnedKeys(evidence.map((e) => ({ ...e, key: e.field })), [record])} getToken={getToken} onReauth={onReauth} />
       )}
       {record && related.map((r) => (
         <OperatorResourcePanel key={r.id} appId={appId} resource={r} getToken={getToken} related={recordKey} onReauth={onReauth}
