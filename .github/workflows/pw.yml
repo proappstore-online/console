@@ -1,9 +1,12 @@
 name: Playwright
 
-# E2E smoke for the Creator Console + PAS backend API. Runs the
-# public-only Playwright suite against prod (console.proappstore.online +
-# api.proappstore.online). Auth-gated flows aren't covered here; they
-# need a real FAS session token which CI doesn't have.
+# E2E for the Creator Console + PAS backend API, two Playwright projects:
+# - `chromium`: the public-only smoke suite against prod
+#   (console.proappstore.online + api.proappstore.online). Auth-gated prod
+#   flows aren't covered; they need a real session token which CI doesn't have.
+# - `operator-flow`: the admin (operator) flow end to end (platform#300) on the
+#   console built from this commit and served by `vite preview` (Playwright
+#   webServer), signed in with a fake token against an in-memory fake API.
 
 on:
   push:
