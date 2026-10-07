@@ -54,7 +54,7 @@ const TAB_ICONS: Record<View, ReactNode> = {
   'ui-library': <Icon><path d="m12 3 9 5-9 5-9-5 9-5Z" /><path d="m3 13 9 5 9-5" /></Icon>,
   admin: <Icon d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />,
   // Views without their own nav tab (rendered elsewhere) — fall back to a dot.
-  'app-detail': null, profile: null,
+  'app-detail': null, profile: null, 'connector-setup': null,
 }
 
 

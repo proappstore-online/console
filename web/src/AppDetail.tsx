@@ -9,6 +9,7 @@ import { AppTest } from './AppTest'
 import { AgentsView } from './AgentsView'
 import { AppMcpTools } from './AppMcpTools'
 import { AppSecrets } from './AppSecrets'
+import { AppConnectors } from './AppConnectors'
 import { AppPublishing } from './AppPublishing'
 import { AppAgents } from './AppAgents'
 import { AppSpending } from './AppSpending'
@@ -175,6 +176,7 @@ export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, s
             <div className="max-w-3xl space-y-6">
               <WebhooksManager appId={appId} getToken={getToken} />
               <AppMcpTools appId={appId} getToken={getToken} />
+              <AppConnectors appId={appId} getToken={getToken} />
               <AppSecrets appId={appId} getToken={getToken} />
             </div>
           )}

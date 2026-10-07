@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseHash, hashFor, deriveSlug, mergeApps, appTabsFor, operatorRecordHash, parseOperatorRecord, type AppEntry } from './nav'
+import { parseHash, hashFor, deriveSlug, mergeApps, appTabsFor, operatorRecordHash, parseOperatorRecord, parseConnectorSetup, type AppEntry } from './nav'
 
 describe('parseHash', () => {
   it('defaults to dashboard for empty/`#`/`#/`', () => {
@@ -210,5 +210,16 @@ describe('operator record deep links (#240)', () => {
     for (const h of ['#/apps/stash/operator', '#/apps/stash/operator/members', '#/apps/stash/build/members/u1', '#/apps/stash/operator/members/u1/extra', '#/profile', '#/apps/stash/operator/members/%E0%A4%A']) {
       expect(parseOperatorRecord(h), h).toBeNull()
     }
+  })
+})
+
+describe('connector setup landing (platform#258)', () => {
+  const hash = '#/connectors/github/setup?installation_id=5&setup_action=install&state=s.t&code=c0de'
+  it('routes to the connector-setup view', () => {
+    expect(parseHash(hash)).toEqual({ view: 'connector-setup', param: null, tab: null, settingsTab: null })
+  })
+  it('extracts the params GitHub returned', () => {
+    expect(parseConnectorSetup(hash)).toEqual({ installation_id: '5', setup_action: 'install', state: 's.t', code: 'c0de' })
+    expect(parseConnectorSetup('#/connectors/github/setup')).toEqual({})
   })
 })

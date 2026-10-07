@@ -10,6 +10,7 @@ import { MobileAppTabBar } from './AppTabBar'
 import { ErrorBoundary } from './ErrorBoundary'
 import { Dashboard } from './Dashboard'
 import { NewAppModal } from './NewAppModal'
+import { ConnectorSetupView } from './ConnectorSetupView'
 
 // Lazy-loaded routes — only downloaded when the user navigates there.
 // Dashboard + Header stay eager (they are the landing experience).
@@ -122,6 +123,15 @@ export default function App() {
     setHash('app-detail', id, tab, tab === 'settings' ? appSettingsTab : null)
   }, [appSettingsTab])
 
+  // GitHub App install finished: land on the app's Integrations settings.
+  const finishConnectorSetup = useCallback((id: string) => {
+    setAppTab('settings')
+    setAppSettingsTab('integrations')
+    setSelectedAppId(id)
+    setViewState('app-detail')
+    setHash('app-detail', id, 'settings', 'integrations', true)
+  }, [])
+
   // Switch the active per-app tab + reflect it in the URL (replace, so Back
   // returns to the previous view rather than cycling through each tab).
   const changeAppTab = useCallback((t: AppTab) => {
@@ -228,6 +238,7 @@ export default function App() {
           {view === 'admin' && isAdmin && <AdminView getToken={() => pro.auth.token} />}
           {view === 'profile' && <ProfileView user={user} />}
           {view === 'ui-library' && <UILibraryView />}
+          {view === 'connector-setup' && <ConnectorSetupView getToken={() => pro.auth.token} onDone={finishConnectorSetup} />}
         </Suspense>
         </ErrorBoundary>
       </main>

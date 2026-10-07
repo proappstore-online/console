@@ -2,7 +2,7 @@
 
 export type View =
   | 'dashboard' | 'app-detail' | 'publish' | 'payouts'
-  | 'subscription' | 'services' | 'admin' | 'profile' | 'ui-library'
+  | 'subscription' | 'services' | 'admin' | 'profile' | 'ui-library' | 'connector-setup'
 
 // Per-app workspace tabs, shown next to the project switcher in the navbar.
 //  - research: brainstorm chat + live Knowledge Base preview
@@ -65,6 +65,15 @@ const VALID_VIEWS: View[] = [
   'dashboard', 'app-detail', 'publish', 'payouts', 'subscription', 'services', 'admin', 'profile', 'ui-library',
 ]
 
+/** Where the platform sends the owner after GitHub's App install (platform#258). */
+const CONNECTOR_SETUP_PATH = 'connectors/github/setup'
+
+/** The `?installation_id=…&state=…&code=…` GitHub handed back, from a setup-route hash. */
+export function parseConnectorSetup(rawHash: string): Record<string, string> {
+  const query = rawHash.replace(/^#\/?/, '').split('?')[1] ?? ''
+  return Object.fromEntries(new URLSearchParams(query))
+}
+
 export interface ParsedRoute {
   view: View
   param: string | null
@@ -91,6 +100,7 @@ export function parseHash(rawHash: string): ParsedRoute {
       : null
     return { view: 'app-detail', param, tab, settingsTab }
   }
+  if (hash.startsWith(CONNECTOR_SETUP_PATH)) return { view: 'connector-setup', param: null, tab: null, settingsTab: null }
   if (VALID_VIEWS.includes(hash as View)) return { view: hash as View, param: null, tab: null, settingsTab: null }
   return { view: 'dashboard', param: null, tab: null, settingsTab: null }
 }
