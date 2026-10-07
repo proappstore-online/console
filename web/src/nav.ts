@@ -11,7 +11,8 @@ export type View =
 //  - test:     automated QA / E2E (Playwright, manual/opt-in)
 //  - control:  the live VCQA code-health dashboard (ops/control)
 //  - spending: cost breakdown by role, ticket, and ledger history
-//  - operator: owner-only oversight of the app (#240) — shown only for apps you own
+//  - operator: oversight of the app (#240) — shown only when the platform admits you: the
+//              owner, or a holder of one of the app's admin_access roles (platform#293, #297)
 //  - settings: listing / domains / app roles + agent team config / danger zone
 export type AppTab = 'research' | 'build' | 'data' | 'test' | 'control' | 'analytics' | 'spending' | 'style' | 'operator' | 'settings'
 export type AppSettingsTab = 'storefront' | 'publishing' | 'agents' | 'integrations' | 'access' | 'danger'
@@ -53,12 +54,27 @@ export interface AppEntry {
   hasAgentTeam?: boolean
   /** Caller's team role on the app ('owner' for the creator); absent for project-only apps. */
   teamRole?: string | null
+  /** An app the caller only administers (an admin_access role, platform#297): it offers the operator view alone. */
+  adminOnly?: boolean
 }
 
-/** The workspace tabs for an app. Operator is owner-only (#240); the API
- *  enforces that, this just keeps the tab off apps you can't open it for. */
-export function appTabsFor(app: AppEntry | undefined): { key: AppTab; label: string }[] {
-  return app?.teamRole === 'owner' ? APP_TABS : APP_TABS.filter((t) => t.key !== 'operator')
+/** Whether the platform admits the caller to an app's operator view (operator.ts probeOperatorAccess). */
+export type OperatorAccessStatus = 'unknown' | 'allowed' | 'refused'
+
+/**
+ * The workspace tabs for an app (platform#297). The operator tab shows only when
+ * the backend has admitted the caller (`allowed`) — the console never infers it
+ * from a team role. An app the caller only administers offers nothing else: its
+ * other tabs are the owner's and team's, and their data would be refused.
+ */
+export function appTabsFor(app: AppEntry | undefined, operator: OperatorAccessStatus = 'unknown'): { key: AppTab; label: string }[] {
+  const tabs = app?.adminOnly ? APP_TABS.filter((t) => t.key === 'operator') : APP_TABS
+  return operator === 'allowed' ? tabs : tabs.filter((t) => t.key !== 'operator')
+}
+
+/** The tab an app opens on: the operator view for an app the caller only administers. */
+export function effectiveAppTab(app: AppEntry | undefined, tab: AppTab): AppTab {
+  return app?.adminOnly ? 'operator' : tab
 }
 
 const VALID_VIEWS: View[] = [
@@ -129,10 +145,12 @@ export function deriveSlug(name: string): string {
   return (/^[a-z]/.test(id) ? id : `app-${id}`).slice(0, 56)
 }
 
-/** Merge published apps (registry) with agent-teams projects, deduped by id. */
+/** Merge published apps (registry) with agent-teams projects, deduped by id, then
+ *  the apps the caller only administers (platform#297) — owner and team entries win. */
 export function mergeApps(
   apps: AppEntry[],
   projects: { slug: string; name: string; createdAt: number }[],
+  administered: AppEntry[] = [],
 ): AppEntry[] {
   const projSlugs = new Set(projects.map((p) => p.slug))
   const byId = new Map<string, AppEntry>()
@@ -148,6 +166,7 @@ export function mergeApps(
       hasAgentTeam: true,
     })
   }
+  for (const a of administered) if (!byId.has(a.id)) byId.set(a.id, { ...a, adminOnly: true, published: true })
   return [...byId.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 }
 

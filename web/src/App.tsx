@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import type { User } from '@proappstore/sdk'
 import { pro } from './sdk'
 
-import { type View, type AppEntry, type AppTab, type AppSettingsTab, parseHash as parseHashString, hashFor, deriveSlug, mergeApps, appTabsFor } from './nav'
-import { fetchApps, fetchAgentProjects, deleteAppApi, fetchIsAdmin } from './appsApi'
+import { type View, type AppEntry, type AppTab, type AppSettingsTab, parseHash as parseHashString, hashFor, deriveSlug, mergeApps, appTabsFor, effectiveAppTab } from './nav'
+import { fetchApps, fetchAgentProjects, fetchAdministeredApps, deleteAppApi, fetchIsAdmin } from './appsApi'
+import { probeOperatorAccess, type OperatorAccess } from './operator'
 import { syncTokenToCookie } from './authSync'
 import { Landing, Header } from './Header'
 import { MobileAppTabBar } from './AppTabBar'
@@ -62,6 +63,8 @@ export default function App() {
   const [apps, setApps] = useState<AppEntry[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [showNewApp, setShowNewApp] = useState(false)
+  // platform#297: whether the platform admits the user to the selected app's operator view.
+  const [operatorAccess, setOperatorAccess] = useState<{ appId: string; access: OperatorAccess } | null>(null)
 
   // Sync view to hash
   const setView = useCallback((v: View) => {
@@ -95,11 +98,12 @@ export default function App() {
 
   const reloadApps = useCallback(async () => {
     try {
-      const [published, projects] = await Promise.all([
+      const [published, projects, administered] = await Promise.all([
         fetchApps(pro.auth.token),
         fetchAgentProjects(pro.auth.token),
+        fetchAdministeredApps(pro.auth.token),
       ])
-      setApps(mergeApps(published, projects))
+      setApps(mergeApps(published, projects, administered))
     } catch { /* ignore */ }
   }, [])
 
@@ -116,12 +120,25 @@ export default function App() {
     return () => { cancelled = true }
   }, [user])
 
-  const openAppDetail = useCallback((id: string, tab: AppTab = 'build') => {
+  // The backend decides the operator tab (platform#297): one read of the owner/admin-gated
+  // context per selected app. A refused user gets no tab, and no admin data is fetched.
+  useEffect(() => {
+    if (!user || view !== 'app-detail' || !selectedAppId) return
+    let cancelled = false
+    setOperatorAccess({ appId: selectedAppId, access: { status: 'unknown' } })
+    probeOperatorAccess(pro.auth.token, selectedAppId).then((access) => {
+      if (!cancelled) setOperatorAccess({ appId: selectedAppId, access })
+    })
+    return () => { cancelled = true }
+  }, [user, view, selectedAppId])
+
+  const openAppDetail = useCallback((id: string, requested: AppTab = 'build') => {
+    const tab = effectiveAppTab(apps.find((a) => a.id === id), requested)
     setAppTab(tab)
     setSelectedAppId(id)
     setViewState('app-detail')
     setHash('app-detail', id, tab, tab === 'settings' ? appSettingsTab : null)
-  }, [appSettingsTab])
+  }, [appSettingsTab, apps])
 
   // GitHub App install finished: land on the app's Integrations settings.
   const finishConnectorSetup = useCallback((id: string) => {
@@ -187,6 +204,10 @@ export default function App() {
   if (!user) return <Landing />
 
   const selected = apps.find((a) => a.id === selectedAppId)
+  const access: OperatorAccess = operatorAccess && operatorAccess.appId === selectedAppId ? operatorAccess.access : { status: 'unknown' }
+  const appTabs = appTabsFor(selected, access.status)
+  // An app the user only administers opens on the operator view: its other tabs are the owner's.
+  const currentTab = effectiveAppTab(selected, appTab)
 
   return (
     <div className="h-[100dvh] flex flex-col overflow-hidden">
@@ -198,8 +219,9 @@ export default function App() {
         apps={apps}
         selectedAppId={selectedAppId}
         onOpenApp={openAppDetail}
-        appTab={appTab}
+        appTab={currentTab}
         onAppTab={changeAppTab}
+        appTabs={appTabs}
       />
       <main className={view === 'app-detail'
         ? 'flex-1 flex flex-col w-full px-1.5 pt-2 pb-[calc(3.5rem+env(safe-area-inset-bottom))] sm:px-2 sm:py-2 sm:pb-2 min-h-0'
@@ -226,9 +248,10 @@ export default function App() {
               getToken={() => pro.auth.token}
               onDelete={deleteSelectedApp}
               onReauth={() => pro.auth.signIn()}
-              tab={appTab}
+              tab={currentTab}
               settingsTab={appSettingsTab}
               onSettingsTab={changeAppSettingsTab}
+              operatorAccess={access}
             />
           )}
           {view === 'publish' && <PublishView getToken={() => pro.auth.token} />}
@@ -243,7 +266,7 @@ export default function App() {
         </ErrorBoundary>
       </main>
       {view === 'app-detail' && selectedAppId && (
-        <MobileAppTabBar tabs={appTabsFor(selected)} appTab={appTab} onAppTab={changeAppTab} />
+        <MobileAppTabBar tabs={appTabs} appTab={currentTab} onAppTab={changeAppTab} />
       )}
       {showNewApp && <NewAppModal onClose={() => setShowNewApp(false)} onCreate={createApp} />}
     </div>

@@ -120,6 +120,27 @@ export async function fetchOperatorContext(token: string, appId: string): Promis
   return apiFetch<OperatorContext>(`/apps/${encodeURIComponent(appId)}/operator`, { token })
 }
 
+/**
+ * Whether the signed-in user may open an app's operator view (platform#297) —
+ * the backend's answer, never the console's guess: the owner, or a holder of
+ * one of the contract's `admin_access.roles` (platform#293). One read of the
+ * owner/admin-gated context: 200 → allowed, with the context the view then
+ * renders; 401/403 (not admitted) or 404 (not published) → refused, with no data.
+ */
+export type OperatorAccess =
+  | { status: 'unknown' }
+  | { status: 'allowed'; context: OperatorContext }
+  | { status: 'refused'; httpStatus: number | null }
+
+export async function probeOperatorAccess(token: string | null, appId: string): Promise<OperatorAccess> {
+  if (!token) return { status: 'refused', httpStatus: 401 }
+  try {
+    return { status: 'allowed', context: await fetchOperatorContext(token, appId) }
+  } catch (e) {
+    return { status: 'refused', httpStatus: e instanceof ApiError ? e.status : null }
+  }
+}
+
 /** One page of a declared resource: declared columns only. `q` / `cursor` only where declared. */
 export async function fetchOperatorRows(
   token: string,

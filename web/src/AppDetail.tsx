@@ -15,6 +15,7 @@ import { AppAgents } from './AppAgents'
 import { AppSpending } from './AppSpending'
 import { AppStyle } from './AppStyle'
 import { OperatorView } from './OperatorView'
+import type { OperatorAccess } from './operator'
 import { APP_SETTINGS_TABS, type AppSettingsTab, type AppTab } from './nav'
 import {
   BrandingSection, ListingCopySection, ScreenshotsSection, DeveloperSection,
@@ -34,9 +35,11 @@ interface Props {
   /** Which settings subtab is active when `tab` is settings. */
   settingsTab: AppSettingsTab
   onSettingsTab: (tab: AppSettingsTab) => void
+  /** The console's operator-access probe for this app (platform#297). */
+  operatorAccess?: OperatorAccess
 }
 
-export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, settingsTab, onSettingsTab }: Props) {
+export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, settingsTab, onSettingsTab, operatorAccess }: Props) {
   const [listing, setListing] = useState<Listing | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -44,16 +47,18 @@ export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, s
   const [deleting, setDeleting] = useState(false)
   const showSettings = tab === 'settings'
 
+  // The listing is the owner's: fetched only for Settings, its one user — so an
+  // admin who only opens the operator view (platform#297) never requests it.
   useEffect(() => {
     let cancelled = false
     const token = getToken()
-    if (!token) return
+    if (!token || !showSettings || listing) return
     fetchListing(token, appId)
       .then((l) => { if (!cancelled) setListing(l) })
       .catch((e: Error) => { if (!cancelled) setLoadError(e.message) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [appId, getToken])
+  }, [appId, getToken, showSettings, listing])
 
   const update = useCallback((next: Listing) => setListing(next), [])
 
@@ -110,7 +115,7 @@ export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, s
 
       {tab === 'operator' && (
         <div className="max-w-4xl space-y-4 overflow-y-auto min-h-0 flex-1">
-          <OperatorView appId={appId} appName={appName} getToken={getToken} onReauth={onReauth} />
+          <OperatorView appId={appId} appName={appName} getToken={getToken} onReauth={onReauth} access={operatorAccess} />
         </div>
       )}
 

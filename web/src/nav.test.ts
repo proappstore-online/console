@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseHash, hashFor, deriveSlug, mergeApps, appTabsFor, operatorRecordHash, parseOperatorRecord, parseConnectorSetup, type AppEntry } from './nav'
+import { parseHash, hashFor, deriveSlug, mergeApps, appTabsFor, effectiveAppTab, operatorRecordHash, parseOperatorRecord, parseConnectorSetup, type AppEntry } from './nav'
 
 describe('parseHash', () => {
   it('defaults to dashboard for empty/`#`/`#/`', () => {
@@ -183,17 +183,33 @@ describe('operator tab (#240)', () => {
     expect(hashFor('app-detail', 'stash', 'operator')).toBe('#/apps/stash/operator')
   })
 
-  it('is offered only on apps the caller owns', () => {
-    expect(keys({ ...base, teamRole: 'owner' })).toContain('operator')
-    for (const teamRole of ['admin', 'developer', 'viewer', null, undefined]) {
-      expect(keys({ ...base, teamRole })).not.toContain('operator')
+  it('is offered only when the backend admitted the caller — never inferred from the team role (platform#297)', () => {
+    expect(keys({ ...base, teamRole: 'owner' })).not.toContain('operator') // probe not answered yet
+    expect(appTabsFor({ ...base, teamRole: 'owner' }, 'refused').map((t) => t.key)).not.toContain('operator')
+    for (const teamRole of ['owner', 'admin', 'viewer', null, undefined]) {
+      expect(appTabsFor({ ...base, teamRole }, 'allowed').map((t) => t.key), String(teamRole)).toContain('operator')
     }
-    expect(keys(undefined)).not.toContain('operator')
+    expect(appTabsFor(undefined, 'allowed').map((t) => t.key)).toContain('operator') // a deep link to an app outside the list
   })
 
-  it('keeps the owner role through mergeApps', () => {
-    const [merged] = mergeApps([{ ...base, teamRole: 'owner' }], [])
-    expect(keys(merged)).toContain('operator')
+  it('an app the caller only administers offers the operator view alone, and only once admitted', () => {
+    const admin: AppEntry = { ...base, adminOnly: true }
+    expect(appTabsFor(admin, 'allowed').map((t) => t.key)).toEqual(['operator'])
+    expect(appTabsFor(admin, 'unknown')).toEqual([])
+    expect(appTabsFor(admin, 'refused')).toEqual([])
+    expect(effectiveAppTab(admin, 'build')).toBe('operator')
+    expect(effectiveAppTab({ ...base, teamRole: 'owner' }, 'build')).toBe('build')
+  })
+
+  it('mergeApps adds administered apps after owner/team apps, which win on the same id', () => {
+    const merged = mergeApps(
+      [{ ...base, teamRole: 'owner' }],
+      [],
+      [{ id: 'stash', name: 'Dup', createdAt: base.createdAt }, { id: 'clinic', name: 'Clinic', createdAt: '2026-02-01T00:00:00.000Z' }],
+    )
+    expect(merged.find((a) => a.id === 'stash')).toMatchObject({ teamRole: 'owner' })
+    expect(merged.find((a) => a.id === 'stash')?.adminOnly).toBeUndefined()
+    expect(merged.find((a) => a.id === 'clinic')).toMatchObject({ adminOnly: true, published: true })
   })
 })
 

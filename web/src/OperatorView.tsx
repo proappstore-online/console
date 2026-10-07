@@ -1,14 +1,16 @@
 /**
- * Operator view (#240) — the owner's oversight surface for one app they own.
+ * Operator view (#240) — the oversight surface for one app, for its owner and for
+ * holders of its declared admin_access roles (platform#293, #297).
  * The baseline context the platform already has, plus whatever the app
  * declares in its operator-view contract, rendered generically by kind — no
- * per-app code here. Ownership is enforced by the API; this only renders what
- * it returns.
+ * per-app code here. Access is decided by the API; this only renders what it
+ * returns. Given the console's access probe (`access`), it renders from that and
+ * fetches nothing itself: a refused user gets the 403 state and no admin data.
  */
 
 import { useState, useEffect } from 'react'
 import { ApiError } from './api'
-import { fetchOperatorContext, recordOperatorEntry, operatorVisitId, OPERATOR_KINDS, type OperatorContext } from './operator'
+import { fetchOperatorContext, recordOperatorEntry, operatorVisitId, OPERATOR_KINDS, type OperatorAccess, type OperatorContext } from './operator'
 import { formatNumber, formatDuration } from './usage'
 import { Kpi } from './sectionPrimitives'
 import { OperatorResourcePanel } from './OperatorResourcePanel'
@@ -27,18 +29,20 @@ const enteredVisits = new Set<string>()
 function errorMessage(e: unknown): string {
   if (e instanceof ApiError) {
     if (e.status === 401) return 'Your session has expired. Sign in again to open the operator view.'
-    if (e.status === 403) return "Only the app's owner can open the operator view."
+    if (e.status === 403) return "Only the app's owner, or a holder of one of its admin roles, can open the operator view."
     if (e.status === 404) return 'This app is not published yet, so there is nothing to operate.'
   }
   return `Couldn't load the operator view. ${(e as Error).message}`
 }
 
-export function OperatorView({ appId, appName, getToken, onReauth }: {
+export function OperatorView({ appId, appName, getToken, onReauth, access }: {
   appId: string
   appName: string | null
   getToken: () => string | null
   /** Start a fresh sign-in, for actions that need a recent one. */
   onReauth?: () => void
+  /** The console's access probe for this app (platform#297). When given, the view renders it and fetches nothing. */
+  access?: OperatorAccess
 }) {
   const [data, setData] = useState<OperatorContext | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -53,6 +57,14 @@ export function OperatorView({ appId, appName, getToken, onReauth }: {
 
   useEffect(() => {
     let cancelled = false
+    if (access) {
+      // The probe already asked the API: never a second request, and none at all for a refused user.
+      setData(access.status === 'allowed' ? access.context : null)
+      setError(access.status === 'refused'
+        ? (access.httpStatus === null ? "Couldn't load the operator view." : errorMessage(new ApiError(access.httpStatus, null)))
+        : null)
+      return
+    }
     const token = getToken()
     setData(null)
     setError(null)
@@ -61,7 +73,7 @@ export function OperatorView({ appId, appName, getToken, onReauth }: {
       .then((d) => { if (!cancelled) setData(d) })
       .catch((e) => { if (!cancelled) setError(errorMessage(e)) })
     return () => { cancelled = true }
-  }, [appId, getToken])
+  }, [appId, getToken, access])
 
   // Entering the view is recorded once the owner-gated context has loaded, once per visit.
   const loaded = data !== null
@@ -79,7 +91,7 @@ export function OperatorView({ appId, appName, getToken, onReauth }: {
     <div className="space-y-4">
       <header className="flex items-center gap-2 flex-wrap">
         <h2 className="display-font text-lg font-bold text-[var(--ink)]">{appName ?? appId} — Operator view</h2>
-        <span className="rounded-full border border-[var(--line-strong)] px-2 py-0.5 text-xs font-semibold text-[var(--muted)]">Owner only</span>
+        <span className="rounded-full border border-[var(--line-strong)] px-2 py-0.5 text-xs font-semibold text-[var(--muted)]">Owner and admins</span>
       </header>
 
       {error && <p role="alert" className="text-sm text-[var(--error)]">{error}</p>}

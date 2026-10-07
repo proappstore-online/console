@@ -45,6 +45,21 @@ export async function fetchApps(token: string | null): Promise<AppEntry[]> {
   }
 }
 
+/**
+ * Apps the caller administers without owning or being on the team (platform#297):
+ * they hold one of the app's declared admin_access roles. Kept apart from
+ * `/v1/apps`, which is the owner and team list. Empty on any error.
+ */
+export async function fetchAdministeredApps(token: string | null): Promise<AppEntry[]> {
+  if (!token) return []
+  try {
+    const data = await apiFetch<{ apps: { id: string; name: string; created_at: number }[] }>('/me/administered-apps', { token })
+    return (data.apps ?? []).map((a) => ({ id: a.id, name: a.name, createdAt: new Date(a.created_at).toISOString(), adminOnly: true }))
+  } catch {
+    return []
+  }
+}
+
 /** The caller's agent-teams projects (in-progress apps being built by agents). */
 export async function fetchAgentProjects(token: string | null): Promise<{ slug: string; name: string; createdAt: number }[]> {
   if (!token) return []

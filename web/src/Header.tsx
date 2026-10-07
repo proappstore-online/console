@@ -6,7 +6,6 @@ import { useState, useEffect, useRef, type ReactNode } from 'react'
 import type { User } from '@proappstore/sdk'
 import { pro } from './sdk'
 import type { View, AppEntry, AppTab } from './nav'
-import { appTabsFor } from './nav'
 import { APP_TAB_ICONS } from './AppTabBar'
 import { GitHubIcon } from './dashboardShared'
 
@@ -68,7 +67,7 @@ const TABS: { key: View; label: string }[] = [
 ]
 
 export function Header({
-  user, view, onNavigate, isAdmin, apps, selectedAppId, onOpenApp, appTab, onAppTab,
+  user, view, onNavigate, isAdmin, apps, selectedAppId, onOpenApp, appTab, onAppTab, appTabs,
 }: {
   user: User
   view: View
@@ -79,6 +78,8 @@ export function Header({
   onOpenApp: (id: string, tab?: AppTab) => void
   appTab: AppTab
   onAppTab: (t: AppTab) => void
+  /** The selected app's workspace tabs (nav.ts appTabsFor, with the operator-access probe). */
+  appTabs: { key: AppTab; label: string }[]
 }) {
   const tabs: { key: View; label: string }[] = isAdmin
     ? [...TABS.slice(0, -1), { key: 'admin', label: 'Admin' }, TABS[TABS.length - 1]!]
@@ -124,7 +125,7 @@ export function Header({
             {/* Per-app workspace tabs (sm+). On mobile these live in the fixed
                 bottom tab bar (MobileAppTabBar) instead. */}
             <div className="hidden sm:flex items-center rounded-lg border border-[var(--line-strong)] overflow-x-auto ml-1 min-w-0">
-              {appTabsFor(apps.find((a) => a.id === selectedAppId)).map((t, i) => (
+              {appTabs.map((t, i) => (
                 <button
                   key={t.key}
                   type="button"

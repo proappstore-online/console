@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { OperatorView } from './OperatorView'
-import { formatCell, formatMeasure } from './operator'
+import { formatCell, formatMeasure, probeOperatorAccess } from './operator'
 import { rangeFor } from './OperatorSeriesPanel'
 import { formatBucket } from './OperatorLineChart'
 import type { OperatorContract } from './operator'
@@ -190,6 +190,28 @@ afterEach(() => {
 })
 
 describe('OperatorView — access', () => {
+  // platform#297: given the console's access probe, the view renders it and fetches nothing itself.
+  it('a refused probe shows the 403 state and fetches nothing at all', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} access={{ status: 'refused', httpStatus: 403 }} />)
+    expect((await screen.findByRole('alert')).textContent).toBe("Only the app's owner, or a holder of one of its admin roles, can open the operator view.")
+    expect(screen.queryByText('Users with roles')).toBeNull()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('an unanswered probe waits without fetching; an admitted one renders its context without a second read', async () => {
+    const fetchMock = serve(baseline)
+    const { rerender } = render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} access={{ status: 'unknown' }} />)
+    expect(screen.getByText('Loading...')).toBeTruthy()
+    expect(fetchMock).not.toHaveBeenCalled()
+    rerender(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} access={{ status: 'allowed', context: baseline }} />)
+    expect(await screen.findByText('Users with roles')).toBeTruthy()
+    // Only the once-per-visit entry is written; the context is never re-read.
+    expect(fetchMock.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual(['/v1/apps/stash/operator/entries'])
+  })
+
   it("asks the PAS API for this app's operator context with the session bearer", async () => {
     const fetchMock = serve(baseline)
     render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} />)
@@ -203,7 +225,7 @@ describe('OperatorView — access', () => {
   it('shows an owner-only refusal and no data when the API answers 403', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('not the app owner', { status: 403 })))
     render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} />)
-    expect((await screen.findByRole('alert')).textContent).toBe("Only the app's owner can open the operator view.")
+    expect((await screen.findByRole('alert')).textContent).toBe("Only the app's owner, or a holder of one of its admin roles, can open the operator view.")
     expect(screen.queryByText('Users with roles')).toBeNull()
   })
 
@@ -869,5 +891,25 @@ describe('formatCell', () => {
     expect(formatCell('not a date', 'datetime')).toBe('not a date')
     expect(formatCell('abc', 'number')).toBe('abc')
     expect(formatCell({ a: 1 }, 'text')).toBe('{"a":1}')
+  })
+})
+
+describe('probeOperatorAccess (platform#297)', () => {
+  it("is the backend's answer: 200 → allowed with the context; 401/403/404 → refused with no data", async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(baseline)))
+    expect(await probeOperatorAccess('tok', 'stash')).toEqual({ status: 'allowed', context: baseline })
+    for (const status of [401, 403, 404]) {
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('no', { status })))
+      expect(await probeOperatorAccess('tok', 'stash')).toEqual({ status: 'refused', httpStatus: status })
+    }
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('network') }))
+    expect(await probeOperatorAccess('tok', 'stash')).toEqual({ status: 'refused', httpStatus: null })
+  })
+
+  it('without a session it refuses without asking', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await probeOperatorAccess(null, 'stash')).toEqual({ status: 'refused', httpStatus: 401 })
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

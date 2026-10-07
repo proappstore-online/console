@@ -94,7 +94,7 @@ describe('avatar → profile', () => {
     const onNavigate = vi.fn()
     render(
       <Header user={pro.auth.user!} view="dashboard" onNavigate={onNavigate} isAdmin={false}
-        apps={[]} selectedAppId={null} onOpenApp={() => {}} appTab="build" onAppTab={() => {}} />,
+        apps={[]} selectedAppId={null} onOpenApp={() => {}} appTab="build" onAppTab={() => {}} appTabs={[]} />,
     )
     fireEvent.click(screen.getByTitle('Profile, API keys & settings'))
     expect(onNavigate).toHaveBeenCalledWith('profile')
