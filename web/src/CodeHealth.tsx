@@ -62,6 +62,17 @@ function bulkFixPrompt(check: VcqaCheck): string {
   return `Fix all ${count} VCQA "${check.name}" issues to improve the score from ${check.score}/100.\n\nExamples:\n${examples}${count > 3 ? `\n- ...and ${count - 3} more` : ''}`
 }
 
+/**
+ * What a failed report read means (platform#350). The host now answers /.vcqa/
+ * with CORS on every status, so the panel sees the status instead of a bare
+ * "Failed to fetch".
+ */
+export function codeHealthLoadError(status: number): string {
+  if (status === 404) return 'No Code Health report for this app yet. The quality scan publishes one on each deploy.'
+  if (status === 401 || status === 403) return "This app is private: its Code Health report is only served on the app's own site, to its team."
+  return `HTTP ${status}`
+}
+
 export function CodeHealth({ appId, live = false, getToken }: Props) {
   const [report, setReport] = useState<VcqaReport | null>(null)
   const [loading, setLoading] = useState(true)
@@ -82,14 +93,14 @@ export function CodeHealth({ appId, live = false, getToken }: Props) {
     try {
       const url = `https://${appId}.proappstore.online/.vcqa/report.json?t=${Date.now()}`
       const r = await fetch(url, { cache: 'no-store' })
-      if (!r.ok) { setLoadError(`HTTP ${r.status}`); setFetchedAt(Date.now()); setRefreshing(false); setLoading(false); return }
+      if (!r.ok) { setLoadError(codeHealthLoadError(r.status)); setFetchedAt(Date.now()); setRefreshing(false); setLoading(false); return }
       const text = await r.text()
       // Guard against SPA fallback (host worker returning index.html for missing files)
       if (text.startsWith('<!') || text.startsWith('<html')) { setLoadError('Report not found (got HTML fallback)'); setFetchedAt(Date.now()); setRefreshing(false); setLoading(false); return }
       const data = JSON.parse(text) as VcqaReport
       setReport(data); setBadgeError(false)
       setFetchedAt(Date.now())
-    } catch (e) { setLoadError(e instanceof Error ? e.message : 'fetch failed') }
+    } catch (e) { setLoadError(`Couldn't reach ${appId}.proappstore.online (${e instanceof Error ? e.message : 'fetch failed'}).`) }
     setRefreshing(false)
     setLoading(false)
   }, [appId])
