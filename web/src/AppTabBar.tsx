@@ -23,6 +23,7 @@ export const APP_TAB_ICONS: Record<AppTab, ReactNode> = {
   test: <Icon><path d="M9 3v6l-5 9a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3l-5-9V3" /><path d="M8 3h8" /></Icon>,
   control: <Icon><line x1="4" y1="8" x2="20" y2="8" /><circle cx="9" cy="8" r="2" /><line x1="4" y1="16" x2="20" y2="16" /><circle cx="15" cy="16" r="2" /></Icon>,
   analytics: <Icon><line x1="6" y1="20" x2="6" y2="12" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="18" y1="20" x2="18" y2="14" /></Icon>,
+  logs: <Icon><path d="M4 4h16v16H4z" /><path d="M8 8h8M8 12h8M8 16h5" /></Icon>,
   spending: <Icon><circle cx="12" cy="12" r="9" /><path d="M12 7v10M9.5 9.5a2.5 2 0 0 1 5 0c0 2.5-5 1-5 4a2.5 2 0 0 0 5 0" /></Icon>,
   operator: <Icon><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6l-8-3Z" /><circle cx="12" cy="11" r="2.5" /></Icon>,
   style: <Icon><circle cx="13.5" cy="6.5" r="1.5" /><circle cx="17.5" cy="10.5" r="1.5" /><circle cx="8.5" cy="7.5" r="1.5" /><circle cx="6.5" cy="12.5" r="1.5" /><path d="M12 2a10 10 0 1 0 0 20 2 2 0 0 0 2-2c0-1-1-1.5-1-2.5a2 2 0 0 1 2-2h2a4 4 0 0 0 4-4 8 8 0 0 0-11-7.5" /></Icon>,

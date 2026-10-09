@@ -14,7 +14,7 @@ export type View =
 //  - operator: oversight of the app (#240) — shown only when the platform admits you: the
 //              owner, or a holder of one of the app's admin_access roles (platform#293, #297)
 //  - settings: listing / domains / app roles + agent team config / danger zone
-export type AppTab = 'research' | 'build' | 'data' | 'test' | 'control' | 'analytics' | 'spending' | 'style' | 'operator' | 'settings'
+export type AppTab = 'research' | 'build' | 'data' | 'test' | 'control' | 'analytics' | 'logs' | 'spending' | 'style' | 'operator' | 'settings'
 export type AppSettingsTab = 'storefront' | 'publishing' | 'agents' | 'integrations' | 'access' | 'danger'
 
 export const APP_TABS: { key: AppTab; label: string }[] = [
@@ -24,6 +24,7 @@ export const APP_TABS: { key: AppTab; label: string }[] = [
   { key: 'test', label: 'Test' },
   { key: 'control', label: 'Control' },
   { key: 'analytics', label: 'Analytics' },
+  { key: 'logs', label: 'Logs' },
   { key: 'spending', label: 'Spending' },
   { key: 'style', label: 'Style' },
   { key: 'operator', label: 'Operator' },

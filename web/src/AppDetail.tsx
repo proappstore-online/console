@@ -15,6 +15,7 @@ import { AppAgents } from './AppAgents'
 import { AppSpending } from './AppSpending'
 import { AppStyle } from './AppStyle'
 import { OperatorView } from './OperatorView'
+import { AppLogs } from './AppLogs'
 import type { OperatorAccess } from './operator'
 import { APP_SETTINGS_TABS, type AppSettingsTab, type AppTab } from './nav'
 import {
@@ -99,6 +100,10 @@ export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, s
           <UsageSection appId={appId} getToken={getToken} />
           <AnalyticsSection appId={appId} getToken={getToken} />
         </div>
+      )}
+
+      {tab === 'logs' && (
+        <AppLogs appId={appId} getToken={getToken} />
       )}
 
       {tab === 'spending' && (

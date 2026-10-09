@@ -172,6 +172,21 @@ body {
   letter-spacing: -0.015em;
 }
 
+/* Shared native controls for the owner-only Logs filters. Kept as ordinary
+   inputs/selects so filtering remains keyboard-accessible and form-submittable. */
+.log-control {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.5rem;
+  background: var(--panel);
+  color: var(--ink);
+  padding: 0.5rem 0.625rem;
+  font-size: 0.875rem;
+}
+
+.log-control::placeholder { color: var(--muted); }
+.log-control:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 body::before,
 body::after {
   content: '';
