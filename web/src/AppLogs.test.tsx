@@ -84,10 +84,31 @@ describe('AppLogs', () => {
   })
 
   it('does not render credential, cookie, query, or email-shaped legacy text', () => {
-    const displayed = safeLogText('Authorization: Bearer pas_at_secret https://example.test/?token=abc person@example.test')
-    expect(displayed).not.toContain('pas_at_secret')
+    const displayed = safeLogText('Authorization: Basic c2VjcmV0 Cookie: a=one; session=two /auth/callback?token=abc person@example.test')
+    expect(displayed).not.toContain('c2VjcmV0')
+    expect(displayed).not.toContain('session=two')
     expect(displayed).not.toContain('token=abc')
     expect(displayed).not.toContain('person@example.test')
     expect(displayed).toContain('[redacted]')
+  })
+
+  it('ignores an older same-app response after filters change', async () => {
+    const pending: Array<{ resolve: (value: Response) => void }> = []
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => pending.push({ resolve }))))
+    render(<AppLogs appId="chess-clubs" getToken={() => 'tok'} />)
+    await waitFor(() => expect(pending).toHaveLength(2))
+
+    fireEvent.change(screen.getByLabelText('Category'), { target: { value: 'auth.session_lost' } })
+    fireEvent.submit(screen.getByRole('form', { name: 'Log filters' }))
+    await waitFor(() => expect(pending).toHaveLength(4))
+
+    pending[2]!.resolve(response({ logs: [{ ...entry, message: 'New filtered event' }], nextCursor: null }))
+    pending[3]!.resolve(response({ groups: [] }))
+    await screen.findByText('New filtered event')
+
+    pending[0]!.resolve(response({ logs: [{ ...entry, message: 'Stale event' }], nextCursor: null }))
+    pending[1]!.resolve(response({ groups: [] }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(screen.queryByText('Stale event')).toBeNull()
   })
 })

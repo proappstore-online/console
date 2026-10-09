@@ -69,7 +69,9 @@ export function fetchAppLogs(appId: string, token: string | null, filters: AppLo
   return apiFetch<AppLogPage>(`/apps/${encodeURIComponent(appId)}/logs${query(filters)}`, { token })
 }
 
-export function fetchAppLogGroups(appId: string, token: string | null, since: number) {
-  const params = new URLSearchParams({ since: String(since), limit: '50' })
-  return apiFetch<{ groups: AppLogGroup[] }>(`/apps/${encodeURIComponent(appId)}/logs/groups?${params}`, { token })
+export function fetchAppLogGroups(appId: string, token: string | null, filters: AppLogFilters) {
+  return apiFetch<{ groups: AppLogGroup[] }>(
+    `/apps/${encodeURIComponent(appId)}/logs/groups${query({ ...filters, cursor: undefined, limit: 50 })}`,
+    { token },
+  )
 }

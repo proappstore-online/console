@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { ApiError } from './api'
 import { fetchAppLogGroups, fetchAppLogs, type AppLog, type AppLogFilters, type AppLogGroup } from './appLogsApi'
 
@@ -17,10 +17,13 @@ const blankFilters = (): AppLogFilters => ({ level: '', category: '', phase: '',
 export function safeLogText(value: unknown): string {
   if (typeof value !== 'string') return '—'
   return value
-    .replace(/\b(?:authorization|cookie|set-cookie)\s*[:=]\s*[^\s,;]+/gi, '$1=[redacted]')
-    .replace(/\b(?:bearer\s+)?(?:pas_[a-z]+|eyJ[a-zA-Z0-9_-]+)[a-zA-Z0-9._-]*/g, '[redacted]')
+    // Header values can contain spaces (Basic auth) and several cookies. Hide
+    // the full value rather than trying to preserve a safe-looking fragment.
+    .replace(/\b(authorization|cookie|set-cookie)\s*[:=]\s*[^\r\n]*/gi, '$1: [redacted]')
+    .replace(/\b(?:bearer|basic)\s+[A-Za-z0-9._~+/-]+=*/gi, '[redacted]')
+    .replace(/\b(?:pas_[a-z]+|eyJ[a-zA-Z0-9_-]+)[a-zA-Z0-9._-]*/g, '[redacted]')
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
-    .replace(/(https?:\/\/[^\s?]+)\?[^\s)]+/g, '$1?[redacted]')
+    .replace(/(https?:\/\/[^\s?#]+|\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]+)\?[^\s)\]}]+/g, '$1?[redacted]')
     .slice(0, 500)
 }
 
@@ -69,11 +72,13 @@ export function AppLogs({ appId, getToken }: Props) {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const requestVersion = useRef(0)
 
   // Do not calculate this during every render: a changing timestamp would
   // change `load`, retrigger the effect, and turn a refresh into a request loop.
   const since = useMemo(() => Date.now() - rangeMs[range], [range])
   const load = useCallback(async (next: AppLogFilters, append = false) => {
+    const version = ++requestVersion.current
     const token = getToken()
     if (!token) {
       setLogs([]); setGroups([]); setNextCursor(null); setLoading(false)
@@ -86,15 +91,18 @@ export function AppLogs({ appId, getToken }: Props) {
       const effective = { ...next, since, limit: 50 }
       const [page, grouped] = await Promise.all([
         fetchAppLogs(appId, token, effective),
-        append ? Promise.resolve(null) : fetchAppLogGroups(appId, token, since),
+        append ? Promise.resolve(null) : fetchAppLogGroups(appId, token, effective),
       ])
+      if (version !== requestVersion.current) return
       setLogs((previous) => append ? [...previous, ...page.logs] : page.logs)
       setNextCursor(page.nextCursor)
       if (grouped) setGroups(grouped.groups)
     } catch (e) {
+      if (version !== requestVersion.current) return
       if (!append) setLogs([])
       setError(errorMessage(e))
     } finally {
+      if (version !== requestVersion.current) return
       setLoading(false); setLoadingMore(false)
     }
   }, [appId, getToken, since])
@@ -102,6 +110,7 @@ export function AppLogs({ appId, getToken }: Props) {
   // appId is intentionally a dependency: switching projects immediately clears
   // prior rows and cannot leak stale data from another app while this fetch runs.
   useEffect(() => { void load(applied) }, [appId, range, applied, load])
+  useEffect(() => () => { requestVersion.current += 1 }, [])
 
   const update = (key: keyof AppLogFilters, value: string) => setFilters((current) => ({ ...current, [key]: value }))
   const apply = (event: FormEvent) => { event.preventDefault(); setApplied({ ...filters, cursor: undefined }) }
@@ -126,7 +135,7 @@ export function AppLogs({ appId, getToken }: Props) {
         <form onSubmit={apply} className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4" aria-label="Log filters">
           <select aria-label="Level" value={filters.level} onChange={(e) => update('level', e.target.value)} className="log-control"><option value="">All levels</option><option value="error">Error</option><option value="warn">Warn</option><option value="info">Info</option><option value="debug">Debug</option></select>
           <input aria-label="Category" placeholder="Category" maxLength={80} value={filters.category} onChange={(e) => update('category', e.target.value)} className="log-control" />
-          <input aria-label="Phase" placeholder="Phase (e.g. auth_me)" maxLength={48} value={filters.phase} onChange={(e) => update('phase', e.target.value)} className="log-control" />
+          <input aria-label="Phase" placeholder="Phase (e.g. api_request)" maxLength={48} value={filters.phase} onChange={(e) => update('phase', e.target.value)} className="log-control" />
           <input aria-label="Client ID" placeholder="Anonymous client ID" maxLength={128} value={filters.clientId} onChange={(e) => update('clientId', e.target.value)} className="log-control" />
           <input aria-label="Fingerprint" placeholder="Fingerprint" maxLength={128} value={filters.fingerprint} onChange={(e) => update('fingerprint', e.target.value)} className="log-control" />
           <select aria-label="Source" value={filters.source} onChange={(e) => update('source', e.target.value)} className="log-control"><option value="">All sources</option><option value="mediated">Mediated</option><option value="direct">Direct</option><option value="server">Server</option><option value="worker">Worker</option><option value="worker-console">Worker console</option></select>
