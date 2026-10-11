@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react'
+import { hashFor } from './nav'
 import {
   fetchAppUsage,
   formatNumber,
@@ -48,15 +49,18 @@ export function UsageSection({ appId, getToken }: { appId: string; getToken: () 
       {loading && <UsageSkeleton />}
 
       {!loading && error && (
-        <p className="text-sm text-[var(--error)]">Couldn't load usage. {error}</p>
+        <div className="space-y-1">
+          <p className="text-sm" style={{ color: 'var(--danger,#dc2626)' }}>Couldn't load usage. {error}</p>
+          <a href={hashFor('app-detail', appId, 'logs')} className="text-xs text-[var(--accent)] hover:underline">View logs →</a>
+        </div>
       )}
 
-      {!loading && !error && data && <UsageBody data={data} />}
+      {!loading && !error && data && <UsageBody appId={appId} data={data} />}
     </section>
   )
 }
 
-function UsageBody({ data }: { data: UsageResponse }) {
+function UsageBody({ appId, data }: { appId: string; data: UsageResponse }) {
   // Defend against an empty/partial response ({} for a brand-new app) so the
   // tab shows the empty state instead of white-screening.
   const series = data.series ?? []
@@ -68,7 +72,8 @@ function UsageBody({ data }: { data: UsageResponse }) {
     return (
       <p className="text-sm text-[var(--muted)] py-6 text-center">
         No usage data yet. Once your app is being used by subscribers, daily
-        activity will appear here.
+        activity will appear here.{' '}
+        <a href={hashFor('app-detail', appId, 'logs')} className="text-xs text-[var(--accent)] hover:underline">View logs →</a>
       </p>
     )
   }

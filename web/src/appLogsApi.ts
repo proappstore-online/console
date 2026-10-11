@@ -8,6 +8,8 @@ export interface AppLog {
   /** The API has already sanitized this bounded telemetry envelope. Never render it wholesale. */
   data: unknown
   clientId: string | null
+  /** The signed-in user the row came from, when there was one (an id, never a name). */
+  userId?: string | null
   build: unknown
   fingerprint: string | null
   traceId: string | null
@@ -20,6 +22,7 @@ export interface AppLogFilters {
   phase?: string
   since?: number
   clientId?: string
+  userId?: string
   fingerprint?: string
   source?: string
   traceId?: string
@@ -51,6 +54,7 @@ function query(filters: AppLogFilters): string {
     phase: filters.phase,
     since: filters.since,
     client_id: filters.clientId,
+    user_id: filters.userId,
     fingerprint: filters.fingerprint,
     source: filters.source,
     trace_id: filters.traceId,
@@ -71,7 +75,14 @@ export function fetchAppLogs(appId: string, token: string | null, filters: AppLo
 
 export function fetchAppLogGroups(appId: string, token: string | null, filters: AppLogFilters) {
   return apiFetch<{ groups: AppLogGroup[] }>(
-    `/apps/${encodeURIComponent(appId)}/logs/groups${query({ ...filters, cursor: undefined, limit: 50 })}`,
+    // Groups take no user or cursor filter.
+    `/apps/${encodeURIComponent(appId)}/logs/groups${query({ ...filters, userId: undefined, cursor: undefined, limit: 50 })}`,
     { token },
   )
+}
+
+/** The newest build metadata any log row carried; `build` is null when no row ever had one. */
+export async function fetchLatestBuild(appId: string, token: string | null): Promise<{ build: unknown; ts: number | null }> {
+  const r = await apiFetch<{ build?: unknown; ts?: number }>(`/apps/${encodeURIComponent(appId)}/logs/build`, { token })
+  return { build: r.build ?? null, ts: r.ts ?? null }
 }

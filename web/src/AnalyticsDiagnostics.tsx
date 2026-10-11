@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { fetchAnalyticsDiagnostics, type DiagnosticsResponse } from "./analytics"
+import { hashFor } from "./nav"
 
 /**
  * Live view: polls /v1/apps/:id/analytics/live every 30s and shows a
@@ -67,7 +68,8 @@ export function DiagnosticsHint({
         </p>
         {error && (
           <p className="text-xs text-[var(--muted)]">
-            (Diagnostics unavailable — usually means the analytics dataset isn't wired in the backend yet.)
+            (Diagnostics unavailable — usually means the analytics dataset isn't wired in the backend yet.){' '}
+            <a href={hashFor('app-detail', appId, 'logs')} className="text-xs text-[var(--accent)] hover:underline">View logs →</a>
           </p>
         )}
       </div>
