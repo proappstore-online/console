@@ -4,6 +4,7 @@ import { fetchTables } from './dbBrowserApi'
 import { TablesTab } from './TablesTab'
 import { QueryTab } from './QueryTab'
 import { SchemaTab } from './SchemaTab'
+import { ApiTab } from './ApiTab'
 
 // ---------------------------------------------------------------------------
 // Component
@@ -44,6 +45,7 @@ export function DbBrowser({ appId, getToken }: Props) {
     { key: 'tables', label: 'Tables' },
     { key: 'query', label: 'SQL Query' },
     { key: 'schema', label: 'Schema Graph' },
+    { key: 'api', label: 'API' },
   ]
 
   return (
@@ -71,9 +73,13 @@ export function DbBrowser({ appId, getToken }: Props) {
         ))}
       </div>
 
-      {loading && <p className="text-sm text-[var(--muted)]">Loading...</p>}
+      {/* The API tab reads the schema and the platform's endpoint routes itself, so the
+          data-worker table load above does not gate it. */}
+      {tab === 'api' && <ApiTab appId={appId} getToken={getToken} />}
 
-      {!loading && loadError && (
+      {tab !== 'api' && loading && <p className="text-sm text-[var(--muted)]">Loading...</p>}
+
+      {tab !== 'api' && !loading && loadError && (
         <div className="space-y-2">
           <p className="text-sm text-[var(--error)]">Couldn't connect to data worker. {loadError}</p>
           <button

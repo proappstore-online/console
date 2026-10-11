@@ -6,6 +6,9 @@
 // requested. An admitted admin's operator view needs no owner-only data either.
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
+// The Data tab's API sub-tab reads the signed-in login from the SDK; the real SDK
+// touches window.matchMedia on import, which jsdom lacks.
+vi.mock('./sdk', () => ({ pro: { auth: { user: null, token: 'tok' } } }))
 import { AppDetail } from './AppDetail'
 
 afterEach(() => {

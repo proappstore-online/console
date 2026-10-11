@@ -8,4 +8,4 @@ export interface QueryResult {
   rowCount: number
 }
 
-export type Tab = 'tables' | 'query' | 'schema'
+export type Tab = 'tables' | 'query' | 'schema' | 'api'

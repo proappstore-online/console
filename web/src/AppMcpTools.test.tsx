@@ -80,4 +80,19 @@ describe('AppMcpTools', () => {
     expect(within(write).getByText('writes')).toBeTruthy()
     expect(within(write).queryByText(/atomic/)).toBeNull()
   })
+
+  it('badges endpoints created in Data → API as console, and code tools (or a missing source) without it', async () => {
+    mockTools([
+      { name: 'api_my_tasks', description: 'Mine', operation: 'query', sql: 'SELECT 1', source: 'console' },
+      { name: 'list_deals', description: 'List', operation: 'query', sql: 'SELECT 1', source: 'code' },
+      { name: 'old_tool', description: 'Old', operation: 'query', sql: 'SELECT 1' },
+    ])
+    render(<AppMcpTools appId="crm" getToken={() => 'tok'} />)
+    const card = (n: string) => screen.getByText(n).closest('div.rounded-xl') as HTMLElement
+    await screen.findByText('api_my_tasks')
+    expect(within(card('api_my_tasks')).getByText('console')).toBeTruthy()
+    expect(within(card('list_deals')).queryByText('console')).toBeNull()
+    expect(within(card('old_tool')).queryByText('console')).toBeNull()
+    expect(screen.getByText(/or created in Data → API/)).toBeTruthy()
+  })
 })

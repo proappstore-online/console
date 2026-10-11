@@ -7,8 +7,8 @@ import { CopyOpen } from './AppPublishing'
  * app has registered with the platform MCP server — declared in the app's
  * `mcp.json` and registered on publish (CLI) or after a green agent deploy. An
  * external AI connects to `https://mcp.proappstore.online/mcp/apps/<appId>` and
- * calls them by name. This surfaces what's currently exposed; editing happens in
- * the repo's mcp.json.
+ * calls them by name. This surfaces what's currently exposed; tools come from the
+ * repo's mcp.json or from endpoints created in Data → API (`source: 'console'`).
  */
 
 interface ToolParam { type: string; description?: string; optional?: boolean; default?: unknown; max?: number }
@@ -40,6 +40,8 @@ interface AppTool {
   statements?: string[]
   params?: Record<string, ToolParam>
   requires_auth?: boolean
+  /** Where the tool came from; absent on older responses, which means code. */
+  source?: 'code' | 'console'
   updated_at?: number
 }
 
@@ -71,8 +73,8 @@ export function AppMcpTools({ appId, getToken }: { appId: string; getToken: () =
         <div>
           <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide">MCP tools</h3>
           <p className="text-xs text-[var(--muted)] mt-0.5">
-            Tools declared in this app's <code className="text-[var(--ink)]">mcp.json</code>, registered automatically on
-            publish/deploy. Connect an AI client to this app's own MCP endpoint below. It serves only this app's tools,
+            Declared in the repo's <code className="text-[var(--ink)]">mcp.json</code>, or created in Data → API. Code tools
+            register automatically on publish/deploy. Connect an AI client to this app's own MCP endpoint below. It serves only this app's tools,
             and calls run as the signed-in user.
           </p>
         </div>
@@ -129,6 +131,7 @@ export function AppMcpTools({ appId, getToken }: { appId: string; getToken: () =
                   {t.operation === 'query' ? 'reads' : 'writes'}
                 </span>
                 {t.statements && <span className="text-[10px] text-[var(--muted)]">atomic, {t.statements.length} statements</span>}
+                {t.source === 'console' && <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-[var(--accent)] text-[var(--accent)]">console</span>}
                 {t.requires_auth && <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-[var(--line)] text-[var(--muted)]">🔒 auth</span>}
               </div>
               <p className="text-xs text-[var(--muted)] mt-1">{t.description}</p>
