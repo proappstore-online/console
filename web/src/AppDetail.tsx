@@ -9,13 +9,13 @@ import { AppTest } from './AppTest'
 import { AgentsView } from './AgentsView'
 import { AppMcpTools } from './AppMcpTools'
 import { AppSecrets } from './AppSecrets'
-import { AppConnectors } from './AppConnectors'
 import { AppPublishing } from './AppPublishing'
 import { AppAgents } from './AppAgents'
 import { AppSpending } from './AppSpending'
 import { AppStyle } from './AppStyle'
 import { OperatorView } from './OperatorView'
 import { AppLogs } from './AppLogs'
+import { AppServer } from './AppServer'
 import type { OperatorAccess } from './operator'
 import { APP_SETTINGS_TABS, type AppSettingsTab, type AppTab } from './nav'
 import {
@@ -38,9 +38,11 @@ interface Props {
   onSettingsTab: (tab: AppSettingsTab) => void
   /** The console's operator-access probe for this app (platform#297). */
   operatorAccess?: OperatorAccess
+  /** Platform admin: the Server tab offers the worker on/off toggle. */
+  isAdmin?: boolean
 }
 
-export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, settingsTab, onSettingsTab, operatorAccess }: Props) {
+export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, settingsTab, onSettingsTab, operatorAccess, isAdmin }: Props) {
   const [listing, setListing] = useState<Listing | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -104,6 +106,10 @@ export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, s
 
       {tab === 'logs' && (
         <AppLogs appId={appId} getToken={getToken} />
+      )}
+
+      {tab === 'server' && (
+        <AppServer appId={appId} getToken={getToken} isAdmin={isAdmin} />
       )}
 
       {tab === 'spending' && (
@@ -186,7 +192,6 @@ export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, s
             <div className="max-w-3xl space-y-6">
               <WebhooksManager appId={appId} getToken={getToken} />
               <AppMcpTools appId={appId} getToken={getToken} />
-              <AppConnectors appId={appId} getToken={getToken} />
               <AppSecrets appId={appId} getToken={getToken} />
             </div>
           )}

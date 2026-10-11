@@ -254,6 +254,7 @@ export default function App() {
               settingsTab={appSettingsTab}
               onSettingsTab={changeAppSettingsTab}
               operatorAccess={access}
+              isAdmin={isAdmin}
             />
           )}
           {view === 'publish' && <PublishView getToken={() => pro.auth.token} />}

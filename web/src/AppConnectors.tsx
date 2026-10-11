@@ -3,7 +3,7 @@ import { ApiError } from './api'
 import { fetchConnectors, githubInstallUrl, unbindGithubInstallation, type ConnectorsResponse } from './connectorsApi'
 
 /**
- * Connectors (Settings → Integrations, platform#258/#261). Lists the connectors the
+ * Connectors (Server tab, platform#258/#261). Lists the connectors the
  * app's manifest declares and the GitHub App installations bound to it. Connecting
  * sends the owner to GitHub; GitHub returns to #/connectors/github/setup.
  */

@@ -19,6 +19,7 @@ describe('parseHash', () => {
     expect(parseHash('#/apps/interns/data')).toEqual({ view: 'app-detail', param: 'interns', tab: 'data', settingsTab: null })
     expect(parseHash('#/apps/interns/control')).toEqual({ view: 'app-detail', param: 'interns', tab: 'control', settingsTab: null })
     expect(parseHash('#/apps/interns/settings')).toEqual({ view: 'app-detail', param: 'interns', tab: 'settings', settingsTab: null })
+    expect(parseHash('#/apps/interns/server')).toEqual({ view: 'app-detail', param: 'interns', tab: 'server', settingsTab: null })
   })
 
   it('parses settings subtabs for app-detail settings routes', () => {
@@ -84,6 +85,7 @@ describe('hashFor', () => {
   it('appends the tab for app-detail routes that carry one', () => {
     expect(hashFor('app-detail', 'interns', 'control')).toBe('#/apps/interns/control')
     expect(hashFor('app-detail', 'interns', 'data')).toBe('#/apps/interns/data')
+    expect(hashFor('app-detail', 'interns', 'server')).toBe('#/apps/interns/server')
     expect(hashFor('app-detail', 'interns', null)).toBe('#/apps/interns')
     // a tab without a param is meaningless — no app route, no tab
     expect(hashFor('dashboard', null, 'control')).toBe('#/')
