@@ -8,7 +8,7 @@
 
 const GH_ORG = 'proappstore-online'
 
-function CopyOpen({ url, openable = true }: { url: string; openable?: boolean }) {
+export function CopyOpen({ url, openable = true }: { url: string; openable?: boolean }) {
   return (
     <div className="flex items-center gap-1.5 flex-shrink-0">
       <button type="button" onClick={() => navigator.clipboard?.writeText(url)} title="Copy"

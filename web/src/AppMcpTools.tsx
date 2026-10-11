@@ -1,20 +1,43 @@
 import { useState, useEffect, useCallback } from 'react'
 import { apiFetch, ApiError } from './api'
+import { CopyOpen } from './AppPublishing'
 
 /**
  * MCP Tools section (Settings → Integrations). Read-only view of the tools this
  * app has registered with the platform MCP server — declared in the app's
  * `mcp.json` and registered on publish (CLI) or after a green agent deploy. An
- * external AI can call them as `<app>/<tool>` via mcp.proappstore.online. This
- * surfaces what's currently exposed; editing happens in the repo's mcp.json.
+ * external AI connects to `https://mcp.proappstore.online/mcp/apps/<appId>` and
+ * calls them by name. This surfaces what's currently exposed; editing happens in
+ * the repo's mcp.json.
  */
 
 interface ToolParam { type: string; description?: string; optional?: boolean; default?: unknown; max?: number }
+/** The app's own MCP endpoint: only its tools, plus whoami and mcp_audit_log. */
+export const appMcpEndpoint = (appId: string) => `https://mcp.proappstore.online/mcp/apps/${appId}`
+
+/** Copy-paste config per client; the local server name is the app id (platform#149). */
+export function mcpClientSnippets(appId: string): { client: string; hint: string; snippet: string }[] {
+  const url = appMcpEndpoint(appId)
+  return [
+    { client: 'Claude Code', hint: 'Run in a terminal', snippet: `claude mcp add --transport http ${appId} ${url}` },
+    {
+      client: 'Claude Desktop', hint: 'claude_desktop_config.json',
+      snippet: JSON.stringify({ mcpServers: { [appId]: { command: 'npx', args: ['mcp-remote', url] } } }, null, 2),
+    },
+    {
+      client: 'Cursor', hint: '~/.cursor/mcp.json or .cursor/mcp.json',
+      snippet: JSON.stringify({ mcpServers: { [appId]: { url } } }, null, 2),
+    },
+  ]
+}
+
 interface AppTool {
   name: string
   description: string
-  operation: 'query' | 'execute'
-  sql: string
+  operation: 'query' | 'execute' | 'batch'
+  sql?: string
+  /** A batch tool's statements, run atomically — it has no `sql`. */
+  statements?: string[]
   params?: Record<string, ToolParam>
   requires_auth?: boolean
   updated_at?: number
@@ -48,15 +71,35 @@ export function AppMcpTools({ appId, getToken }: { appId: string; getToken: () =
         <div>
           <h3 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wide">MCP tools</h3>
           <p className="text-xs text-[var(--muted)] mt-0.5">
-            Tools this app exposes to AI via <code className="text-[var(--ink)]">mcp.proappstore.online</code>, callable as{' '}
-            <code className="text-[var(--ink)]">{appId}/&lt;tool&gt;</code>. Declared in the repo's{' '}
-            <code className="text-[var(--ink)]">mcp.json</code>; registered automatically on publish/deploy.
+            Tools declared in this app's <code className="text-[var(--ink)]">mcp.json</code>, registered automatically on
+            publish/deploy. Connect an AI client to this app's own MCP endpoint below. It serves only this app's tools,
+            and calls run as the signed-in user.
           </p>
         </div>
         <button type="button" onClick={load}
           className="text-xs text-[var(--muted)] hover:text-[var(--ink)] px-2 py-1 rounded border border-[var(--line)] hover:border-[var(--accent)] flex-shrink-0">
           Refresh
         </button>
+      </div>
+
+      <div className="mt-3 rounded-xl border border-[var(--line)] p-3 space-y-3">
+        <h4 className="text-xs font-semibold text-[var(--ink)]">Connect an AI client</h4>
+        <div className="flex items-center justify-between gap-3">
+          <code data-testid="mcp-endpoint" className="text-[11px] font-mono text-[var(--ink)] truncate">{appMcpEndpoint(appId)}</code>
+          <CopyOpen url={appMcpEndpoint(appId)} openable={false} />
+        </div>
+        {mcpClientSnippets(appId).map((c) => (
+          <div key={c.client}>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[11px] text-[var(--muted)]"><span className="font-semibold text-[var(--ink)]">{c.client}</span> · {c.hint}</p>
+              <CopyOpen url={c.snippet} openable={false} />
+            </div>
+            <pre data-testid={`mcp-snippet-${c.client}`} className="mt-1 text-[11px] bg-[var(--paper)] border border-[var(--line)] rounded-lg p-2.5 overflow-x-auto text-[var(--ink)]">{c.snippet}</pre>
+          </div>
+        ))}
+        <p className="text-[11px] text-[var(--muted)]">
+          First connection opens a ProAppStore sign-in in your browser. Access is per app: connecting to another app asks again.
+        </p>
       </div>
 
       {loading && <p className="text-sm text-[var(--muted)] py-3">Loading…</p>}
@@ -81,10 +124,11 @@ export function AppMcpTools({ appId, getToken }: { appId: string; getToken: () =
           {tools.map((t) => (
             <div key={t.name} className="rounded-xl border border-[var(--line)] p-3">
               <div className="flex items-center gap-2 flex-wrap">
-                <code className="text-sm font-semibold text-[var(--ink)]">{appId}/{t.name}</code>
-                <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border ${t.operation === 'execute' ? 'text-[var(--warning,#ca8a04)] border-[var(--warning,#ca8a04)]' : 'text-[var(--muted)] border-[var(--line)]'}`}>
-                  {t.operation === 'execute' ? 'writes' : 'reads'}
+                <code className="text-sm font-semibold text-[var(--ink)]">{t.name}</code>
+                <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border ${t.operation === 'query' ? 'text-[var(--muted)] border-[var(--line)]' : 'text-[var(--warning,#ca8a04)] border-[var(--warning,#ca8a04)]'}`}>
+                  {t.operation === 'query' ? 'reads' : 'writes'}
                 </span>
+                {t.statements && <span className="text-[10px] text-[var(--muted)]">atomic, {t.statements.length} statements</span>}
                 {t.requires_auth && <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-[var(--line)] text-[var(--muted)]">🔒 auth</span>}
               </div>
               <p className="text-xs text-[var(--muted)] mt-1">{t.description}</p>
@@ -102,7 +146,7 @@ export function AppMcpTools({ appId, getToken }: { appId: string; getToken: () =
                 {openSql[t.name] ? '▾ hide SQL' : '▸ show SQL'}
               </button>
               {openSql[t.name] && (
-                <pre className="mt-1 text-[11px] bg-[var(--paper)] border border-[var(--line)] rounded-lg p-2.5 overflow-x-auto text-[var(--ink)] whitespace-pre-wrap">{t.sql}</pre>
+                <pre className="mt-1 text-[11px] bg-[var(--paper)] border border-[var(--line)] rounded-lg p-2.5 overflow-x-auto text-[var(--ink)] whitespace-pre-wrap">{t.sql ?? t.statements?.join(';\n\n')}</pre>
               )}
             </div>
           ))}
