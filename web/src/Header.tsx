@@ -7,23 +7,44 @@ import type { User } from '@proappstore/sdk'
 import { pro } from './sdk'
 import type { View, AppEntry, AppTab } from './nav'
 import { APP_TAB_ICONS } from './AppTabBar'
-import { GitHubIcon } from './dashboardShared'
+import { GitHubIcon, GoogleIcon } from './dashboardShared'
+
+const SIGN_IN_BUTTON = 'inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold shadow-lg hover:opacity-90'
 
 export function Landing() {
+  // Why the last sign-in came back without a session (e.g. access_denied), if it did.
+  const authError = pro.auth.authError
   return (
     <div className="flex min-h-[100dvh] items-center justify-center px-4">
       <div className="text-center max-w-md">
         <h1 className="display-font text-4xl font-bold text-[var(--ink)]">Creator Console</h1>
         <p className="mt-4 text-[var(--muted)] text-lg">
-          Sign in with GitHub to manage your apps on ProAppStore.
+          Sign in to manage your apps on ProAppStore.
         </p>
-        <button
-          onClick={() => pro.auth.signIn()}
-          className="mt-8 inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-6 py-3 text-sm font-semibold text-white shadow-lg hover:opacity-90"
-        >
-          <GitHubIcon />
-          Sign in with GitHub
-        </button>
+        {authError && (
+          <p role="alert" className="mt-4 text-sm" style={{ color: 'var(--danger,#dc2626)' }}>
+            Sign-in did not complete ({authError}). Try again.
+          </p>
+        )}
+        <div className="mt-8 flex flex-col items-center gap-3">
+          <button type="button"
+            onClick={() => pro.auth.signIn('github')}
+            className={`${SIGN_IN_BUTTON} bg-[var(--accent)] text-white`}
+          >
+            <GitHubIcon />
+            Sign in with GitHub
+          </button>
+          <button type="button"
+            onClick={() => pro.auth.signIn('google')}
+            className={`${SIGN_IN_BUTTON} border border-[var(--line-strong)] bg-[var(--panel)] text-[var(--ink)]`}
+          >
+            <GoogleIcon />
+            Sign in with Google
+          </button>
+        </div>
+        <p className="mt-4 text-xs text-[var(--muted)]">
+          Already a creator with GitHub? Use the GitHub button — Google sign-in creates a separate account.
+        </p>
         <p className="mt-6 text-xs text-[var(--muted)]">
           Part of{' '}
           <a href="https://proappstore.online" target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--ink)]">

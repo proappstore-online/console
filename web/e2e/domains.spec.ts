@@ -21,13 +21,28 @@ test.describe('Console SPA — public', () => {
     await expect(page).toHaveTitle(/Creator Console.*ProAppStore/);
   });
 
-  test('shows Sign in with GitHub CTA when not authenticated', async ({ page }) => {
+  test('offers GitHub and Google sign-in when not authenticated (console#2)', async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: 'Creator Console' })).toBeVisible();
-    // The phrase appears both in the descriptive paragraph and on the
-    // button; target the button so strict-mode matching has one result.
-    await expect(page.getByRole('button', { name: 'Sign in with GitHub' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sign in with GitHub' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Sign in with Google' })).toBeEnabled();
+    await expect(page.getByText('Sign in with GitHub to manage your apps on ProAppStore.')).toHaveCount(0);
   });
+
+  // Clicking navigates to the API's start URL; stop the request there so the
+  // test never reaches a real OAuth provider.
+  for (const provider of ['github', 'google'] as const) {
+    test(`${provider} button starts that provider's sign-in for the console`, async ({ page }) => {
+      await page.goto('/', { waitUntil: 'domcontentloaded' });
+      await page.route('https://api.proappstore.online/v1/auth/**', (route) => route.fulfill({ status: 204 }));
+      const start = page.waitForRequest((req) => req.url().startsWith(`${API_URL}/v1/auth/`));
+      await page.getByRole('button', { name: new RegExp(`sign in with ${provider}`, 'i') }).click();
+      const url = new URL((await start).url());
+      expect(url.pathname).toBe(`/v1/auth/${provider}/start`);
+      expect(url.searchParams.get('app_id')).toBe('console');
+      expect(new URL(url.searchParams.get('return_to')!).origin).toBe(new URL(page.url()).origin);
+    });
+  }
 });
 
 test.describe('PAS API: /v1/apps/:appId/domains — auth + validation', () => {
