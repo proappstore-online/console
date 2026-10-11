@@ -2,7 +2,7 @@
 
 export type View =
   | 'dashboard' | 'app-detail' | 'publish' | 'payouts'
-  | 'subscription' | 'services' | 'admin' | 'profile' | 'ui-library' | 'connector-setup'
+  | 'subscription' | 'services' | 'admin' | 'profile' | 'ui-library' | 'connector-setup' | 'provision'
 
 // Per-app workspace tabs, shown next to the project switcher in the navbar.
 //  - research: brainstorm chat + live Knowledge Base preview
@@ -79,7 +79,7 @@ export function effectiveAppTab(app: AppEntry | undefined, tab: AppTab): AppTab 
 }
 
 const VALID_VIEWS: View[] = [
-  'dashboard', 'app-detail', 'publish', 'payouts', 'subscription', 'services', 'admin', 'profile', 'ui-library',
+  'dashboard', 'app-detail', 'publish', 'payouts', 'subscription', 'services', 'admin', 'profile', 'ui-library', 'provision',
 ]
 
 /** Where the platform sends the owner after GitHub's App install (platform#258). */

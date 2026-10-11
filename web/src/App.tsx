@@ -22,6 +22,7 @@ const SubscriptionView = lazy(() => import('./SubscriptionView').then(m => ({ de
 const ServicesView = lazy(() => import('./ServicesView').then(m => ({ default: m.ServicesView })))
 const AdminView = lazy(() => import('./AdminView').then(m => ({ default: m.AdminView })))
 const ProfileView = lazy(() => import('./ProfileView').then(m => ({ default: m.ProfileView })))
+const ProvisionView = lazy(() => import('./ProvisionView').then(m => ({ default: m.ProvisionView })))
 const UILibraryView = lazy(() => import('./UILibraryView').then(m => ({ default: m.UILibraryView })))
 
 function RouteSpinner() {
@@ -236,6 +237,7 @@ export default function App() {
             apps={apps}
             onOpenApp={openAppDetail}
             onPublishNew={() => setView('publish')}
+            onProvision={() => setView('provision')}
             onNewApp={() => setShowNewApp(true)}
           />
         )}
@@ -255,6 +257,13 @@ export default function App() {
             />
           )}
           {view === 'publish' && <PublishView getToken={() => pro.auth.token} />}
+          {view === 'provision' && (
+            <ProvisionView
+              key={user.id}
+              getToken={() => pro.auth.token}
+              onOpenApp={(id) => { void reloadApps(); openAppDetail(id) }}
+            />
+          )}
           {view === 'payouts' && <PayoutsView getToken={() => pro.auth.token} />}
           {view === 'subscription' && <SubscriptionView />}
           {view === 'services' && <ServicesView getToken={() => pro.auth.token} />}

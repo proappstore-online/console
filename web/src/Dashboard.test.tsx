@@ -32,6 +32,7 @@ describe('Dashboard app cards (#288)', () => {
         apps={[{ id: LONG_ID, name: LONG_NAME, createdAt: '2026-10-01T00:00:00Z' }]}
         onOpenApp={() => {}}
         onPublishNew={() => {}}
+        onProvision={() => {}}
         onNewApp={() => {}}
       />,
     )

@@ -63,7 +63,7 @@ describe('parseHash', () => {
   })
 
   it('parses known top-level views', () => {
-    for (const v of ['publish', 'payouts', 'subscription', 'services', 'admin', 'profile', 'ui-library'] as const) {
+    for (const v of ['publish', 'payouts', 'subscription', 'services', 'admin', 'profile', 'ui-library', 'provision'] as const) {
       expect(parseHash(`#/${v}`)).toEqual({ view: v, param: null, tab: null, settingsTab: null })
     }
   })
@@ -77,6 +77,7 @@ describe('hashFor', () => {
   it('is the inverse of parseHash', () => {
     expect(hashFor('dashboard')).toBe('#/')
     expect(hashFor('publish')).toBe('#/publish')
+    expect(hashFor('provision')).toBe('#/provision')
     expect(hashFor('app-detail', 'interns')).toBe('#/apps/interns')
   })
 
