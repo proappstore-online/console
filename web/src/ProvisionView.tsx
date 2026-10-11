@@ -208,10 +208,11 @@ export function ProvisionView({
         setShown(null)
         setNotice('That preview is no longer available, so nothing ran. Preview again.')
       } else {
+        // A 503 or a dropped connection does not prove nothing ran: the platform
+        // answers 503 when its call to the workflow fails in transit, which can
+        // be after the workflow received it. Report the outcome as unknown.
         const message = err instanceof Error ? err.message : 'network error'
-        setError(status === 503
-          ? `Nothing ran (${message}). Retry to confirm the same plan.`
-          : `The confirmation did not complete (${message}). Retry confirms the same plan; if it already started, the retry joins that operation instead of starting another.`)
+        setError(`Provisioning was unavailable (${message}); the outcome is unknown — it may have started. Retry confirms the same plan; if it already started, the retry joins that operation instead of starting another.`)
       }
     } finally {
       if (gen === generation.current) {

@@ -390,6 +390,16 @@ describe('ProvisionView confirmation', () => {
     expect(confirmCalls(fetchMock)).toHaveLength(0)
   })
 
+  it('reports a network rejection of the confirmation as an unknown outcome and keeps the same plan to retry', async () => {
+    const fetchMock = await previewed({ confirm: () => { throw new TypeError('Failed to fetch') } })
+    fireEvent.click(confirmButton()!)
+    const alert = (await screen.findByRole('alert')).textContent!
+    expect(alert).toContain('Provisioning was unavailable (Failed to fetch); the outcome is unknown')
+    expect(alert).not.toMatch(/nothing (ran|changed)/i)
+    expect((confirmButton() as HTMLButtonElement).disabled).toBe(false)
+    expect(confirmCalls(fetchMock).map(([u]) => u)).toEqual([`${API}/provisioning/plans/p1/confirm`])
+  })
+
   it('keeps the plan after a failed confirmation and retries the same plan id, joining its receipt', async () => {
     let confirms = 0
     const fetchMock = await previewed({
@@ -398,7 +408,11 @@ describe('ProvisionView confirmation', () => {
         : response({ planId: 'p1', joined: true, ...op({ status: 'completed', steps: [{ name: 'host', status: 'ok', detail: '' }] }) })),
     })
     fireEvent.click(confirmButton()!)
-    expect((await screen.findByRole('alert')).textContent).toContain('Nothing ran')
+    // A 503 alone does not prove nothing ran (the platform's transport failure to
+    // the workflow is also a 503): the outcome is reported as unknown.
+    const alert = (await screen.findByRole('alert')).textContent!
+    expect(alert).toContain('the outcome is unknown — it may have started')
+    expect(alert).not.toMatch(/nothing (ran|changed)/i)
     expect(screen.getByText('Plan to confirm')).toBeTruthy()
     fireEvent.click(confirmButton()!)
     await screen.findByText('Live: provisioning completed and the app responds.')
