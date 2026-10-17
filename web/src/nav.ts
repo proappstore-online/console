@@ -10,12 +10,13 @@ export type View =
 //  - data:     D1 table browser, SQL console, and schema graph
 //  - test:     automated QA / E2E (Playwright, manual/opt-in)
 //  - control:  the live VCQA code-health dashboard (ops/control)
+//  - enquiries: messages from the app's about- site — list, read, mark handled (console#9)
 //  - server:   the app worker, schedules, hooks, connectors and visibility (platform#261)
 //  - spending: cost breakdown by role, ticket, and ledger history
 //  - operator: oversight of the app (#240) — shown only when the platform admits you: the
 //              owner, or a holder of one of the app's admin_access roles (platform#293, #297)
 //  - settings: listing / domains / app roles + agent team config / danger zone
-export type AppTab = 'research' | 'build' | 'data' | 'test' | 'control' | 'analytics' | 'logs' | 'server' | 'spending' | 'style' | 'operator' | 'settings'
+export type AppTab = 'research' | 'build' | 'data' | 'test' | 'control' | 'analytics' | 'logs' | 'enquiries' | 'server' | 'spending' | 'style' | 'operator' | 'settings'
 export type AppSettingsTab = 'storefront' | 'publishing' | 'agents' | 'integrations' | 'access' | 'danger'
 
 export const APP_TABS: { key: AppTab; label: string }[] = [
@@ -26,6 +27,7 @@ export const APP_TABS: { key: AppTab; label: string }[] = [
   { key: 'control', label: 'Control' },
   { key: 'analytics', label: 'Analytics' },
   { key: 'logs', label: 'Logs' },
+  { key: 'enquiries', label: 'Enquiries' },
   { key: 'server', label: 'Server' },
   { key: 'spending', label: 'Spending' },
   { key: 'style', label: 'Style' },

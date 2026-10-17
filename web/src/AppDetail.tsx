@@ -16,6 +16,7 @@ import { AppStyle } from './AppStyle'
 import { OperatorView } from './OperatorView'
 import { AppLogs } from './AppLogs'
 import { AppServer } from './AppServer'
+import { AppEnquiries, EnquiriesSummary } from './AppEnquiries'
 import type { OperatorAccess } from './operator'
 import { APP_SETTINGS_TABS, type AppSettingsTab, type AppTab } from './nav'
 import {
@@ -33,6 +34,8 @@ interface Props {
   onReauth: () => void
   /** Which per-app workspace tab is active (navbar switcher). */
   tab: AppTab
+  /** Switch the per-app workspace tab (the overview's enquiries card links to its tab). */
+  onTab: (tab: AppTab) => void
   /** Which settings subtab is active when `tab` is settings. */
   settingsTab: AppSettingsTab
   onSettingsTab: (tab: AppSettingsTab) => void
@@ -42,7 +45,7 @@ interface Props {
   isAdmin?: boolean
 }
 
-export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, settingsTab, onSettingsTab, operatorAccess, isAdmin }: Props) {
+export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, onTab, settingsTab, onSettingsTab, operatorAccess, isAdmin }: Props) {
   const [listing, setListing] = useState<Listing | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -108,6 +111,10 @@ export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, s
         <AppLogs appId={appId} getToken={getToken} />
       )}
 
+      {tab === 'enquiries' && (
+        <AppEnquiries appId={appId} getToken={getToken} />
+      )}
+
       {tab === 'server' && (
         <AppServer appId={appId} getToken={getToken} isAdmin={isAdmin} />
       )}
@@ -148,6 +155,7 @@ export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, s
 
           {settingsTab === 'storefront' && (
             <>
+              <EnquiriesSummary appId={appId} getToken={getToken} onOpen={() => onTab('enquiries')} />
               {loading && <p className="text-[var(--muted)] py-12 text-center">Loading listing…</p>}
               {!loading && (loadError || !listing) && (
                 <p className="text-[var(--muted)] py-12 text-center">

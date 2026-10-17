@@ -251,6 +251,7 @@ export default function App() {
               onDelete={deleteSelectedApp}
               onReauth={() => pro.auth.signIn()}
               tab={currentTab}
+              onTab={changeAppTab}
               settingsTab={appSettingsTab}
               onSettingsTab={changeAppSettingsTab}
               operatorAccess={access}

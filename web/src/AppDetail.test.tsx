@@ -17,7 +17,7 @@ afterEach(() => {
 })
 
 const props = {
-  appId: 'stash', appName: 'Stash', getToken: () => 'tok', onDelete: async () => {}, onReauth: () => {},
+  appId: 'stash', appName: 'Stash', getToken: () => 'tok', onDelete: async () => {}, onReauth: () => {}, onTab: () => {},
   settingsTab: 'storefront' as const, onSettingsTab: () => {},
 }
 
