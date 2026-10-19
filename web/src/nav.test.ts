@@ -64,7 +64,7 @@ describe('parseHash', () => {
   })
 
   it('parses known top-level views', () => {
-    for (const v of ['publish', 'payouts', 'subscription', 'services', 'admin', 'profile', 'ui-library', 'provision'] as const) {
+    for (const v of ['publish', 'payouts', 'subscription', 'services', 'admin', 'profile', 'ui-library', 'provision', 'directory'] as const) {
       expect(parseHash(`#/${v}`)).toEqual({ view: v, param: null, tab: null, settingsTab: null })
     }
   })

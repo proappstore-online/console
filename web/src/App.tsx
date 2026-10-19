@@ -24,6 +24,7 @@ const AdminView = lazy(() => import('./AdminView').then(m => ({ default: m.Admin
 const ProfileView = lazy(() => import('./ProfileView').then(m => ({ default: m.ProfileView })))
 const ProvisionView = lazy(() => import('./ProvisionView').then(m => ({ default: m.ProvisionView })))
 const UILibraryView = lazy(() => import('./UILibraryView').then(m => ({ default: m.UILibraryView })))
+const DirectoryView = lazy(() => import('./DirectoryView').then(m => ({ default: m.DirectoryView })))
 
 function RouteSpinner() {
   return <p className="py-12 text-center text-[var(--muted)]">Loading...</p>
@@ -267,6 +268,7 @@ export default function App() {
             />
           )}
           {view === 'payouts' && <PayoutsView getToken={() => pro.auth.token} />}
+          {view === 'directory' && <DirectoryView getToken={() => pro.auth.token} />}
           {view === 'subscription' && <SubscriptionView />}
           {view === 'services' && <ServicesView getToken={() => pro.auth.token} />}
           {view === 'admin' && isAdmin && <AdminView getToken={() => pro.auth.token} />}
