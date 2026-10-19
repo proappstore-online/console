@@ -39,6 +39,7 @@
   --success: #2f8f57;
   --warning: #c6862a;
   --error: #c74f43;
+  --danger: #c74f43; /* the standard name (platform DESIGN-SYSTEM); --error is the legacy alias */
   --accent-gradient: linear-gradient(135deg, rgba(124, 58, 237, 0.18), rgba(255, 255, 255, 0.9));
   --warm-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(237, 233, 254, 0.24));
   --cool-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(198, 230, 242, 0.28));
@@ -82,6 +83,7 @@
   --success: #74d49a;
   --warning: #f0bd6e;
   --error: #ff7a72;
+  --danger: #ff7a72;
   --accent-gradient: linear-gradient(135deg, rgba(167, 139, 250, 0.12), rgba(18, 18, 18, 0.95));
   --warm-gradient: linear-gradient(180deg, rgba(14, 14, 14, 0.96), rgba(46, 16, 101, 0.34));
   --cool-gradient: linear-gradient(180deg, rgba(14, 14, 14, 0.96), rgba(18, 38, 50, 0.3));
