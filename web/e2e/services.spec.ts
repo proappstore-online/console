@@ -57,8 +57,21 @@ test.describe('Services — auth-gated API', () => {
     expect(res.status()).toBe(401);
   });
 
-  test('earnings returns 401 without auth', async ({ request }) => {
+  // Payouts are disabled platform-wide since platform d873cd8 (12 Oct): the
+  // earnings route answers 410 Gone before it ever looks at auth. This pins the
+  // intentional shutdown; if it flips to 401/200, payouts were re-enabled.
+  test('earnings returns 410 (payouts disabled)', async ({ request }) => {
     const res = await request.get(`${API_BASE}/services/earnings`);
+    expect(res.status()).toBe(410);
+  });
+
+  // Replaces the 401 coverage the earnings test used to give: another
+  // auth-gated route not tested elsewhere in this file.
+  test('posting a build request returns 401 without auth', async ({ request }) => {
+    const res = await request.post(`${API_BASE}/services/requests`, {
+      headers: { 'Content-Type': 'application/json' },
+      data: {},
+    });
     expect(res.status()).toBe(401);
   });
 
