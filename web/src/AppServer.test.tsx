@@ -10,6 +10,10 @@ const worker = {
   app_id: 'doordrop',
   worker: { enabled: 1, backend: 'dispatch', deployed_sha: 'abcdef1234', deployed_ref: 'refs/heads/main', deployed_at: 1_700_000_000_000, rotation_overlap_until: null },
   last_deploy: { repository: 'proappstore-online/doordrop', ref: 'refs/heads/main', sha: 'abcdef1234', status: 'deployed', detail: null, created_at: 1_700_000_000_000 },
+  deploys: [
+    { repository: 'proappstore-online/doordrop', ref: 'refs/heads/main', sha: 'abcdef1234', status: 'deployed', detail: null, created_at: 1_700_000_000_000 },
+    { repository: 'proappstore-online/doordrop', ref: 'refs/heads/main', sha: '9999999aaa', status: 'rejected', detail: 'bundle too large', created_at: 1_699_000_000_000 },
+  ],
   invocations: [
     { id: 'e1:1', type: 'scheduled', name: 'reconcile', attempt: 1, status: 'running', http_status: null, error: null, pas_calls: 3, started_at: 1_700_000_000_000, finished_at: null },
   ],
@@ -25,8 +29,9 @@ const runs = { runs: [{ run_id: 'r1', action_name: 'worker:reconcile', source: '
 const hooks = { hooks: [{ name: 'github', url: 'https://api.proappstore.online/v1/apps/doordrop/hooks/github', verify_kind: 'github-hmac', secret_name: 'GITHUB_WEBHOOK_SECRET', secret_set: true, secret_value: 'hunter2-should-never-render', to: { worker: true } }] }
 const deliveries = { deliveries: [{ id: 'd1', hook: 'github', delivery_id: 'gh-1', replay_key: 'gh-1', event: 'push', received_at: 1_700_000_000_000, status: 'failed', attempts: 3, finished_at: 1_700_000_000_100, error: 'handler threw: boom' }] }
 const visibility = { mode: 'private', allowed: true }
+const visibilityConfig = { mode: 'private', allowed_roles: ['member', 'viewer'] }
 
-type Overrides = Partial<Record<'worker' | 'usage' | 'runs' | 'hooks' | 'deliveries' | 'visibility' | 'connectors', () => Response>>
+type Overrides = Partial<Record<'worker' | 'usage' | 'runs' | 'hooks' | 'deliveries' | 'visibility' | 'visibilityConfig' | 'connectors', () => Response>>
 
 function mockApi(overrides: Overrides = {}) {
   const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
@@ -38,6 +43,7 @@ function mockApi(overrides: Overrides = {}) {
     if (path.endsWith('/hooks')) return pick('hooks', hooks)
     if (path.endsWith('/hook-deliveries')) return pick('deliveries', deliveries)
     if (path.endsWith('/visibility/me')) return pick('visibility', visibility)
+    if (path.endsWith('/visibility')) return pick('visibilityConfig', visibilityConfig)
     if (path.endsWith('/connectors')) return pick('connectors', { configured: true, connectors: [], installations: [] })
     return response({ error: 'unexpected' }, 500)
   })
@@ -64,7 +70,7 @@ describe('AppServer', () => {
     render(<AppServer appId="doordrop" getToken={() => 'top-secret-token'} />)
     await screen.findByText('handler threw: boom')
     const seen = paths(fetchMock).map((u) => u.pathname)
-    for (const p of ['/worker', '/worker/usage', '/scheduled-runs', '/hooks', '/hook-deliveries', '/visibility/me', '/connectors']) {
+    for (const p of ['/worker', '/worker/usage', '/scheduled-runs', '/hooks', '/hook-deliveries', '/visibility/me', '/visibility', '/connectors']) {
       expect(seen).toContain(`/v1/apps/doordrop${p}`)
     }
     expect(paths(fetchMock).find((u) => u.pathname.endsWith('/worker/usage'))!.searchParams.get('days')).toBe('30')
@@ -112,6 +118,36 @@ describe('AppServer', () => {
     render(<AppServer appId="doordrop" getToken={() => 'tok'} />)
     await screen.findByText(/recorded but not processed/)
     expect(screen.getByText(/Redeliver them from the sender after 00:00 UTC/)).toBeTruthy()
+  })
+
+  it('lists the last deploys with status and detail', async () => {
+    mockApi()
+    render(<AppServer appId="doordrop" getToken={() => 'tok'} />)
+    await screen.findByText('Last 20 deploys')
+    expect(screen.getByText('9999999')).toBeTruthy()
+    expect(screen.getByText('bundle too large')).toBeTruthy()
+  })
+
+  it('says so when the backend sends no deploy history', async () => {
+    mockApi({ worker: () => response({ ...worker, deploys: undefined }) })
+    render(<AppServer appId="doordrop" getToken={() => 'tok'} />)
+    await screen.findByText('No deploys yet.')
+  })
+
+  it('shows the allowed roles and links to Settings → Access', async () => {
+    mockApi()
+    render(<AppServer appId="doordrop" getToken={() => 'tok'} />)
+    const roles = await screen.findByTestId('visibility-roles')
+    expect(within(roles).getByText('member')).toBeTruthy()
+    expect(within(roles).getByText('viewer')).toBeTruthy()
+    expect(within(roles).getByRole('link').getAttribute('href')).toBe('#/apps/doordrop/settings/access')
+  })
+
+  it('says a private app with no allowed roles is owner-only', async () => {
+    mockApi({ visibilityConfig: () => response({ mode: 'private', allowed_roles: [] }) })
+    render(<AppServer appId="doordrop" getToken={() => 'tok'} />)
+    const roles = await screen.findByTestId('visibility-roles')
+    expect(roles.textContent).toContain('only the owner')
   })
 
   it('queues a run now (202) and refreshes the runs', async () => {

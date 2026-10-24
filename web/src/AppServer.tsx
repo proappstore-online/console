@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ApiError } from './api'
 import { AppConnectors } from './AppConnectors'
 import { safeLogText } from './AppLogs'
+import { hashFor } from './nav'
 import {
-  getHookDeliveries, getHooks, getScheduledRuns, getVisibility, getWorker, getWorkerUsage,
+  getHookDeliveries, getHooks, getScheduledRuns, getVisibility, getVisibilityConfig, getWorker, getWorkerUsage,
   rotateWorkerKey, runScheduleNow, setWorkerEnabled,
   type QuotaName, type WorkerSchedule,
 } from './serverApi'
@@ -90,6 +91,7 @@ export function AppServer({ appId, getToken, isAdmin = false }: Props) {
   const hooks = useRead(useCallback((t: string) => getHooks(appId, t), [appId]), getToken, refresh)
   const deliveries = useRead(useCallback((t: string) => getHookDeliveries(appId, t, { status: deliveryStatus || undefined }), [appId, deliveryStatus]), getToken, refresh)
   const visibility = useRead(useCallback((t: string) => getVisibility(appId, t), [appId]), getToken, refresh)
+  const visibilityConfig = useRead(useCallback((t: string) => getVisibilityConfig(appId, t), [appId]), getToken, refresh)
 
   const reload = () => setRefresh((n) => n + 1)
 
@@ -202,6 +204,18 @@ export function AppServer({ appId, getToken, isAdmin = false }: Props) {
                 </button>
               )}
             </div>
+
+            <h4 className="mt-4 mb-1.5 text-xs font-semibold text-[var(--muted)] uppercase tracking-wide">Last 20 deploys</h4>
+            {(w.deploys ?? []).length === 0 ? <Empty>No deploys yet.</Empty> : (
+              <Table head={['When', 'Commit', 'Ref', 'Status', 'Detail']}>
+                {(w.deploys ?? []).map((d, i) => (
+                  <tr key={`${d.created_at}:${d.sha}:${i}`} className="border-b border-[var(--line)] align-top">
+                    <Td>{formatTime(d.created_at)}</Td><Td><code>{d.sha.slice(0, 7)}</code></Td><Td>{d.ref}</Td>
+                    <Td><Status status={d.status} /></Td><Td>{d.detail ? safeLogText(d.detail) : '—'}</Td>
+                  </tr>
+                ))}
+              </Table>
+            )}
 
             <h4 className="mt-4 mb-1.5 text-xs font-semibold text-[var(--muted)] uppercase tracking-wide">Last 20 invocations</h4>
             {w.invocations.length === 0 ? <Empty>No invocations yet.</Empty> : (
@@ -379,8 +393,19 @@ export function AppServer({ appId, getToken, isAdmin = false }: Props) {
           <p className="text-sm text-[var(--ink)]">
             Mode: <code className="font-semibold">{visibility.data.mode}</code>
             <span className="block mt-1 text-xs text-[var(--muted)]">
-              Declared in the app manifest (read-only here). Who holds the allowed roles is managed in Settings → Access.
+              Declared in the app manifest (read-only here).
             </span>
+          </p>
+        )}
+        {visibilityConfig.data && (
+          <p className="mt-2 text-sm text-[var(--ink)]" data-testid="visibility-roles">
+            Allowed roles:{' '}
+            {visibilityConfig.data.allowed_roles.length === 0
+              ? <span className="text-[var(--muted)]">{visibilityConfig.data.mode === 'private' ? 'none — only the owner' : 'not applicable (public app)'}</span>
+              : visibilityConfig.data.allowed_roles.map((r) => <code key={r} className="mr-1.5 font-semibold">{r}</code>)}
+            <a href={hashFor('app-detail', appId, 'settings', 'access')} className="ml-2 text-xs text-[var(--accent)] underline">
+              Manage who holds them (invites) in Settings → Access
+            </a>
           </p>
         )}
       </Panel>

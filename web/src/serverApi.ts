@@ -19,6 +19,8 @@ export interface WorkerStatus {
   app_id: string
   worker: WorkerRow
   last_deploy: WorkerDeploy | null
+  /** The last 20 deploy attempts, newest first (absent from an older backend). */
+  deploys?: WorkerDeploy[]
   invocations: WorkerInvocation[]
   schedules: WorkerSchedule[]
 }
@@ -94,3 +96,7 @@ export const setWorkerEnabled = (appId: string, enabled: boolean, token: string 
 /** Whether the caller may use the app (#259) — the owner always may; `mode` is the manifest's visibility. */
 export const getVisibility = (appId: string, token: string | null) =>
   apiFetch<{ mode: string; allowed: boolean }>(`${app(appId)}/visibility/me`, { token })
+
+/** The app's declared visibility for its owner: `allowed_roles` are the app roles that may use a private app besides the owner. */
+export const getVisibilityConfig = (appId: string, token: string | null) =>
+  apiFetch<{ mode: string; allowed_roles: string[] }>(`${app(appId)}/visibility`, { token })
