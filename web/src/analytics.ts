@@ -196,6 +196,25 @@ export function fetchPlatformAnalytics(
   )
 }
 
+export interface AppUsageRow {
+  app_id: string
+  registered: boolean
+  views: number
+  series: Array<{ t: string; views: number }>
+}
+
+export interface AppUsageResponse {
+  days: number
+  totals: { views: number; apps: number; apps_with_views: number; apps_without_views: number }
+  series: Array<{ t: string; views: number }>
+  apps: AppUsageRow[]
+}
+
+/** Admin-only: page views for every registered app (zero-view apps included). */
+export function fetchAppUsage(token: string, days = 7): Promise<AppUsageResponse> {
+  return call<AppUsageResponse>(token, `/analytics/admin/apps?days=${days}`)
+}
+
 /** List the distinct custom event kinds (everything except 'pageview')
  *  fired in the window, sorted by count desc. Drives the "Custom events"
  *  panel — empty array means the creator hasn't called
