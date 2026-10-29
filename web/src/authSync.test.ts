@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { syncTokenToCookie, readTokenFromCookie, restoreFromCookie } from './authSync'
+import { syncTokenToCookie, readTokenFromCookie, restoreFromCookie, safeReturnTo } from './authSync'
 
 // Mock document.cookie
 let cookieStore = ''
@@ -100,5 +100,19 @@ describe('restoreFromCookie', () => {
     syncTokenToCookie('cross-subdomain-token')
     restoreFromCookie()
     expect(localStorage.getItem('fas:session')).toBeNull()
+  })
+})
+
+describe('safeReturnTo', () => {
+  it('accepts a same-origin path with a hash', () => {
+    expect(safeReturnTo('?return_to=%2Fideas%23idea-crm')).toBe('/ideas#idea-crm')
+  })
+  it('ignores a missing parameter', () => {
+    expect(safeReturnTo('')).toBeNull()
+  })
+  it('refuses anything that could leave the origin', () => {
+    for (const v of ['https://evil.example/', '//evil.example', '/\\evil.example', 'javascript:alert(1)', 'ideas', '/x\n']) {
+      expect(safeReturnTo('?return_to=' + encodeURIComponent(v))).toBeNull()
+    }
   })
 })

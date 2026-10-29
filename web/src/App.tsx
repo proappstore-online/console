@@ -5,7 +5,7 @@ import { pro } from './sdk'
 import { type View, type AppEntry, type AppTab, type AppSettingsTab, parseHash as parseHashString, hashFor, deriveSlug, mergeApps, appTabsFor, effectiveAppTab } from './nav'
 import { fetchApps, fetchAgentProjects, fetchAdministeredApps, deleteAppApi, fetchIsAdmin } from './appsApi'
 import { probeOperatorAccess, type OperatorAccess } from './operator'
-import { syncTokenToCookie } from './authSync'
+import { safeReturnTo, syncTokenToCookie } from './authSync'
 import { Landing, Header } from './Header'
 import { MobileAppTabBar } from './AppTabBar'
 import { ErrorBoundary } from './ErrorBoundary'
@@ -95,6 +95,10 @@ export default function App() {
       setUser(u)
       // Mirror token to cross-subdomain cookie so storefront can detect sign-in
       syncTokenToCookie(pro.auth.token)
+      // Sent here from a storefront page (e.g. /ideas "I'm building this"):
+      // go back once signed in, now that the cookie is set.
+      const back = u ? safeReturnTo(window.location.search) : null
+      if (back) window.location.replace(back)
     })
   }, [])
 

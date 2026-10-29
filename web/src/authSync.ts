@@ -54,3 +54,18 @@ export function restoreFromCookie(): void {
   // Store a minimal session that the SDK can work with:
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, user: null }))
 }
+
+/**
+ * Where to send the user after sign-in, from `?return_to=` on the console URL.
+ * The storefront's /ideas page sends signed-out users here with
+ * `return_to=/ideas#idea-<id>`. Only a same-origin absolute path is accepted
+ * ("/x", never "//host", "/\host" or a full URL), so the parameter can't be
+ * used as an open redirect.
+ */
+export function safeReturnTo(search: string): string | null {
+  const value = new URLSearchParams(search).get('return_to')
+  if (!value || value.length > 512) return null
+  if (!value.startsWith('/') || value.startsWith('//') || value.includes('\\')) return null
+  if (/[\u0000-\u001f\u007f]/.test(value)) return null
+  return value
+}
