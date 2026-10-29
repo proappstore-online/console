@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { ApiError } from './api'
-import { fetchAppLogGroups, fetchAppLogs, fetchLatestBuild, type AppLog, type AppLogFilters, type AppLogGroup } from './appLogsApi'
+import {
+  fetchAppLogGroups, fetchAppLogs, fetchLatestBuild, fetchTelemetryHealth, fetchTraceTimeline,
+  type AppLog, type AppLogFilters, type AppLogGroup, type LogContext, type SourceFrame,
+  type SymbolicationStatus, type TelemetryHealth, type TraceTimeline,
+} from './appLogsApi'
 import { Kpi } from './sectionPrimitives'
 
 interface Props {
@@ -76,6 +80,59 @@ function errorMessage(error: unknown): string {
   return 'Could not reach the log service. Check your connection and try again.'
 }
 
+/** Matches the backend's own per-stack cap (MAX_FRAMES in lib/sourcemap.ts). */
+const MAX_RENDERED_FRAMES = 50
+const HOP_ORDER = ['browser', 'host', 'api', 'data-worker', 'app-worker'] as const
+const HOP_LABEL: Record<string, string> = { browser: 'Browser', host: 'Host', api: 'API', 'data-worker': 'Data worker', 'app-worker': 'App worker' }
+
+const SYMBOLICATION_LABEL: Record<SymbolicationStatus, string> = {
+  ok: 'Mapped to source',
+  missing: 'No source map for this release',
+  mismatched: 'Source map does not match this release (hash mismatch)',
+  unavailable: 'Source map unavailable (expired or unreachable)',
+  skipped: 'Not symbolicated (per-request limit reached)',
+}
+
+function formatMs(value: number | null | undefined): string {
+  return typeof value === 'number' && Number.isFinite(value) ? `${value.toLocaleString()} ms` : '—'
+}
+
+/** The row's own release — never the app's newest build — so an incident always reads against the code that ran. */
+function contextRows(context: LogContext | null | undefined): [string, string][] {
+  if (!context) return []
+  const rows: [string, string][] = []
+  if (context.operation) rows.push(['Operation', safeLogText(context.operation)])
+  if (context.result) rows.push(['Result', safeLogText(context.result)])
+  if (context.errorCode) rows.push(['Error code', safeLogText(context.errorCode)])
+  if (typeof context.durationMs === 'number') rows.push(['Duration', formatMs(context.durationMs)])
+  if (context.spanId) rows.push(['Span', safeLogText(context.spanId)])
+  if (context.parentSpanId) rows.push(['Parent span', safeLogText(context.parentSpanId)])
+  if (context.sdkVersion) rows.push(['SDK', safeLogText(context.sdkVersion)])
+  return rows
+}
+
+function frameLabel(frame: SourceFrame): string {
+  const at = safeLogText(frame.source)
+  const original = frame.originalSource
+    ? `${safeLogText(frame.originalSource)}:${frame.originalLine ?? '?'}:${frame.originalCol ?? '?'}${frame.name ? ` (${safeLogText(frame.name)})` : ''}`
+    : null
+  return original ? `${at}:${frame.line}:${frame.col} → ${original}` : `${at}:${frame.line}:${frame.col}`
+}
+
+/** Defence in depth: an unexpectedly shaped health response degrades to "unavailable" rather than crashing the panel. */
+function isTelemetryHealth(v: unknown): v is TelemetryHealth {
+  if (!v || typeof v !== 'object') return false
+  const r = v as Partial<TelemetryHealth>
+  return typeof r.status === 'string' && typeof r.countsReliable === 'boolean' && !!r.alertCoverage && !!r.components && !!r.windows && !!r.requests
+}
+
+/** Defence in depth: an unexpectedly shaped incident response degrades to an error state rather than crashing the panel. */
+function isTraceTimeline(v: unknown): v is TraceTimeline {
+  if (!v || typeof v !== 'object') return false
+  const r = v as Partial<TraceTimeline>
+  return typeof r.traceId === 'string' && !!r.hops && Array.isArray(r.records)
+}
+
 function incidentGroups(logs: AppLog[]): Array<{ traceId: string; occurrences: number; latest: number }> {
   const groups = new Map<string, { occurrences: number; latest: number }>()
   for (const log of logs) {
@@ -105,6 +162,12 @@ export function AppLogs({ appId, getToken }: Props) {
   const [build, setBuild] = useState<{ build: unknown; ts: number | null } | null>(null)
   const [summary, setSummary] = useState<Summary[] | null>(null)
   const overviewVersion = useRef(0)
+  const [health, setHealth] = useState<TelemetryHealth | null>(null)
+  const [healthUnavailable, setHealthUnavailable] = useState(false)
+  const [trace, setTrace] = useState<TraceTimeline | null>(null)
+  const [traceLoading, setTraceLoading] = useState(false)
+  const [traceError, setTraceError] = useState<string | null>(null)
+  const traceVersion = useRef(0)
 
   // Do not calculate this during every render: a changing timestamp would
   // change `load`, retrigger the effect, and turn a refresh into a request loop.
@@ -142,13 +205,13 @@ export function AppLogs({ appId, getToken }: Props) {
   // appId is intentionally a dependency: switching projects immediately clears
   // prior rows and cannot leak stale data from another app while this fetch runs.
   useEffect(() => { void load(applied) }, [appId, range, applied, load])
-  useEffect(() => () => { requestVersion.current += 1; overviewVersion.current += 1 }, [])
+  useEffect(() => () => { requestVersion.current += 1; overviewVersion.current += 1; traceVersion.current += 1 }, [])
 
-  // Per app, not per filter: the latest build and the 1h/24h/7d warn+error counts.
-  // A failure here leaves the cards out; the log list reports its own errors.
+  // Per app, not per filter: the latest build, the 1h/24h/7d warn+error counts, and
+  // telemetry health. A failure here leaves the cards out; the log list reports its own errors.
   useEffect(() => {
     const version = ++overviewVersion.current
-    setBuild(null); setSummary(null)
+    setBuild(null); setSummary(null); setHealth(null); setHealthUnavailable(false)
     const token = getToken()
     if (!token) return
     fetchLatestBuild(appId, token).then((b) => { if (version === overviewVersion.current) setBuild(b) }, () => {})
@@ -157,6 +220,35 @@ export function AppLogs({ appId, getToken }: Props) {
       const { groups: g } = await fetchAppLogGroups(appId, token, { since: now - w.ms })
       return { label: w.label, count: g.reduce((n, x) => n + x.occurrences, 0), capped: g.length >= 50, top: g[0] ?? null }
     })).then((s) => { if (version === overviewVersion.current) setSummary(s) }, () => {})
+    // Degrade, never throw: a stale, unreachable or unexpectedly shaped health
+    // response shows an explicit "unavailable" card rather than crashing or
+    // hiding telemetry health entirely.
+    fetchTelemetryHealth(appId, token).then(
+      (h) => { if (version === overviewVersion.current) { if (isTelemetryHealth(h)) setHealth(h); else setHealthUnavailable(true) } },
+      () => { if (version === overviewVersion.current) setHealthUnavailable(true) },
+    )
+  }, [appId, getToken])
+
+  // appId is a dependency for the same reason as the log list: never leak app A's
+  // trace timeline into app B's view while a fetch from the old app is still in flight.
+  useEffect(() => { traceVersion.current += 1; setTrace(null); setTraceError(null); setTraceLoading(false) }, [appId])
+
+  const loadTrace = useCallback(async (traceId: string) => {
+    const version = ++traceVersion.current
+    const token = getToken()
+    setTraceLoading(true); setTraceError(null); setTrace(null)
+    if (!token) { setTraceLoading(false); setTraceError('Sign in to inspect owner-only trace timelines.'); return }
+    try {
+      const timeline = await fetchTraceTimeline(appId, token, traceId)
+      if (version !== traceVersion.current) return
+      if (isTraceTimeline(timeline)) setTrace(timeline)
+      else setTraceError('Could not read the trace timeline. Try again.')
+    } catch (e) {
+      if (version !== traceVersion.current) return
+      setTraceError(errorMessage(e))
+    } finally {
+      if (version === traceVersion.current) setTraceLoading(false)
+    }
   }, [appId, getToken])
 
   const update = (key: keyof AppLogFilters, value: string) => setFilters((current) => ({ ...current, [key]: value }))
@@ -228,10 +320,14 @@ export function AppLogs({ appId, getToken }: Props) {
               {nextCursor && <div className="border-t border-[var(--line)] p-3"><button type="button" onClick={more} disabled={loadingMore} className="rounded-lg border border-[var(--line-strong)] px-3 py-2 text-sm text-[var(--ink)] disabled:opacity-50">{loadingMore ? 'Loading…' : 'Load more'}</button></div>}
             </div>
             <aside className="space-y-4">
-              {selected && <LogDetail log={selected} onClose={() => setSelected(null)} />}
+              {selected && <LogDetail log={selected} onClose={() => setSelected(null)} onViewTrace={loadTrace} />}
               <BuildCard build={build} />
+              <TelemetryHealthCard health={health} unavailable={healthUnavailable} />
               <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4"><h3 className="text-sm font-semibold text-[var(--ink)]">Error groups</h3>{groups.length === 0 ? <p className="mt-2 text-sm text-[var(--muted)]">No warning or error groups in this range.</p> : <ul className="mt-3 space-y-3">{groups.map((group) => <li key={group.fingerprint} className="border-t border-[var(--line)] pt-3 first:border-0 first:pt-0"><p className="font-medium text-[var(--ink)]">{safeLogText(group.sample_message)}</p><p className="mt-1 text-xs text-[var(--muted)]">{group.occurrences} occurrences · latest {formatTime(group.last_seen)}</p><button type="button" onClick={() => { const next = { ...filters, fingerprint: group.fingerprint }; setFilters(next); setApplied(next) }} className="mt-1 font-mono text-xs text-[var(--accent)]">{safeLogText(group.fingerprint)}</button></li>)}</ul>}</div>
-              <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4"><h3 className="text-sm font-semibold text-[var(--ink)]">Trace incidents</h3>{incidents.length === 0 ? <p className="mt-2 text-sm text-[var(--muted)]">No correlation IDs in this page.</p> : <ul className="mt-3 space-y-2">{incidents.map((incident) => <li key={incident.traceId}><button type="button" onClick={() => { const next = { ...filters, traceId: incident.traceId }; setFilters(next); setApplied(next) }} className="font-mono text-xs text-[var(--accent)] break-all">{safeLogText(incident.traceId)}</button><p className="text-xs text-[var(--muted)]">{incident.occurrences} entries · latest {formatTime(incident.latest)}</p></li>)}</ul>}</div>
+              <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4"><h3 className="text-sm font-semibold text-[var(--ink)]">Trace incidents</h3>{incidents.length === 0 ? <p className="mt-2 text-sm text-[var(--muted)]">No correlation IDs in this page.</p> : <ul className="mt-3 space-y-2">{incidents.map((incident) => <li key={incident.traceId}><button type="button" onClick={() => { const next = { ...filters, traceId: incident.traceId }; setFilters(next); setApplied(next); void loadTrace(incident.traceId) }} className="font-mono text-xs text-[var(--accent)] break-all">{safeLogText(incident.traceId)}</button><p className="text-xs text-[var(--muted)]">{incident.occurrences} entries · latest {formatTime(incident.latest)}</p></li>)}</ul>}</div>
+              {(traceLoading || traceError || trace) && (
+                <TraceTimelineCard appId={appId} trace={trace} loading={traceLoading} error={traceError} onClose={() => { traceVersion.current += 1; setTrace(null); setTraceError(null); setTraceLoading(false) }} />
+              )}
             </aside>
           </div>
         </>
@@ -240,12 +336,15 @@ export function AppLogs({ appId, getToken }: Props) {
   )
 }
 
-function LogDetail({ log, onClose }: { log: AppLog; onClose: () => void }) {
+function LogDetail({ log, onClose, onViewTrace }: { log: AppLog; onClose: () => void; onViewTrace: (traceId: string) => void }) {
   const { fields, hidden } = safeFields(log.data)
+  const context = contextRows(log.context)
+  const symbolication = log.symbolication
+  // The row's own build names the release these frames were mapped against — never the app's newest build.
   const rows: [string, string][] = [
     ['Time', formatTime(log.ts)], ['Level', safeLogText(log.level)], ['Category', safeLogText(log.category)],
     ['Message', safeLogText(log.message)], ['Source', safeLogText(log.source)], ['User', log.userId ? safeLogText(log.userId) : '—'],
-    ['Client', safeLogText(log.clientId)], ['Build', buildLabel(log.build)], ['Trace', safeLogText(log.traceId)], ['Fingerprint', safeLogText(log.fingerprint)],
+    ['Client', safeLogText(log.clientId)], ['Release', buildLabel(log.build)], ['Trace', safeLogText(log.traceId)], ['Fingerprint', safeLogText(log.fingerprint)],
   ]
   return (
     <section aria-label="Log entry details" className="rounded-2xl border border-[var(--accent)] bg-[var(--panel)] p-4">
@@ -256,6 +355,36 @@ function LogDetail({ log, onClose }: { log: AppLog; onClose: () => void }) {
       <dl className="mt-2 space-y-1 text-xs">
         {rows.map(([k, v]) => <div key={k} className="flex gap-2"><dt className="w-20 flex-shrink-0 text-[var(--muted)]">{k}</dt><dd className="min-w-0 break-all text-[var(--ink)]">{v}</dd></div>)}
       </dl>
+      {log.traceId && <button type="button" onClick={() => onViewTrace(log.traceId!)} className="mt-2 rounded-lg border border-[var(--line-strong)] px-2 py-1 text-xs text-[var(--accent)]">View trace timeline</button>}
+
+      {context.length > 0 && (
+        <>
+          <h4 className="mt-3 text-xs font-semibold text-[var(--muted)] uppercase tracking-wide">Request context</h4>
+          <dl className="mt-1 space-y-1 text-xs">
+            {context.map(([k, v]) => <div key={k} className="flex gap-2"><dt className="w-20 flex-shrink-0 text-[var(--muted)]">{k}</dt><dd className="min-w-0 break-all text-[var(--ink)]">{v}</dd></div>)}
+          </dl>
+        </>
+      )}
+
+      {symbolication && (
+        <>
+          <h4 className="mt-3 text-xs font-semibold text-[var(--muted)] uppercase tracking-wide">Source frames</h4>
+          <p data-testid="symbolication-status" className="mt-1 text-xs text-[var(--ink)]">{SYMBOLICATION_LABEL[symbolication.status]}</p>
+          {symbolication.frames.length === 0 ? (
+            <p className="mt-1 text-xs text-[var(--muted)]">No frames.</p>
+          ) : (
+            <ol data-testid="source-frames" className="mt-1 space-y-1 text-xs font-mono">
+              {symbolication.frames.slice(0, MAX_RENDERED_FRAMES).map((frame, i) => (
+                <li key={i} className="break-all text-[var(--ink)]">
+                  {frameLabel(frame)}
+                  {frame.unresolved && <span className="ml-1 text-[var(--muted)]">(unresolved)</span>}
+                </li>
+              ))}
+            </ol>
+          )}
+        </>
+      )}
+
       <h4 className="mt-3 text-xs font-semibold text-[var(--muted)] uppercase tracking-wide">Data</h4>
       {fields.length === 0 ? <p className="mt-1 text-xs text-[var(--muted)]">No displayable fields.</p> : (
         <dl data-testid="log-data" className="mt-1 space-y-1 text-xs font-mono">
@@ -285,5 +414,135 @@ function BuildCard({ build }: { build: { build: unknown; ts: number | null } | n
         </>
       )}
     </div>
+  )
+}
+
+function componentRow(label: string, c: { status: string; lastOkAt: number | null; lastFailureAt: number | null }): [string, string] {
+  const when = c.status === 'degraded' ? c.lastFailureAt : c.lastOkAt
+  return [label, `${c.status}${when ? ` · ${formatTime(when)}` : ''}`]
+}
+
+/**
+ * #391: aggregate counts, throttling/loss and staleness — never implying a
+ * complete count when the evaluator is behind or request volume is sampled.
+ */
+function TelemetryHealthCard({ health, unavailable }: { health: TelemetryHealth | null; unavailable: boolean }) {
+  return (
+    <div data-testid="telemetry-health" className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
+      <h3 className="text-sm font-semibold text-[var(--ink)]">Telemetry health</h3>
+      {!health && !unavailable && <p className="mt-2 text-sm text-[var(--muted)]">Loading…</p>}
+      {!health && unavailable && <p className="mt-2 text-sm text-[var(--muted)]">Telemetry health is unavailable right now. This does not mean the app is unhealthy — only that this check could not be read.</p>}
+      {health && (
+        <>
+          <p className="mt-2 text-sm text-[var(--ink)]">Status: <strong>{health.status}</strong>{!health.countsReliable && <span className="ml-1 text-[var(--muted)]">(counts may be stale — unknown, not confirmed zero)</span>}</p>
+          {!health.alertCoverage.complete && (
+            <p className="mt-1 text-xs text-[var(--muted)]">Alerts were not evaluated for part of the last day{health.alertCoverage.gap?.start ? ` (gap starting ${formatTime(health.alertCoverage.gap.start)})` : ''}.</p>
+          )}
+          <dl className="mt-2 space-y-1 text-xs">
+            {([componentRow('Evaluator', health.components.evaluator), componentRow('Prune', health.components.prune), componentRow('Ingest (aggregates)', health.components.aggregates)] as const)
+              .map(([k, v]) => <div key={k} className="flex gap-2"><dt className="w-32 flex-shrink-0 text-[var(--muted)]">{k}</dt><dd className="min-w-0 text-[var(--ink)]">{v}</dd></div>)}
+          </dl>
+          <h4 className="mt-3 text-xs font-semibold text-[var(--muted)] uppercase tracking-wide">Signals (last hour / last day)</h4>
+          <dl className="mt-1 space-y-1 text-xs">
+            {Object.keys(health.windows.lastDay.signals).filter((signal) => health.windows.lastHour.signals[signal] || health.windows.lastDay.signals[signal]).map((signal) => (
+              <div key={signal} className="flex gap-2"><dt className="w-32 flex-shrink-0 text-[var(--muted)]">{safeLogText(signal)}</dt><dd className="text-[var(--ink)]">{health.windows.lastHour.signals[signal] ?? 0} / {health.windows.lastDay.signals[signal] ?? 0}</dd></div>
+            ))}
+            <div className="flex gap-2"><dt className="w-32 flex-shrink-0 text-[var(--muted)]">Detail dropped</dt><dd className="text-[var(--ink)]">client {health.windows.lastDay.detailDropped.client} · server {health.windows.lastDay.detailDropped.server} (last day)</dd></div>
+          </dl>
+          <h4 className="mt-3 text-xs font-semibold text-[var(--muted)] uppercase tracking-wide">Requests (sampled, approximate)</h4>
+          {health.requests.status === 'unknown' ? (
+            <p className="mt-1 text-xs text-[var(--muted)]">Request volume is unavailable — not a confirmed zero.</p>
+          ) : (
+            <p className="mt-1 text-xs text-[var(--ink)]">
+              Last hour: {health.requests.lastHour.total} total, {health.requests.lastHour.serverErrors} server errors
+              {health.requests.lastHour.serverErrorRate !== null && ` (${(health.requests.lastHour.serverErrorRate * 100).toFixed(1)}%)`}
+              · Last day: {health.requests.lastDay.total} total, {health.requests.lastDay.serverErrors} server errors
+              {health.requests.lastDay.serverErrorRate !== null && ` (${(health.requests.lastDay.serverErrorRate * 100).toFixed(1)}%)`}
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+/** A safe reference an owner can quote to support: app, trace and when it was generated — never a token or raw URL. */
+function supportReference(appId: string, traceId: string, generatedAt: number): string {
+  return `app=${safeLogText(appId)} trace=${safeLogText(traceId)} generated=${new Date(generatedAt).toISOString()}`
+}
+
+/** A bounded, sanitized export: release/time/evidence references only — no raw envelope, credentials or personal data. */
+function exportHref(trace: TraceTimeline, generatedAt: number): string {
+  const payload = {
+    traceId: trace.traceId,
+    generatedAt: new Date(generatedAt).toISOString(),
+    truncated: trace.truncated,
+    hops: trace.hops,
+    records: trace.records.map((r) => ({
+      ts: r.ts, hop: r.hop, level: safeLogText(r.level), category: safeLogText(r.category),
+      message: safeLogText(r.message), release: buildLabel(r.build), fingerprint: r.fingerprint ? safeLogText(r.fingerprint) : null,
+      operation: r.context?.operation ? safeLogText(r.context.operation) : null,
+      result: r.context?.result ?? null,
+      errorCode: r.context?.errorCode ? safeLogText(r.context.errorCode) : null,
+    })),
+    invocation: trace.invocation ? {
+      type: safeLogText(trace.invocation.type), name: safeLogText(trace.invocation.name), status: safeLogText(trace.invocation.status),
+      httpStatus: trace.invocation.httpStatus, outcome: trace.invocation.outcome ? safeLogText(trace.invocation.outcome) : null,
+      cpuMs: trace.invocation.cpuMs, wallMs: trace.invocation.wallMs,
+    } : null,
+  }
+  return `data:application/json,${encodeURIComponent(JSON.stringify(payload, null, 2))}`
+}
+
+/**
+ * #394: a bounded, server-side incident timeline across every hop — not current-page
+ * counts. A hop absent from `hops` is reported as a gap, never implied healthy.
+ */
+function TraceTimelineCard({ appId, trace, loading, error, onClose }: { appId: string; trace: TraceTimeline | null; loading: boolean; error: string | null; onClose: () => void }) {
+  const generatedAt = useMemo(() => Date.now(), [trace])
+  return (
+    <section aria-label="Trace timeline" className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-[var(--ink)]">Trace timeline</h3>
+        <button type="button" onClick={onClose} className="text-xs text-[var(--muted)] hover:text-[var(--ink)]">Close</button>
+      </div>
+      {loading && <p className="mt-2 text-sm text-[var(--muted)]">Loading trace…</p>}
+      {error && <p role="alert" className="mt-2 text-sm text-[var(--error)]">{error}</p>}
+      {trace && (
+        <>
+          <ul className="mt-2 grid grid-cols-2 gap-1 text-xs">
+            {HOP_ORDER.map((hop) => (
+              <li key={hop} className="flex justify-between gap-2"><span className="text-[var(--muted)]">{HOP_LABEL[hop]}</span><span className="text-[var(--ink)]">{trace.hops[hop] ? trace.hops[hop] : <span title="A hop with no row is a gap, not confirmed healthy.">— (no evidence)</span>}</span></li>
+            ))}
+          </ul>
+          {trace.truncated && <p className="mt-2 text-xs text-[var(--muted)]">Showing the first {trace.records.length} records; this incident has more.</p>}
+          {trace.records.length === 0 ? (
+            <p className="mt-2 text-sm text-[var(--muted)]">No evidence for this trace yet.</p>
+          ) : (
+            <ol data-testid="trace-records" className="mt-2 space-y-2 text-xs">
+              {trace.records.map((r, i) => (
+                <li key={i} className="border-t border-[var(--line)] pt-2 first:border-0 first:pt-0">
+                  <span className="text-[var(--muted)]">{formatTime(r.ts)} · {HOP_LABEL[r.hop] ?? safeLogText(r.hop)} · {safeLogText(r.level)}</span>
+                  <p className="text-[var(--ink)]">{safeLogText(r.category)} — {safeLogText(r.message)}</p>
+                </li>
+              ))}
+            </ol>
+          )}
+          {trace.invocation && (
+            <>
+              <h4 className="mt-3 text-xs font-semibold text-[var(--muted)] uppercase tracking-wide">Invocation</h4>
+              <dl className="mt-1 space-y-1 text-xs">
+                {([['Type', safeLogText(trace.invocation.type)], ['Name', safeLogText(trace.invocation.name)], ['Status', safeLogText(trace.invocation.status)],
+                  ['HTTP', trace.invocation.httpStatus != null ? String(trace.invocation.httpStatus) : '—'], ['Outcome', trace.invocation.outcome ? safeLogText(trace.invocation.outcome) : '—'],
+                  ['CPU', formatMs(trace.invocation.cpuMs)], ['Wall', formatMs(trace.invocation.wallMs)]] as [string, string][])
+                  .map(([k, v]) => <div key={k} className="flex gap-2"><dt className="w-16 flex-shrink-0 text-[var(--muted)]">{k}</dt><dd className="min-w-0 break-all text-[var(--ink)]">{v}</dd></div>)}
+              </dl>
+            </>
+          )}
+          <p className="mt-3 text-[11px] text-[var(--muted)] break-all">Support reference: {supportReference(appId, trace.traceId, generatedAt)}</p>
+          <a href={exportHref(trace, generatedAt)} download={`incident-${trace.traceId}.json`} className="mt-1 inline-block text-xs text-[var(--accent)]">Export sanitized incident</a>
+        </>
+      )}
+    </section>
   )
 }

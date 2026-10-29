@@ -11,6 +11,26 @@ const entry = {
 
 function response(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }) }
 
+/** A minimal, well-shaped telemetry/health payload (#391) — tests override only what they assert on. */
+function telemetryHealth(overrides: Record<string, unknown> = {}) {
+  return {
+    appId: 'chess-clubs', checkedAt: Date.now(), status: 'ok', countsReliable: true,
+    alertCoverage: { complete: true, windowMs: 86_400_000, gap: null },
+    components: {
+      evaluator: { status: 'ok', lastOkAt: 1, lastFailureAt: null, lastError: null },
+      prune: { status: 'ok', lastOkAt: 1, lastFailureAt: null, lastError: null },
+      aggregates: { status: 'ok', lastOkAt: 1, lastFailureAt: null, lastError: null },
+    },
+    windows: {
+      lastHour: { signals: {}, detailDropped: { client: 0, server: 0 } },
+      lastDay: { signals: {}, detailDropped: { client: 0, server: 0 } },
+    },
+    requests: { status: 'unknown', reason: 'analytics_unavailable', sampled: true, lastHour: null, lastDay: null },
+    bucketMs: 300_000,
+    ...overrides,
+  }
+}
+
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 describe('AppLogs', () => {
@@ -100,6 +120,7 @@ describe('AppLogs', () => {
       const u = new URL(url)
       if (u.pathname.endsWith('/logs/build')) return Promise.resolve(response({ build: null }))
       if (u.pathname.endsWith('/groups') && !u.searchParams.has('level')) return Promise.resolve(response({ groups: [] }))
+      if (u.pathname.endsWith('/telemetry/health')) return Promise.resolve(response(telemetryHealth()))
       return new Promise<Response>((resolve) => pending.push({ resolve }))
     }))
     render(<AppLogs appId="chess-clubs" getToken={() => 'tok'} />)
@@ -226,6 +247,172 @@ describe('AppLogs', () => {
         const last = fetchMock.mock.calls.map((c) => new URL(c[0])).filter((u) => u.pathname.endsWith('/logs')).at(-1)!
         expect(Number(last.searchParams.get('since'))).toBeGreaterThanOrEqual(before - 60 * 60 * 1000 - 1000)
       })
+    })
+  })
+
+  describe('source frames, trace timeline and telemetry health (console#7)', () => {
+    const shaA = 'a'.repeat(40)
+    const shaB = 'b'.repeat(40)
+
+    it('shows each event symbolicated against its own release, not the newest build', async () => {
+      const rowA = {
+        ...entry, message: 'Crash on release A', build: { version: '2.0.0', sha: shaA },
+        symbolication: { status: 'ok', commitSha: shaA, frames: [{ source: 'assets/app.js', line: 10, col: 5, originalSource: 'src/Foo.tsx', originalLine: 42, originalCol: 3, name: 'renderFoo' }] },
+      }
+      const rowB = {
+        ...entry, ts: entry.ts - 1, message: 'Crash on release B', build: { version: '3.0.0', sha: shaB },
+        symbolication: { status: 'ok', commitSha: shaB, frames: [{ source: 'assets/app.js', line: 20, col: 9, originalSource: 'src/Bar.tsx', originalLine: 7, originalCol: 1, name: 'renderBar' }] },
+      }
+      vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+        const u = new URL(url)
+        if (u.pathname.endsWith('/logs/build')) return response({ build: null })
+        if (u.pathname.endsWith('/logs/groups')) return response({ groups: [] })
+        if (u.pathname.endsWith('/telemetry/health')) return response(telemetryHealth())
+        return response({ logs: [rowA, rowB], nextCursor: null })
+      }))
+      render(<AppLogs appId="chess-clubs" getToken={() => 'tok'} />)
+      await screen.findByText('Crash on release A')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Details for Crash on release A' }))
+      let panel = screen.getByRole('region', { name: 'Log entry details' })
+      expect(within(panel).getByTestId('source-frames').textContent).toContain('src/Foo.tsx')
+      expect(within(panel).getByTestId('source-frames').textContent).not.toContain('src/Bar.tsx')
+      expect(panel.textContent).toContain('2.0.0')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Details for Crash on release B' }))
+      panel = screen.getByRole('region', { name: 'Log entry details' })
+      expect(within(panel).getByTestId('source-frames').textContent).toContain('src/Bar.tsx')
+      expect(within(panel).getByTestId('source-frames').textContent).not.toContain('src/Foo.tsx')
+      expect(panel.textContent).toContain('3.0.0')
+    })
+
+    it('shows an explicit missing-source-map state instead of silently dropping the frame', async () => {
+      const row = {
+        ...entry, message: 'No map for this one',
+        symbolication: { status: 'missing', reason: 'no_build_sha', frames: [{ source: 'assets/app.js', line: 1, col: 1, unresolved: true }] },
+      }
+      vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+        const u = new URL(url)
+        if (u.pathname.endsWith('/logs/build')) return response({ build: null })
+        if (u.pathname.endsWith('/logs/groups')) return response({ groups: [] })
+        if (u.pathname.endsWith('/telemetry/health')) return response(telemetryHealth())
+        return response({ logs: [row], nextCursor: null })
+      }))
+      render(<AppLogs appId="chess-clubs" getToken={() => 'tok'} />)
+      await screen.findByText('No map for this one')
+      fireEvent.click(screen.getByRole('button', { name: 'Details for No map for this one' }))
+      const panel = screen.getByRole('region', { name: 'Log entry details' })
+      expect(within(panel).getByTestId('symbolication-status').textContent).toBe('No source map for this release')
+      expect(within(panel).getByTestId('source-frames').textContent).toContain('unresolved')
+    })
+
+    it('loads a bounded server-side trace timeline across hops, not just the current page', async () => {
+      const traceId = 'c'.repeat(32)
+      const row = { ...entry, traceId, message: 'Entry point' }
+      const incident = {
+        traceId, hops: { browser: 1, host: 1, api: 2 },
+        records: [
+          { ts: 1, hop: 'browser', source: 'mediated', level: 'error', category: 'auth.session_lost', message: 'Browser saw it first', data: null, build: { version: '2.0.0' }, fingerprint: 'fp', context: null },
+          { ts: 2, hop: 'host', source: null, level: 'warn', category: 'auth.session_lost', message: 'Host invalidated the session', data: null, build: null, fingerprint: 'fp', context: null },
+          { ts: 3, hop: 'api', source: null, level: 'error', category: 'api.failed', message: 'API rejected the retry', data: null, build: null, fingerprint: 'fp', context: { v: 1, operation: 'auth.refresh', result: 'error' } },
+        ],
+        invocation: { id: traceId, type: 'scheduled', name: 'refresh', status: 'failed', httpStatus: 500, startedAt: 1, finishedAt: 4, cpuMs: 12, wallMs: 40, outcome: 'error' },
+        truncated: false,
+      }
+      const fetchMock = vi.fn(async (url: string) => {
+        const u = new URL(url)
+        if (u.pathname.endsWith('/logs/build')) return response({ build: null })
+        if (u.pathname.endsWith('/logs/groups')) return response({ groups: [] })
+        if (u.pathname.endsWith('/telemetry/health')) return response(telemetryHealth())
+        if (u.pathname.endsWith(`/incidents/${traceId}`)) return response(incident)
+        return response({ logs: [row], nextCursor: null })
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      render(<AppLogs appId="chess-clubs" getToken={() => 'tok'} />)
+      await screen.findByText('Entry point')
+
+      fireEvent.click(screen.getByRole('button', { name: traceId }))
+      const panel = await screen.findByRole('region', { name: 'Trace timeline' })
+      await waitFor(() => expect(within(panel).getByTestId('trace-records').children).toHaveLength(3))
+      expect(panel.textContent).toContain('Browser')
+      expect(panel.textContent).toContain('Host invalidated the session')
+      expect(panel.textContent).toContain('API rejected the retry')
+      // A hop with zero records (app-worker, data-worker) is a gap, not an all-clear.
+      expect(panel.textContent).toContain('no evidence')
+      expect(panel.textContent).toContain('refresh')
+      expect(fetchMock.mock.calls.some((c) => new URL(c[0]).pathname.endsWith(`/incidents/${traceId}`))).toBe(true)
+    })
+
+    it('explains owner denial when a trace timeline is refused, without leaking the current page’s counts', async () => {
+      const traceId = 'd'.repeat(32)
+      const row = { ...entry, traceId, message: 'Needs owner access' }
+      vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+        const u = new URL(url)
+        if (u.pathname.endsWith('/logs/build')) return response({ build: null })
+        if (u.pathname.endsWith('/logs/groups')) return response({ groups: [] })
+        if (u.pathname.endsWith('/telemetry/health')) return response(telemetryHealth())
+        if (u.pathname.endsWith(`/incidents/${traceId}`)) return response({ error: 'forbidden' }, 403)
+        return response({ logs: [row], nextCursor: null })
+      }))
+      render(<AppLogs appId="chess-clubs" getToken={() => 'tok'} />)
+      await screen.findByText('Needs owner access')
+      fireEvent.click(screen.getByRole('button', { name: traceId }))
+      const panel = await screen.findByRole('region', { name: 'Trace timeline' })
+      expect((await within(panel).findByRole('alert')).textContent).toContain('only to this app’s owner')
+      expect(within(panel).queryByTestId('trace-records')).toBeNull()
+    })
+
+    it('sanitizes hostile frame data: no HTML element is created and long names are truncated', async () => {
+      const longName = 'x'.repeat(600)
+      const row = {
+        ...entry, message: 'Hostile payload',
+        symbolication: {
+          status: 'ok', commitSha: shaA,
+          frames: [{ source: 'https://cdn.example.test/app.js?token=SECRETVALUE123', line: 1, col: 1, originalSource: '<img src=x onerror=alert(1)>evil.ts', name: longName }],
+        },
+      }
+      vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+        const u = new URL(url)
+        if (u.pathname.endsWith('/logs/build')) return response({ build: null })
+        if (u.pathname.endsWith('/logs/groups')) return response({ groups: [] })
+        if (u.pathname.endsWith('/telemetry/health')) return response(telemetryHealth())
+        return response({ logs: [row], nextCursor: null })
+      }))
+      const view = render(<AppLogs appId="chess-clubs" getToken={() => 'tok'} />)
+      await screen.findByText('Hostile payload')
+      fireEvent.click(screen.getByRole('button', { name: 'Details for Hostile payload' }))
+      const panel = screen.getByRole('region', { name: 'Log entry details' })
+      const frames = within(panel).getByTestId('source-frames')
+      expect(view.container.querySelector('img')).toBeNull()
+      expect(frames.textContent).not.toContain('SECRETVALUE123')
+      expect(frames.textContent).toContain('[redacted]')
+      expect(frames.textContent).not.toContain(longName)
+    })
+
+    it('ignores a stale trace timeline response after switching apps mid-flight', async () => {
+      const traceId = 'e'.repeat(32)
+      const row = { ...entry, traceId, message: 'First app entry' }
+      let resolveIncident!: (value: Response) => void
+      const fetchMock = vi.fn(async (url: string) => {
+        const u = new URL(url)
+        if (u.pathname.endsWith('/logs/build')) return response({ build: null })
+        if (u.pathname.endsWith('/logs/groups')) return response({ groups: [] })
+        if (u.pathname.endsWith('/telemetry/health')) return response(telemetryHealth())
+        if (u.pathname.endsWith(`/incidents/${traceId}`)) return new Promise<Response>((resolve) => { resolveIncident = resolve })
+        if (u.pathname.includes('/apps/other/')) return response({ logs: [], nextCursor: null })
+        return response({ logs: [row], nextCursor: null })
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const view = render(<AppLogs appId="first" getToken={() => 'tok'} />)
+      await screen.findByText('First app entry')
+      fireEvent.click(screen.getByRole('button', { name: traceId }))
+      await screen.findByText('Loading trace…')
+
+      view.rerender(<AppLogs appId="other" getToken={() => 'tok'} />)
+      resolveIncident(response({ traceId, hops: { browser: 1 }, records: [{ ts: 1, hop: 'browser', source: null, level: 'error', category: 'x', message: 'Stale trace record', data: null, build: null, fingerprint: null, context: null }], invocation: null, truncated: false }))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(screen.queryByText('Stale trace record')).toBeNull()
+      expect(screen.queryByText('Loading trace…')).toBeNull()
     })
   })
 })
