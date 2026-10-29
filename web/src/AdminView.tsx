@@ -7,6 +7,7 @@ import { AdminSubmissionCard } from './AdminSubmissionCard'
 import { RejectModal } from './RejectModal'
 import { PlatformAnalyticsPanel } from './PlatformAnalyticsPanel'
 import { AppUsageTable } from './AppUsageTable'
+import { TestPrincipalsPanel } from './TestPrincipalsPanel'
 
 // ---------------------------------------------------------------------------
 // Admin view — submission review queue.
@@ -78,6 +79,7 @@ export function AdminView({ getToken }: AdminViewProps) {
           metric you check first when opening the admin tab. */}
       <PlatformAnalyticsPanel getToken={getToken} />
       <AppUsageTable getToken={getToken} />
+      <TestPrincipalsPanel getToken={getToken} />
 
       <div>
         <h2 className="display-font text-2xl font-bold text-[var(--ink)]">Submissions queue</h2>
