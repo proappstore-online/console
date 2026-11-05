@@ -741,7 +741,7 @@ describe('OperatorView — metric time series (#240)', () => {
     const panel = (await screen.findByText('Club trends', { selector: 'h4' })).closest('section')!
     await within(panel).findByText('72.5%')
     expect(within(panel).getByText('Attendance · Average')).toBeTruthy()
-    expect(within(panel).getByText('£1,234.00')).toBeTruthy()
+    expect(within(panel).getByText((1234).toLocaleString(undefined, { style: 'currency', currency: 'GBP' }).replace(/\s/g, ' '))).toBeTruthy()
     expect(within(panel).getAllByRole('option').map((o) => o.textContent)).toEqual(['week', 'month'])
     expect(within(panel).getAllByRole('figure')).toHaveLength(2) // one chart per measure, never a shared axis
     expect(within(panel).queryByRole('list', { name: /series/ })).toBeNull() // a single series needs no legend
