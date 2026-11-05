@@ -1,4 +1,4 @@
-// Platform contracts at 22243bed: first-party Console session; no app-bound identity.
+// Platform #553 readiness contract: first-party Console session; no app-bound identity.
 import { apiFetch, ApiError } from './api'
 import { pro } from './sdk'
 export type PromoterRange = '7d' | '30d' | 'all'
@@ -11,6 +11,22 @@ export interface Promoter {
   app_public?: boolean; status_reason: string | null
   consented_at: number; created_at: number; updated_at: number
 }
+export interface ReferralTracking { ready: boolean; reason: 'deployment_unverified' | 'sdk_unsupported' | 'legacy_auth' | 'synthetic_check_required' | null; protocol_version: number }
+export interface ReferralReadiness { enrollment_open: boolean; referral_tracking: ReferralTracking }
+export const trackingReady = (r?: Partial<ReferralReadiness> | null) => r?.referral_tracking?.ready === true && r.referral_tracking.protocol_version === 1 && r.referral_tracking.reason === null
+export function readinessMessage(r?: Partial<ReferralReadiness> | null) {
+  if (trackingReady(r)) return 'Referral tracking is verified for this deployment.'
+  switch (r?.referral_tracking?.reason) {
+    case 'sdk_unsupported': return 'This deployment uses an older or unsupported SDK. Automatic referral credit is unavailable.'
+    case 'legacy_auth': return 'This deployment uses unsupported authentication or hosting. Automatic referral credit is unavailable.'
+    case 'synthetic_check_required': return 'Deployment verification has not succeeded. Automatic referral credit is unavailable.'
+    default: return 'Referral readiness is unknown or temporarily unavailable. Automatic referral credit is unavailable.'
+  }
+}
+export function fetchReferralReadiness(id: string) {
+  return apiFetch<ReferralReadiness>(`/storefront/promoters/apps/${encodeURIComponent(id)}/readiness`, { token: null, cache: 'no-store' })
+}
+export const isDenied = (e: unknown) => e instanceof ApiError && (e.status === 401 || e.status === 403)
 export interface PromoterApp { id: string; name: string }
 export interface Counts { pending: number; confirmed: number; reversed: number; expired: number }
 export interface Share { numerator: number; denominator: number; ratio: number; percent: number; basis: string }
@@ -27,7 +43,7 @@ export interface Cursor { before_id: string }
 export interface ActivityPage { promoter_status: PromoterStatus; counts: Pick<Counts, 'pending' | 'confirmed'>; referrals: ActivityItem[]; next: Cursor | null }
 export interface Discovery { apps: { appId: string; iconUrl: string | null; tagline: string | null; category: string | null }[]; next: { after: string } | null }
 export interface PromoterQuery { appId: string | null; range: PromoterRange; cursor?: string; now?: number }
-export type PromoterAccess = { kind: 'choose' | 'not-enrolled'; apps: PromoterApp[]; appId: string | null } | { kind: 'enrolled'; apps: PromoterApp[]; appId: string; promoter: Promoter; report: ContributionReport; activity: ActivityPage | null; activityError?: string }
+export type PromoterAccess = { readiness?: ReferralReadiness | null; readinessError?: string } & ({ kind: 'choose' | 'not-enrolled'; apps: PromoterApp[]; appId: string | null } | { kind: 'enrolled'; apps: PromoterApp[]; appId: string; promoter: Promoter; report: ContributionReport; activity: ActivityPage | null; activityError?: string })
 export type PromoterLoader = (q: PromoterQuery) => Promise<PromoterAccess>
 export function promoterRequest<T>(path: string, init: RequestInit = {}) {
   return apiFetch<T>(path, { credentials: 'include', ...init, token: pro.auth.token })
@@ -59,15 +75,19 @@ export const loadPromoterAccess: PromoterLoader = async (q) => {
   const apps = await loadPromoterChoices()
   if (!q.appId) return { kind: 'choose', apps, appId: null }
   if (!apps.some((a) => a.id === q.appId)) apps.push({ id: q.appId, name: q.appId })
+  const readiness = await fetchReferralReadiness(q.appId).then(
+    (data) => ({ readiness: data, readinessError: undefined }),
+    (e: unknown) => { if (isDenied(e)) throw e; return { readiness: null, readinessError: errorMessage(e) } },
+  )
   let promoter: Promoter
   try { promoter = (await promoterRequest<{ promoter: Promoter }>(`${appPath(q.appId)}/promoters/me`)).promoter }
-  catch (e) { if (e instanceof ApiError && e.status === 404) return { kind: 'not-enrolled', apps, appId: q.appId }; throw e }
+  catch (e) { if (e instanceof ApiError && e.status === 404) return { kind: 'not-enrolled', apps, appId: q.appId, ...readiness }; throw e }
   const [report, activity] = await Promise.all([
     promoterRequest<ContributionReport>(`${appPath(q.appId)}/promoters/me/contributions${periodQuery(q.range, q.now)}`),
-    ownActivity(q.appId, q.cursor).then((data) => ({ data, error: undefined }), (e: unknown) => ({ data: null, error: errorMessage(e) })),
+    ownActivity(q.appId, q.cursor).then((data) => ({ data, error: undefined }), (e: unknown) => { if (isDenied(e)) throw e; return { data: null, error: errorMessage(e) } }),
   ])
   if (report.app_id !== q.appId || promoter.app_id !== q.appId) throw new Error('App context mismatch. Reload this page.')
-  return { kind: 'enrolled', apps, appId: q.appId, promoter: { ...promoter, status: report.contributions.promotion.promoter_status }, report, activity: activity.data, activityError: activity.error }
+  return { ...readiness, kind: 'enrolled', apps, appId: q.appId, promoter: { ...promoter, status: report.contributions.promotion.promoter_status }, report, activity: activity.data, activityError: activity.error }
 }
 export function enrollPromoter(id: string, name: string) {
   return promoterRequest<{ promoter: Promoter; created: boolean; reactivated: boolean }>(`${appPath(id)}/promoters/enroll`, { method: 'POST', body: JSON.stringify({ consent: true, display_name: name.trim(), return_path: `/#/promoter?app=${encodeURIComponent(id)}` }) })
@@ -75,6 +95,7 @@ export function enrollPromoter(id: string, name: string) {
 export function withdrawPromoter(id: string) { return promoterRequest(`${appPath(id)}/promoters/me/withdraw`, { method: 'POST' }) }
 export function renamePromoter(id: string, name: string) { return promoterRequest(`${appPath(id)}/promoters/me`, { method: 'PATCH', body: JSON.stringify({ display_name: name.trim() }) }) }
 export function errorMessage(e: unknown) {
+  if (e instanceof ApiError && e.message === 'referral_tracking_not_ready') return 'Referral tracking is no longer ready. Refresh and try again after deployment verification.'
   if (e instanceof ApiError && e.status === 401) return 'Your session expired. Sign in again.'
   if (e instanceof ApiError && e.status === 403) return `Access refused: ${e.message}`
   return e instanceof Error ? e.message : 'Could not reach the service. Try again.'
@@ -85,7 +106,7 @@ export interface AuditEvent { id: string; promoter_id: string | null; attributio
 export interface AuditPage { events: AuditEvent[]; next: Cursor | null }
 export interface OwnerReport { app_id: string; freshness: Freshness; totals: Counts & { promoters: number }; acquisition: { activations_recorded: number; referred_confirmed: number; referred_reversed: number; organic: number; note: string }; standings: { promoter_id: string; display_name: string | null; rank: number | null; counts: Counts; share_of_referred_users: Share }[]; next: { after_id: string } | null }
 export interface OwnerPromoters {
-  settings: { enrollment_open: boolean }
+  settings: { enrollment_open: boolean; referral_tracking?: ReferralTracking }
   people: { promoters: OwnerPromoter[]; counts: { active: number; suspended: number; withdrawn: number; total: number }; next: Cursor | null }
   report: OwnerReport
   referrals: { referrals: OwnerReferral[]; counts: Counts; next: Cursor | null }

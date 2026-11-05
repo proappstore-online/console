@@ -27,6 +27,12 @@ const team = (appId: string) => `/apps/${encodeURIComponent(appId)}/team/public`
 export interface OwnPublicProfile { display_name: string | null; label: string | null; visible: boolean; show_promotion: boolean; updated_at: string }
 export async function fetchOwnProfile(appId: string, token: string | null) {
   const response = await apiFetch<{ appId: string; profile: OwnPublicProfile | null }>(`${team(appId)}/me`, { token, credentials: 'include' })
+  const profile = response.profile
+  if (profile !== null && (!profile || typeof profile !== 'object'
+    || typeof profile.visible !== 'boolean' || typeof profile.show_promotion !== 'boolean'
+    || !(profile.display_name === null || typeof profile.display_name === 'string')
+    || !(profile.label === null || typeof profile.label === 'string')
+    || typeof profile.updated_at !== 'string')) throw new Error('Unreadable saved public preferences.')
   if (response.appId !== appId) throw new Error('App context mismatch.')
   return response
 }

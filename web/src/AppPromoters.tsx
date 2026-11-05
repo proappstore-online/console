@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { PROMOTER_BUTTON as BUTTON, PROMOTER_CARD as CARD } from './promoterShared'
 import {
-  loadOwnerPromoters, setEnrollment, setPromoterStatus, correctReferral, promoterRequest, appPath, periodQuery, errorMessage, PROMOTER_RANGES,
+  loadOwnerPromoters, setEnrollment, setPromoterStatus, correctReferral, promoterRequest, appPath, periodQuery, errorMessage, isDenied, readinessMessage, PROMOTER_RANGES,
   type OwnerPromoters, type OwnerPromotersLoader, type PromoterRange, type AuditPage,
 } from './promoterApi'
 
@@ -27,7 +27,7 @@ export function AppPromoters({ appId, load = loadOwnerPromoters }: { appId: stri
     setState(null); setError(''); setPreview(null); setReason('')
     load(appId, range, now).then(
       (data) => { if (v === version.current) setState(data) },
-      (e: unknown) => { if (v === version.current) setError(errorMessage(e)) },
+      (e: unknown) => { if (v === version.current) { if (isDenied(e)) setState(null); setError(errorMessage(e)) } },
     )
     return () => { version.current++ }
   }, [appId, range, now, reload, load])
@@ -40,7 +40,7 @@ export function AppPromoters({ appId, load = loadOwnerPromoters }: { appId: stri
       else if (preview.type === 'status') await setPromoterStatus(appId, preview.id, preview.status, reason.trim())
       else await correctReferral(appId, preview.id, preview.action, kind, reason.trim())
       if (v === version.current) setReload((n) => n + 1)
-    } catch (e) { if (v === version.current) setError(errorMessage(e)) }
+    } catch (e) { if (v === version.current) { if (isDenied(e)) setState(null); setError(errorMessage(e)) } }
     finally { lock.current = false; setBusy(false) }
   }
   async function more(section: 'people' | 'referrals' | 'report' | 'events' | 'referralEvents') {
@@ -63,7 +63,7 @@ export function AppPromoters({ appId, load = loadOwnerPromoters }: { appId: stri
         const data = await promoterRequest<AuditPage>(`${base}/${path}?limit=50&before_id=${encodeURIComponent(state[section].next!.before_id)}`)
         if (v === version.current) setState({ ...state, [section]: { ...data, events: unique([...state[section].events, ...data.events], (r) => r.id) } })
       }
-    } catch (e) { if (v === version.current) setError(errorMessage(e)) }
+    } catch (e) { if (v === version.current) { if (isDenied(e)) setState(null); setError(errorMessage(e)) } }
     finally { lock.current = false; setBusy(false) }
   }
   return <section aria-labelledby="promoters-h" className={CARD}>
@@ -74,6 +74,9 @@ export function AppPromoters({ appId, load = loadOwnerPromoters }: { appId: stri
       <label>Contribution period <select className="min-h-11 rounded border border-[var(--line)] bg-[var(--panel)] px-3" value={range} onChange={(e) => { setNow(Date.now()); setRange(e.target.value as PromoterRange) }}>{PROMOTER_RANGES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}</select></label>
       <p>{state.report.totals.promoters} promoters · {state.report.totals.pending} pending · {state.report.totals.confirmed} confirmed · {state.report.totals.reversed} reversed · {state.report.totals.expired} expired.</p>
       <p>Enrollment is {state.settings.enrollment_open ? 'open' : 'closed'}. Closing enrollment leaves existing active links working.</p>
+      <p>{readinessMessage(state.settings)}</p>
+      <p>Readiness requires SDK 1.16.104 or newer, platform-cookie authentication on the PAS host with auth/API mediation, and a successful synthetic verification of the uploaded build reported by its authorized deployment workflow. Opening enrollment does not verify tracking. Existing credits remain.</p>
+      <a className="underline" href="https://github.com/proappstore-online/platform/blob/main/docs/promoter-readiness.md" target="_blank" rel="noreferrer">Deployment verification requirements</a>
       <button className={BUTTON} onClick={() => openPreview({ type: 'enrollment', open: !state.settings.enrollment_open })}>{state.settings.enrollment_open ? 'Close enrollment' : 'Open enrollment'}</button>
       <p>Owner acquisition: {state.report.acquisition.activations_recorded} recorded activations · {state.report.acquisition.referred_confirmed} referred confirmed · {state.report.acquisition.referred_reversed} referred reversed · {state.report.acquisition.organic} organic/unattributed.</p>
       <p className="text-sm text-[var(--muted)]">{state.report.acquisition.note} Updated {new Date(state.report.freshness.as_of).toUTCString()}. {state.report.freshness.note}</p>

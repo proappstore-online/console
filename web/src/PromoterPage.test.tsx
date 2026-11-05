@@ -11,11 +11,12 @@ vi.mock('./sdk', () => ({ pro: { auth: { token: 'person-token', signIn: vi.fn(),
 vi.mock('@proappstore/sdk/ui', () => ({ SignInButton: ({ app, provider }: { app: { auth: { signIn: (p: string) => void } }; provider: string }) => <button onClick={() => app.auth.signIn(provider)}>Sign in with {provider}</button> }))
 vi.mock('qrcode', () => ({ default: { toDataURL: vi.fn(async (link: string) => 'data:image/png;base64,' + btoa(link)) } }))
 const user = { id: 'google:1', name: 'Pat', login: 'old-name' } as User
+const ready: api.ReferralReadiness = { enrollment_open: true, referral_tracking: { ready: true, reason: null, protocol_version: 1 } }
 const counts = { pending: 1, confirmed: 2, reversed: 0, expired: 0 }
 export const promoter: api.Promoter = { promoter_id: 'p1', app_id: 'a', status: 'active', code: '23456789', code_active: true, display_name: 'Pat', share_path: '/apps/a?ref=23456789', share_url: 'https://proappstore.online/apps/a?ref=23456789', app_public: true, status_reason: null, consented_at: 1, created_at: 1, updated_at: 1 }
 const share = { numerator: 2, denominator: 8, percent: 25, ratio: .25, basis: 'among promoters' }
 const report: api.ContributionReport = { version: 1, app_id: 'a', freshness: { as_of: 1770000000000, referrals_recorded_since: 1760000000000, note: 'Earlier users are not reconstructed.' }, contributions: { promotion: { promoter_status: 'active', recorded: true, first_confirmed_at: 1, counts, share_of_referred_users: share, standing: { rank: 2, ranked_promoters: 3, tied_on_count: false } }, code: { available: false, reason: 'Code is reported separately.' } } }
-function enrolled(overrides: Partial<Extract<api.PromoterAccess, { kind: 'enrolled' }>> = {}): api.PromoterAccess { return { kind: 'enrolled', apps: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }], appId: 'a', promoter, report, activity: { promoter_status: 'active', counts, referrals: [], next: null }, ...overrides } }
+function enrolled(overrides: Partial<Extract<api.PromoterAccess, { kind: 'enrolled' }>> = {}): api.PromoterAccess { return { kind: 'enrolled', readiness: ready, apps: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }], appId: 'a', promoter, report, activity: { promoter_status: 'active', counts, referrals: [], next: null }, ...overrides } }
 function page(load: api.PromoterLoader = async () => enrolled(), initialAppId: string | null = 'a') {
   const onSwitchAccount = vi.fn(), onSignOut = vi.fn()
   render(<PromoterPage user={user} initialAppId={initialAppId} load={load} onSwitchAccount={onSwitchAccount} onSignOut={onSignOut} />)
@@ -30,6 +31,7 @@ describe('promoter contract client', () => {
     const calls: string[] = []
     vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
       const u = new URL(url); calls.push(u.pathname + u.search)
+      if (u.pathname.endsWith('/readiness')) return json(ready)
       if (u.pathname.includes('/storefront/')) return json({ apps: [{ appId: 'a' }, { appId: 'b' }], next: null })
       expect(init.credentials).toBe('include')
       expect(init.headers).toMatchObject({ Authorization: 'Bearer person-token' })
@@ -112,7 +114,7 @@ describe('workspace', () => {
   it('requires explicit consent, enrolls and opens the workspace without a second sign-in', async () => {
     const enroll = vi.spyOn(api, 'enrollPromoter').mockResolvedValue({ promoter, created: true, reactivated: false })
     let activated = false
-    const load: api.PromoterLoader = async () => activated ? enrolled() : { kind: 'not-enrolled', appId: 'a', apps: [{ id: 'a', name: 'a' }] }
+    const load: api.PromoterLoader = async () => activated ? enrolled() : { kind: 'not-enrolled', readiness: ready, appId: 'a', apps: [{ id: 'a', name: 'a' }] }
     enroll.mockImplementation(async () => { activated = true; return { promoter, created: true, reactivated: false } })
     page(load)
     const button = await screen.findByRole('button', { name: 'Enroll' })
@@ -204,6 +206,84 @@ describe('workspace', () => {
     expect(screen.getByText(/public promotion consent will be removed/)).toBeTruthy()
     fireEvent.click(screen.getByText('Confirm withdrawal'))
     await waitFor(() => expect(withdraw).toHaveBeenCalledWith('a'))
+  })
+})
+
+describe('verified readiness', () => {
+  it('handles server enrollment refusal after readiness changes without showing a link', async () => {
+    const { ApiError } = await import('./api')
+    vi.spyOn(api, 'enrollPromoter').mockRejectedValue(new ApiError(403, { error: 'referral_tracking_not_ready' }))
+    page(async () => ({ kind: 'not-enrolled', readiness: ready, appId: 'a', apps: [{ id: 'a', name: 'a' }] }))
+    fireEvent.click(await screen.findByLabelText(/I consent/))
+    fireEvent.click(screen.getByRole('button', { name: 'Enroll' }))
+    await screen.findByText(/Referral tracking is no longer ready/)
+    expect(screen.queryByText('Copy link')).toBeNull()
+    expect(screen.getByText('Retry')).toBeTruthy()
+  })
+  it('treats unreadable saved consent as unavailable', async () => {
+    vi.stubGlobal('fetch', async () => json({ appId: 'a', profile: { display_name: 'Pat', visible: 'true', show_promotion: 1 } }))
+    page()
+    await screen.findByText(/Public preferences are temporarily unavailable/)
+    expect(screen.queryByLabelText('Show my public name')).toBeNull()
+  })
+  it('drops readiness and private data when the account changes', async () => {
+    const load = vi.fn<api.PromoterLoader>().mockResolvedValueOnce(enrolled()).mockResolvedValue(enrolled({ readiness: null }))
+    const props = { initialAppId: 'a', onSwitchAccount: vi.fn(), onSignOut: vi.fn(), load }
+    const view = render(<PromoterPage {...props} user={user} />)
+    await screen.findByText('Copy link')
+    view.rerender(<PromoterPage {...props} user={{ ...user, id: 'github:other' }} />)
+    await screen.findByText(/Referral readiness is unknown/)
+    expect(screen.queryByText('Copy link')).toBeNull()
+    expect(load).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['deployment_unverified', 'sdk_unsupported', 'legacy_auth', 'synthetic_check_required', null] as const)('keeps active history and privacy controls without sharing for %s', async (reason) => {
+    page(async () => enrolled({ readiness: reason === null ? null : { ...ready, referral_tracking: { ready: false, reason, protocol_version: 1 } } }))
+    await screen.findByText('Your share: 25%')
+    expect(screen.queryByText('Copy link')).toBeNull()
+    expect(screen.queryByText('Download materials')).toBeNull()
+    expect(screen.queryByAltText('QR code for your personal app link')).toBeNull()
+    expect(screen.getByText('Withdraw from promotion')).toBeTruthy()
+    expect(screen.getByText('Your public profile')).toBeTruthy()
+  })
+  it.each(['not-enrolled', 'withdrawn'] as const)('blocks %s enrollment on a direct destination with unknown readiness', async (status) => {
+    page(async () => status === 'withdrawn' ? enrolled({ promoter: { ...promoter, status }, readiness: null }) : { kind: 'not-enrolled', apps: [], appId: 'a', readiness: null })
+    const button = await screen.findByRole('button', { name: status === 'withdrawn' ? 'Re-enroll' : 'Enroll' })
+    fireEvent.click(screen.getByLabelText(/I consent/))
+    expect((button as HTMLButtonElement).disabled).toBe(true)
+  })
+  it('loses sharing after readiness refresh while keeping credits', async () => {
+    const load = vi.fn<api.PromoterLoader>().mockResolvedValueOnce(enrolled()).mockResolvedValue(enrolled({ readiness: null }))
+    page(load)
+    await screen.findByText('Copy link')
+    fireEvent.click(screen.getByText('Refresh readiness'))
+    await screen.findByText(/Referral readiness is unknown/)
+    expect(screen.queryByText('Copy link')).toBeNull()
+    expect(screen.getByText('Your share: 25%')).toBeTruthy()
+  })
+  it.each([401, 403])('clears all cached workspace data after an action returns %s', async (status) => {
+    const { ApiError } = await import('./api')
+    vi.spyOn(api, 'withdrawPromoter').mockRejectedValue(new ApiError(status, 'denied'))
+    page(); fireEvent.click(await screen.findByText('Withdraw from promotion')); fireEvent.click(screen.getByText('Confirm withdrawal'))
+    await screen.findByRole('alert')
+    await waitFor(() => expect(screen.queryByText('Your share: 25%')).toBeNull())
+    expect(screen.queryByText('Copy link')).toBeNull()
+  })
+  it('fails closed on a readiness endpoint outage and retries without losing history', async () => {
+    const calls: string[] = []
+    vi.stubGlobal('fetch', async (url: string) => {
+      calls.push(url)
+      if (url.endsWith('/readiness')) return json('unavailable', 503)
+      if (url.includes('/storefront/')) return json({ apps: [], next: null })
+      if (url.endsWith('/v1/promoters/me')) return json({ promoters: [promoter] })
+      if (url.endsWith('/contributions')) return json(report)
+      if (url.includes('/referrals')) return json({ referrals: [], next: null, counts, promoter_status: 'active' })
+      return json({ promoter })
+    })
+    const result = await api.loadPromoterAccess({ appId: 'a', range: 'all' })
+    expect(result).toMatchObject({ kind: 'enrolled', readiness: null, readinessError: 'unavailable' })
+    expect(api.trackingReady(result.readiness)).toBe(false)
+    expect(calls.some((url) => url.endsWith('/a/readiness'))).toBe(true)
   })
 })
 

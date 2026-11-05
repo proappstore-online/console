@@ -7,7 +7,7 @@ import { promoterAppFromHash, promoterHash, promoterSignInUrl } from './nav'
 import { fetchOwnProfile, saveOwnProfile, withdrawOwnProfile } from './publicTeamApi'
 import {
   PROMOTER_RANGES, loadPromoterAccess, enrollPromoter, withdrawPromoter, renamePromoter,
-  errorMessage, ownActivity, type PromoterAccess, type PromoterLoader, type PromoterRange,
+  errorMessage, ownActivity, isDenied, trackingReady, readinessMessage, type PromoterAccess, type PromoterLoader, type PromoterRange,
 } from './promoterApi'
 
 import { PROMOTER_BUTTON, PROMOTER_CARD } from './promoterShared'
@@ -133,7 +133,10 @@ export function PromoterPage({ user, initialAppId, onSelectApp, onSwitchAccount,
     actionLock.current = true; setBusy(true); setActionMessage('')
     const v = version.current
     try { await action(); if (v === version.current) { setActionMessage('Saved.'); setReload((n) => n + 1) } }
-    catch (e) { if (v === version.current) setActionMessage(errorMessage(e)) }
+    catch (e) { if (v === version.current) {
+      if (isDenied(e)) { setAccess(null); setError(errorMessage(e)) }
+      else setActionMessage(errorMessage(e))
+    } }
     finally { actionLock.current = false; setBusy(false) }
   }
   async function more() {
@@ -142,7 +145,7 @@ export function PromoterPage({ user, initialAppId, onSelectApp, onSwitchAccount,
     try {
       const page = await ownActivity(access.appId, access.activity.next.before_id)
       if (v === version.current) setAccess({ ...access, activity: { ...page, referrals: [...new Map([...access.activity.referrals, ...page.referrals].map((r) => [r.referral_id, r])).values()] }, activityError: undefined })
-    } catch (e) { if (v === version.current) setAccess({ ...access, activityError: errorMessage(e) }) }
+    } catch (e) { if (v === version.current) { if (isDenied(e)) { setAccess(null); setError(errorMessage(e)) } else setAccess({ ...access, activityError: errorMessage(e) }) } }
     finally { if (v === version.current) setMoreBusy(false) }
   }
   function select(id: string) {
@@ -151,7 +154,9 @@ export function PromoterPage({ user, initialAppId, onSelectApp, onSwitchAccount,
   const enrolled = access?.kind === 'enrolled' ? access : null
   const active = enrolled?.promoter.status === 'active'
   const promotion = enrolled?.report.contributions.promotion
-  const shareable = active && enrolled.promoter.code_active && enrolled.promoter.app_public !== false
+  const ready = trackingReady(access?.readiness)
+  const canEnroll = ready && access?.readiness?.enrollment_open === true
+  const shareable = ready && active && enrolled.promoter.code_active && enrolled.promoter.app_public !== false
   return <div className="min-h-dvh text-[var(--ink)]">
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-4 py-3">
       <h1 className="display-font text-xl font-bold">Promoter workspace</h1>
@@ -164,12 +169,18 @@ export function PromoterPage({ user, initialAppId, onSelectApp, onSwitchAccount,
       {!access && !error && <p role="status">Loading…</p>}
       {error && <div role="alert"><p>{error}</p><button className={PROMOTER_BUTTON} onClick={() => setReload((n) => n + 1)}>Retry</button></div>}
       {access?.kind === 'choose' && <p>You do not need to own an app. Choose a public app to promote. {access.apps.length === 0 && 'No apps are currently open for enrollment.'}</p>}
+      {access && appId && <section className={PROMOTER_CARD} aria-label="Referral readiness">
+        <p>{readinessMessage(access.readiness)}</p>
+        <p>Enrollment is {access.readiness?.enrollment_open === true ? 'open' : access.readiness?.enrollment_open === false ? 'closed' : 'unavailable'}; verified referral tracking is required to enroll or re-enroll.</p>
+        {access.readinessError && <p role="alert">Readiness could not load: {access.readinessError}</p>}
+        <button className={PROMOTER_BUTTON} onClick={() => setReload((n) => n + 1)}>Refresh readiness</button>
+      </section>}
       {(access?.kind === 'not-enrolled' || enrolled?.promoter.status === 'withdrawn') && appId && <section className={PROMOTER_CARD}>
         <h2 className="text-xl font-bold">{enrolled ? 'You have left this promotion' : 'Enroll to promote this app'}</h2>
         <p>Your link is available after enrollment. A private, missing or closed app may refuse enrollment.</p>
         <label className="mt-3 block">Optional display name <input className={INPUT} maxLength={60} value={name} onChange={(e) => setName(e.target.value)} /></label>
         <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />I consent to enroll as a promoter for {appId}.</label>
-        <button className={PROMOTER_BUTTON} disabled={!consent || busy} onClick={() => void run(() => enrollPromoter(appId, name))}>{enrolled ? 'Re-enroll' : 'Enroll'}</button>
+        <button className={PROMOTER_BUTTON} disabled={!canEnroll || !consent || busy} onClick={() => void run(() => enrollPromoter(appId, name))}>{enrolled ? 'Re-enroll' : 'Enroll'}</button>
       </section>}
       {enrolled?.promoter.status === 'suspended' && <p role="status">Your promoter access is suspended. Your link is disabled. Only the owner can restore it. {enrolled.promoter.status_reason} Existing confirmed credit remains below.</p>}
       {active && !shareable && <p role="status">This app is unavailable for sharing. Your existing contribution record is still shown.</p>}
@@ -196,7 +207,7 @@ export function PromoterPage({ user, initialAppId, onSelectApp, onSwitchAccount,
         <a href={`#/apps/${enrolled.appId}/contributions`} className="underline">Separate code contributions (app team access required)</a>
       </section>}
       <fieldset disabled={busy} className="contents">
-        {active && <ProfileControls key={enrolled.appId} appId={enrolled.appId} initialName={enrolled.promoter.display_name ?? ''} run={run} />}
+        {active && <ProfileControls key={`${user.id}:${enrolled.appId}`} appId={enrolled.appId} initialName={enrolled.promoter.display_name ?? ''} run={run} />}
         {active && <section className={PROMOTER_CARD}><button className={PROMOTER_BUTTON} onClick={() => setWithdrawPreview(true)}>Withdraw from promotion</button>
           {withdrawPreview && <div><p>Your link will stop working, your promoter name will be cleared and public promotion consent will be removed. Confirmed credits remain.</p><button className={PROMOTER_BUTTON} onClick={() => void run(() => withdrawPromoter(enrolled.appId))}>Confirm withdrawal</button><button className={PROMOTER_BUTTON} onClick={() => setWithdrawPreview(false)}>Cancel</button></div>}
         </section>}

@@ -6,8 +6,8 @@ import { test, expect, type Page } from '@playwright/test'
 const user = { id: 'google:synthetic', name: 'Synthetic Pat', login: 'synthetic', avatarUrl: null, dateOfBirth: null, isChild: false }
 const token = 'synthetic-person-session'
 
-async function setup(page: Page) {
-  let enrolled = false, confirmed = false, pending = false
+async function setup(page: Page, options: { ready?: boolean; enrolled?: boolean } = {}) {
+  let enrolled = options.enrolled ?? false, confirmed = false, pending = false
   const writes: { path: string; body: unknown }[] = []
   const unexpected: string[] = []
   const p = () => ({ promoter_id: 'p1', app_id: 'stash', status: 'active', code: '23456789', code_active: true, display_name: 'Pat', share_path: '/apps/stash?ref=23456789', share_url: 'https://proappstore.online/apps/stash?ref=23456789', app_public: true, status_reason: null, consented_at: 1, created_at: 1, updated_at: 1 })
@@ -35,6 +35,7 @@ async function setup(page: Page) {
       // and callback processing remain real on both browser projects.
       return route.fulfill({ contentType: 'text/html', body: `<script>location.replace(${JSON.stringify(back.href)})</script>` })
     }
+    if (path.endsWith('/readiness')) return reply({ enrollment_open: true, referral_tracking: { ready: options.ready !== false, reason: options.ready === false ? 'sdk_unsupported' : null, protocol_version: 1 } })
     if (path === '/v1/storefront/promoters/apps') return reply({ apps: [{ appId: 'stash', iconUrl: null, tagline: null, category: null }, { appId: 'other', iconUrl: null, tagline: null, category: null }], next: null })
     if (request.headers().authorization !== 'Bearer ' + token) return reply('not signed in', 401)
     if (path === '/v1/auth/me') return reply(user)
@@ -119,4 +120,23 @@ test('direct OAuth failure returns to promoter entry with safe app context', asy
   await page.goto('/?promoter=1&promoter_app=stash#auth_error=access_denied')
   await expect(page.getByText(/Sign-in did not complete/)).toBeVisible()
   await expect(page.getByRole('button', { name: 'Sign in with Google' })).toBeVisible()
+})
+
+test('mobile: unavailable tracking blocks direct enrollment and active sharing but preserves history', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 })
+  const fixture = await setup(page, { ready: false, enrolled: true })
+  await page.goto('/#/promoter?app=stash')
+  await page.getByRole('button', { name: 'Sign in with Google' }).click()
+  await expect(page.getByText('Your share: 0%')).toBeVisible()
+  await expect(page.getByText(/older or unsupported SDK/)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Copy link' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Download materials' })).toHaveCount(0)
+  await expect(page.getByAltText('QR code for your personal app link')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Withdraw from promotion' })).toBeVisible()
+  await page.getByLabel('App', { exact: true }).selectOption('other')
+  await page.getByLabel('I consent').check()
+  await expect(page.getByRole('button', { name: 'Enroll', exact: true })).toBeDisabled()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  expect(fixture.writes).toHaveLength(0)
+  expect(fixture.unexpected).toEqual([])
 })
