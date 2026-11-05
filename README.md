@@ -43,6 +43,8 @@ npx playwright test   # e2e (web/e2e/*.spec.ts)
 
 ## Deploy
 
+For the isolated platform#555 client handoff, see [candidate build contract](docs/candidate.md).
+
 Push to `main` → auto-deploys via **Cloudflare Pages**. No manual deploys.
 
 ## Notes

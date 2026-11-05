@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import type { User } from '@proappstore/sdk'
 import { pro } from './sdk'
+import { AGENT_BASE } from './api'
 
 import { type View, type AppEntry, type AppTab, type AppSettingsTab, parseHash as parseHashString, hashFor, isPromoterReturn, promoterAppFromHash, promoterHash, promoterOAuthReturn, deriveSlug, mergeApps, appTabsFor, effectiveAppTab } from './nav'
 import { fetchApps, fetchAgentProjects, fetchAdministeredApps, deleteAppApi, fetchIsAdmin } from './appsApi'
@@ -185,7 +186,7 @@ export default function App() {
     const slug = deriveSlug(name)
     if (slug.length < 2) return 'Please use letters or numbers in the name.'
     try {
-      const res = await fetch('https://agents.proappstore.online/v1/projects', {
+      const res = await fetch(`${AGENT_BASE}/projects`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${pro.auth.token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, slug, idea: idea.trim() || undefined, template: template && template !== 'blank' ? template : undefined }),

@@ -8,6 +8,7 @@
  * refresh triggers, and memory/file-synced signals.
  */
 import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react'
+import { agentSocketBase } from '../runtime'
 import type { Ticket, Project, ChatMessage, ActivityEntry } from './types'
 
 export interface TicketLiveEntry {
@@ -63,7 +64,7 @@ export function useAgentWebSocket(opts: UseAgentWebSocketOpts) {
 
     const connect = () => {
       if (closed) return
-      ws = new WebSocket(`wss://agents.proappstore.online/v1/projects/${appId}/ws?token=${encodeURIComponent(token)}`)
+      ws = new WebSocket(`${agentSocketBase()}/projects/${appId}/ws?token=${encodeURIComponent(token)}`)
       ws.onopen = () => { retry = 0; optsRef.current.syncLive() }
       ws.onmessage = (ev) => {
         let d: Record<string, unknown>

@@ -2,8 +2,8 @@
 // Previously API_BASE was copy-pasted into ~9 files and the same apiFetch<T>
 // existed in PublishView and AdminView verbatim — consolidated here.
 
-export const API_BASE = 'https://api.proappstore.online/v1'
-export const AGENT_BASE = 'https://agents.proappstore.online/v1'
+import { API_BASE } from './runtime'
+export { API_BASE, AGENT_BASE } from './runtime'
 
 /** Bearer auth header (empty object when signed out). */
 export function authHeaders(token: string | null): Record<string, string> {

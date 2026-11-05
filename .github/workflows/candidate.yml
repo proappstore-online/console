@@ -1,0 +1,30 @@
+name: Isolated Console candidate
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm --filter @console/web test --maxWorkers=2
+      - run: node scripts/build-candidate.mjs
+      - run: node scripts/check-candidate.mjs
+      - run: pnpm --filter @console/web exec playwright install --with-deps chromium
+      - run: node scripts/smoke-candidate.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: console-candidate-${{ github.sha }}
+          path: candidate/
+          if-no-files-found: error
+          retention-days: 30

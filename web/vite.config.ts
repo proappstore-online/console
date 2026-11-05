@@ -3,14 +3,22 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   // Relative base so assets load correctly from any path prefix.
   // Works at both console.proappstore.online/ and proappstore.online/app/.
   base: './',
   plugins: [
+    ...(mode === 'candidate' ? [{
+      name: 'isolated-candidate',
+      transformIndexHtml(html: string) {
+        return html.replace(/<link[^>]+https:\/\/fonts\.[^>]+>/g, '')
+          .replace('<head>', `<head><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'self'; object-src 'none'">`)
+      },
+    }] : []),
     react(),
     tailwindcss(),
     VitePWA({
+      disable: mode === 'candidate',
       registerType: 'autoUpdate',
       // Inline the tiny registration snippet: a separate registerSW.js sits outside assets/, where the
       // bundle-size check (and any asset-path audit) cannot account for it.
@@ -58,4 +66,4 @@ export default defineConfig({
     }),
   ],
   server: { host: true },
-});
+}));
