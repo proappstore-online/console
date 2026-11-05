@@ -1,12 +1,14 @@
 name: Playwright
 
-# E2E for the Creator Console + PAS backend API, two Playwright projects:
+# E2E for the Creator Console + PAS backend API:
 # - `chromium`: the public-only smoke suite against prod
 #   (console.proappstore.online + api.proappstore.online). Auth-gated prod
 #   flows aren't covered; they need a real session token which CI doesn't have.
 # - `operator-flow`: the admin (operator) flow end to end (platform#300) on the
 #   console built from this commit and served by `vite preview` (Playwright
 #   webServer), signed in with a fake token against an in-memory fake API.
+# - mobile promoter flows on Chromium and WebKit, with SDK OAuth return routing
+#   and synthetic enrollment/referral fixtures against the local build.
 
 on:
   push:
@@ -48,18 +50,18 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # Cache the Playwright browser binaries so we don't re-download
-      # Chromium (~150 MB) on every run.
+      # Chromium and WebKit on every run. OS dependencies are installed below
+      # even on a cache hit, because the runner itself is new each time.
       - name: Cache Playwright browsers
         id: pw-cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: pw-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
+          key: pw-chromium-webkit-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
-      - name: Install Chromium
-        if: steps.pw-cache.outputs.cache-hit != 'true'
+      - name: Install Chromium and WebKit
         working-directory: web
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium webkit
 
       - name: Run Playwright
         working-directory: web

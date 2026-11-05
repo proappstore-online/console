@@ -1,267 +1,210 @@
-// Promoter workspace (console#14): a separate surface for people who promote apps. It reuses the PAS
-// session but confers no creator/admin access — it renders none of the creator navigation or controls,
-// and every role decision stays on the server. Backend contracts are not deployed yet, so by default
-// every flow reports itself unavailable; no link, code, enrollment or figure is ever made up.
-
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { User } from '@proappstore/sdk'
+import QRCode from 'qrcode'
 import { pro } from './sdk'
-import { GoogleIcon, GitHubIcon } from './dashboardShared'
+import { SignInButton } from '@proappstore/sdk/ui'
+import { promoterAppFromHash, promoterHash, promoterSignInUrl } from './nav'
+import { fetchOwnProfile, saveOwnProfile, withdrawOwnProfile } from './publicTeamApi'
 import {
-  PROMOTER_RANGES, UNAVAILABLE_MESSAGE, loadPromoterAccess,
-  type PromoterAccess, type PromoterApp, type PromoterLoader, type PromoterRange,
+  PROMOTER_RANGES, loadPromoterAccess, enrollPromoter, withdrawPromoter, renamePromoter,
+  errorMessage, ownActivity, type PromoterAccess, type PromoterLoader, type PromoterRange,
 } from './promoterApi'
 
-const BUTTON = 'inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]'
-const CARD = 'rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-5'
-const OUTLINE = `${BUTTON} border border-[var(--line-strong)] text-[var(--ink)] disabled:opacity-50`
+import { PROMOTER_BUTTON, PROMOTER_CARD } from './promoterShared'
+const INPUT = 'min-h-11 max-w-full rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3 text-[var(--ink)]'
 
-/** Signed-out promoter entry: Google first, GitHub as the alternative. No app or GitHub account is required. */
 export function PromoterSignIn() {
-  const authError = pro.auth.authError
-  const start = (provider: 'google' | 'github') => {
-    // Come back on the promoter return route so the console settles into the workspace.
-    history.replaceState(null, '', '#/promoter/return')
-    void pro.auth.signIn(provider)
+  // SDK drops the hash during OAuth. A validated, non-secret outer query marker
+  // survives the real SDK return_to and restores the hash/app after auth.init.
+  const start = () => history.replaceState(null, '', promoterSignInUrl(location.href))
+  return <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-5 px-4 text-[var(--ink)]">
+    <h1 className="display-font text-3xl font-bold">Promote an app</h1>
+    <p>Sign in to choose an app, get a personal link and see your confirmed referrals. You do not need to own or publish an app.</p>
+    {pro.auth.authError && <p role="alert">Sign-in did not complete ({pro.auth.authError}). Try again.</p>}
+    <div onClickCapture={start}><SignInButton app={pro} provider="google" label="Sign in with Google" /></div>
+    <div onClickCapture={start}><SignInButton app={pro} provider="github" label="Sign in with GitHub" /></div>
+    <a href="#/" className="underline">Open the Creator Console</a>
+  </main>
+}
+
+export function downloadText(filename: string, content: string, type = 'text/plain') {
+  const url = URL.createObjectURL(new Blob([content], { type }))
+  const link = document.createElement('a')
+  link.href = url; link.download = filename; link.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+function ShareCard({ link, code, appId }: { link: string; code: string; appId: string }) {
+  const [qr, setQr] = useState('')
+  const [message, setMessage] = useState('')
+  useEffect(() => {
+    let live = true; setQr('')
+    QRCode.toDataURL(link, { width: 240, margin: 4, errorCorrectionLevel: 'M' }).then(
+      (image) => { if (live) setQr(image) }, () => { if (live) setMessage('Could not generate QR. Use the link or retry.') },
+    )
+    return () => { live = false }
+  }, [link])
+  async function copy(value: string) {
+    try { await navigator.clipboard.writeText(value); setMessage('Copied.') } catch { setMessage('Could not copy. Select and copy the text above.') }
   }
-  return (
-    <div className="flex min-h-[100dvh] items-center justify-center px-4">
-      <div className="max-w-md text-center">
-        <h1 className="display-font text-4xl font-bold text-[var(--ink)]">Promote an app</h1>
-        <p className="mt-4 text-lg text-[var(--muted)]">
-          Sign in to get your personal link and see the new users you bring to ProAppStore apps. You don’t need to build or publish an app.
-        </p>
-        {authError && (
-          <p role="alert" className="mt-4 text-sm" style={{ color: 'var(--danger,#dc2626)' }}>
-            Sign-in did not complete ({authError}). Try again.
-          </p>
-        )}
-        <div className="mt-8 flex flex-col items-center gap-3">
-          <button type="button" onClick={() => start('google')} className={`${BUTTON} bg-[var(--accent)] text-white`}>
-            <GoogleIcon /> Sign in with Google
-          </button>
-          <button type="button" onClick={() => start('github')} className={OUTLINE}>
-            <GitHubIcon /> Sign in with GitHub
-          </button>
-        </div>
-        <p className="mt-6 text-xs text-[var(--muted)]">
-          Building apps instead? <a href="#/" className="underline hover:text-[var(--ink)]">Open the Creator Console</a>.
-        </p>
-      </div>
+  return <section className={PROMOTER_CARD} aria-labelledby="share-h">
+    <h2 id="share-h" className="text-xl font-bold">Your link and code</h2>
+    <p className="mt-3 break-all font-mono">{link}</p><p className="my-3 font-mono">{code}</p>
+    <div className="flex flex-wrap gap-2">
+      <button className={PROMOTER_BUTTON} onClick={() => void copy(link)}>Copy link</button>
+      <button className={PROMOTER_BUTTON} onClick={() => void copy(code)}>Copy code</button>
+      {typeof navigator.share === 'function' && <button className={PROMOTER_BUTTON} onClick={() => void navigator.share({ url: link }).catch(() => setMessage('Sharing did not complete. You can copy the link.'))}>Share</button>}
+      <button className={PROMOTER_BUTTON} onClick={() => downloadText(`${appId}-promotion.txt`, `Try ${appId}: ${link}\nReferral code: ${code}\nI am sharing my promoter link. Credit requires first authenticated app use; visits and scans do not count.\n`)}>Download materials</button>
     </div>
-  )
+    {qr && <><img src={qr} alt="QR code for your personal app link" width="240" height="240" className="mt-4 max-w-full" /><a download={`${appId}-referral-qr.png`} href={qr} className={PROMOTER_BUTTON}>Download QR</a></>}
+    <p role="status" className="mt-2">{message}</p>
+  </section>
 }
 
-function Notice({ title, children, tone = 'info' }: { title: string; children: React.ReactNode; tone?: 'info' | 'warn' }) {
-  const color = tone === 'warn' ? 'var(--warning,#d97706)' : 'var(--line-strong)'
-  return (
-    <div role="status" className={CARD} style={{ borderColor: color }}>
-      <h3 className="text-sm font-semibold text-[var(--ink)]">{title}</h3>
-      <p className="mt-1 text-sm text-[var(--muted)]">{children}</p>
+function ProfileControls({ appId, initialName, run }: { appId: string; initialName: string; run: (action: () => Promise<unknown>) => Promise<void> }) {
+  const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState('')
+  const [retry, setRetry] = useState(0)
+  const [name, setName] = useState(initialName)
+  const [label, setLabel] = useState('')
+  const [visible, setVisible] = useState(false)
+  const [promotion, setPromotion] = useState(false)
+  useEffect(() => {
+    let live = true; setLoaded(false); setError('')
+    fetchOwnProfile(appId, pro.auth.token).then(({ profile }) => {
+      if (!live) return
+      setName(profile?.display_name ?? initialName); setLabel(profile?.label ?? '')
+      setVisible(profile?.visible ?? false); setPromotion(profile?.show_promotion ?? false); setLoaded(true)
+    }, () => { if (live) setError('Public preferences are temporarily unavailable. Your saved choices have not been changed.') })
+    return () => { live = false }
+  }, [appId, initialName, retry])
+  if (!loaded) return <section className={PROMOTER_CARD}><h2 className="text-xl font-bold">Your public profile</h2><p role="status">{error || 'Loading public preferences…'}</p>{error && <button className={PROMOTER_BUTTON} onClick={() => setRetry((n) => n + 1)}>Retry preferences</button>}</section>
+  return <section className={PROMOTER_CARD} aria-labelledby="profile-h">
+    <h2 id="profile-h" className="text-xl font-bold">Your public profile</h2>
+    <p>Sharing your name and showing your promotion contribution are separate choices. Neither grants app access. These are your saved choices; a new profile starts private.</p>
+    <label className="mt-3 block">Display name <input className={INPUT} maxLength={60} value={name} onChange={(e) => setName(e.target.value)} /></label>
+    <label className="mt-3 block">Contribution label <input className={INPUT} maxLength={40} value={label} onChange={(e) => setLabel(e.target.value)} /></label>
+    <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={visible} onChange={(e) => setVisible(e.target.checked)} />Show my public name</label>
+    <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={promotion} onChange={(e) => setPromotion(e.target.checked)} />Show my promotion contribution publicly</label>
+    <p aria-label="Public profile preview">Preview: {visible ? `${name || '(name required)'}${label ? ` · ${label}` : ''}${promotion ? ' · confirmed referrals and share among promoters' : ''}` : 'Hidden'}</p>
+    <div className="mt-3 flex flex-wrap gap-2">
+      <button className={PROMOTER_BUTTON} disabled={visible && !name.trim()} onClick={() => void run(() => saveOwnProfile(appId, pro.auth.token, { display_name: name, label, visible, show_promotion: promotion }))}>Save public choices</button>
+      <button className={PROMOTER_BUTTON} onClick={() => void run(() => withdrawOwnProfile(appId, pro.auth.token))}>Hide public profile</button>
+      <button className={PROMOTER_BUTTON} onClick={() => void run(() => renamePromoter(appId, name))}>Save promoter name</button>
     </div>
-  )
+    <p className="mt-2 text-sm text-[var(--muted)]">A public contribution card appears only while active, opted in and credited with a confirmed referral. Re-enrolling after withdrawal does not restore consent.</p>
+  </section>
 }
 
-const STOPPED_COPY: Record<'suspended' | 'revoked' | 'withdrawn', { title: string; body: string }> = {
-  suspended: { title: 'Your promoter access is suspended', body: 'The app owner has paused your access. Your link is switched off and no new referrals are counted until it is restored. Contact the app owner to ask why.' },
-  revoked: { title: 'Your promoter access was removed', body: 'The app owner or the platform removed your access to this app. Your link no longer counts referrals.' },
-  withdrawn: { title: 'You have left this promotion', body: 'You withdrew from promoting this app. Your link no longer counts referrals.' },
-}
-
-function ShareCard({ access }: { access: PromoterAccess }) {
-  const [copied, setCopied] = useState<string | null>(null)
-  const live = access.kind === 'enrolled' ? access : null
-  const copy = async (label: string, value: string) => {
-    try { await navigator.clipboard.writeText(value); setCopied(label) } catch { setCopied(null) }
-  }
-  const canShare = !!live && typeof navigator !== 'undefined' && typeof navigator.share === 'function'
-  return (
-    <section aria-labelledby="share-h" className={CARD}>
-      <h2 id="share-h" className="display-font text-lg font-bold text-[var(--ink)]">Your link and code</h2>
-      {live ? (
-        <dl className="mt-3 space-y-2 text-sm">
-          <div><dt className="text-[var(--muted)]">Link</dt><dd className="break-all font-mono text-[var(--ink)]">{live.link}</dd></div>
-          <div><dt className="text-[var(--muted)]">Code</dt><dd className="font-mono text-[var(--ink)]">{live.code}</dd></div>
-        </dl>
-      ) : (
-        <p className="mt-2 text-sm text-[var(--muted)]">Your personal link and code appear here once you are enrolled for an app.</p>
-      )}
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button type="button" disabled={!live} onClick={() => live && copy('link', live.link)} className={OUTLINE}>Copy link</button>
-        <button type="button" disabled={!live} onClick={() => live && copy('code', live.code)} className={OUTLINE}>Copy code</button>
-        <button type="button" disabled={!canShare} onClick={() => live && navigator.share({ url: live.link }).catch(() => {})} className={OUTLINE}>Share</button>
-        <button type="button" disabled className={OUTLINE}>Download materials</button>
-      </div>
-      <p aria-live="polite" className="mt-2 text-xs text-[var(--muted)]">{copied ? `Copied ${copied}.` : ''}</p>
-      <div className="mt-3 flex h-28 w-28 items-center justify-center rounded-lg border border-dashed border-[var(--line-strong)] p-2 text-center text-xs text-[var(--muted)]">
-        QR code not available yet
-      </div>
-    </section>
-  )
-}
-
-function Stats({ access, range, onRange, onRetry, onMore, loadingMore }: {
-  access: PromoterAccess
-  range: PromoterRange
-  onRange: (r: PromoterRange) => void
-  onRetry: () => void
-  onMore: () => void
-  loadingMore: boolean
+export function PromoterPage({ user, initialAppId, onSelectApp, onSwitchAccount, onSignOut, load = loadPromoterAccess }: {
+  user: User; initialAppId: string | null; onSelectApp?: (id: string | null) => void
+  onSwitchAccount: () => void; onSignOut: () => void; load?: PromoterLoader
 }) {
-  return (
-    <section aria-labelledby="stats-h" className={CARD}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="stats-h" className="display-font text-lg font-bold text-[var(--ink)]">Your referrals</h2>
-        <label className="text-sm text-[var(--muted)]">
-          Period{' '}
-          <select value={range} onChange={(e) => onRange(e.target.value as PromoterRange)} className="rounded-lg border border-[var(--line-strong)] bg-[var(--panel)] px-2 py-1 text-[var(--ink)]">
-            {PROMOTER_RANGES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-          </select>
-        </label>
-      </div>
-      {access.kind === 'enrolled' ? (
-        <>
-          <dl className="mt-4 grid grid-cols-3 gap-3 text-center">
-            <div><dt className="text-xs text-[var(--muted)]">Pending</dt><dd className="text-2xl font-bold text-[var(--ink)]">{access.stats.pending}</dd></div>
-            <div><dt className="text-xs text-[var(--muted)]">Confirmed</dt><dd className="text-2xl font-bold text-[var(--ink)]">{access.stats.confirmed}</dd></div>
-            <div><dt className="text-xs text-[var(--muted)]">Your share</dt><dd className="text-2xl font-bold text-[var(--ink)]">{access.stats.sharePct}%</dd></div>
-          </dl>
-          <p className="mt-3 text-xs text-[var(--muted)]">
-            Share = your confirmed referrals ÷ {access.stats.denominator} confirmed new users in this period. Updated {new Date(access.stats.asOf).toUTCString()}.
-          </p>
-          {access.stats.pending === 0 && access.stats.confirmed === 0 && (
-            <p className="mt-3 text-sm text-[var(--muted)]">No referrals in this period yet. Share your link to get started.</p>
-          )}
-          <h3 className="mt-5 text-sm font-semibold text-[var(--ink)]">Standings (anonymous)</h3>
-          <ol className="mt-1 space-y-1 text-sm text-[var(--muted)]">
-            {access.standings.map((r) => (
-              <li key={r.rank}>#{r.rank} — {r.sharePct}%{r.you ? ' (you)' : ''}</li>
-            ))}
-          </ol>
-          <h3 className="mt-5 text-sm font-semibold text-[var(--ink)]">Activity</h3>
-          {access.activity.items.length === 0 ? (
-            <p className="mt-1 text-sm text-[var(--muted)]">No activity in this period.</p>
-          ) : (
-            <ul className="mt-1 space-y-1 text-sm text-[var(--muted)]">
-              {access.activity.items.map((a) => <li key={a.id}>{new Date(a.at).toUTCString()} — {a.status}</li>)}
-            </ul>
-          )}
-          {access.activity.nextCursor && (
-            <button aria-label={loadingMore ? 'Loading…' : 'Load more'} type="button" onClick={onMore} disabled={loadingMore} className={`${OUTLINE} mt-3`}>
-              {loadingMore ? 'Loading…' : 'Load more'}
-            </button>
-          )}
-        </>
-      ) : access.kind === 'error' ? (
-        <div role="alert" className="mt-3 text-sm">
-          <p style={{ color: 'var(--error,#dc2626)' }}>Couldn’t load your referrals: {access.message}</p>
-          <button type="button" onClick={onRetry} className={`${OUTLINE} mt-2`}>Retry</button>
-        </div>
-      ) : (
-        <p className="mt-3 text-sm text-[var(--muted)]">
-          {access.kind === 'unavailable' ? 'Unavailable — referral tracking is not live yet.' : 'Nothing to show yet.'}
-        </p>
-      )}
-    </section>
-  )
-}
-
-export function PromoterPage({
-  user, ownedApps, initialAppId, onSelectApp, onSwitchAccount, onSignOut, load = loadPromoterAccess,
-}: {
-  user: User
-  /** Apps the caller owns, if any — only used to offer an app selector; never a source of promoter rights. */
-  ownedApps: PromoterApp[]
-  initialAppId: string | null
-  onSelectApp?: (appId: string | null) => void
-  onSwitchAccount: () => void
-  onSignOut: () => void
-  load?: PromoterLoader
-}) {
-  const [appId, setAppId] = useState<string | null>(initialAppId)
+  const [appId, setAppId] = useState(initialAppId)
   const [range, setRange] = useState<PromoterRange>('30d')
   const [access, setAccess] = useState<PromoterAccess | null>(null)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [reloadKey, setReloadKey] = useState(0)
-  const latest = useRef(0)
-
-  // Each request is ticketed; a slower response for a previously selected app/period is dropped, so one
-  // app's figures can never appear under another.
+  const [error, setError] = useState('')
+  const [actionMessage, setActionMessage] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [moreBusy, setMoreBusy] = useState(false)
+  const [reload, setReload] = useState(0)
+  const [consent, setConsent] = useState(false)
+  const [name, setName] = useState('')
+  const [withdrawPreview, setWithdrawPreview] = useState(false)
+  const version = useRef(0)
+  const actionLock = useRef(false)
+  const [periodNow, setPeriodNow] = useState(Date.now)
   useEffect(() => {
-    const ticket = ++latest.current
-    setAccess(null)
-    load({ appId, range }).then(
-      (a) => { if (ticket === latest.current) setAccess(a) },
-      (e: unknown) => { if (ticket === latest.current) setAccess({ kind: 'error', message: e instanceof Error ? e.message : 'request failed' }) },
+    const change = () => setAppId(promoterAppFromHash(location.hash))
+    window.addEventListener('hashchange', change)
+    return () => window.removeEventListener('hashchange', change)
+  }, [])
+  useEffect(() => {
+    const v = ++version.current
+    setAccess(null); setError(''); setActionMessage(''); setConsent(false); setName(''); setWithdrawPreview(false); setMoreBusy(false)
+    load({ appId, range, now: periodNow }).then(
+      (data) => { if (version.current === v) setAccess(data) },
+      (e: unknown) => { if (version.current === v) setError(errorMessage(e)) },
     )
-  }, [appId, range, reloadKey, load])
-
-  const loadMore = useCallback(() => {
-    if (access?.kind !== 'enrolled' || !access.activity.nextCursor) return
-    const ticket = latest.current
-    const prev = access
-    setLoadingMore(true)
-    load({ appId, range, cursor: access.activity.nextCursor }).then((next) => {
-      if (ticket !== latest.current) return
-      setAccess(next.kind === 'enrolled'
-        ? { ...next, activity: { items: [...prev.activity.items, ...next.activity.items], nextCursor: next.activity.nextCursor } }
-        : next)
-    }).catch((e: unknown) => {
-      if (ticket === latest.current) setAccess({ kind: 'error', message: e instanceof Error ? e.message : 'request failed' })
-    }).finally(() => setLoadingMore(false))
-  }, [access, appId, range, load])
-
-  const choices = access?.kind === 'enrolled' ? access.apps : ownedApps
-  const select = (id: string) => { setAppId(id || null); onSelectApp?.(id || null) }
-  const stopped = access && (access.kind === 'suspended' || access.kind === 'revoked' || access.kind === 'withdrawn') ? STOPPED_COPY[access.kind] : null
-
-  return (
-    <div className="min-h-[100dvh]">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--line)] px-4 py-3 sm:px-6">
-        <span className="display-font text-lg font-bold text-[var(--ink)]">Promoter workspace</span>
-        <div className="flex items-center gap-2 text-sm">
-          <span className="text-[var(--muted)]">Signed in as {user.login}</span>
-          <button type="button" onClick={onSwitchAccount} className={OUTLINE}>Switch account</button>
-          <button type="button" onClick={onSignOut} className={OUTLINE}>Sign out</button>
-        </div>
-      </header>
-      <main className="mx-auto w-full max-w-3xl space-y-4 px-4 py-6 sm:px-6">
-        {access === null && <p role="status" className="text-[var(--muted)]">Loading…</p>}
-        {access?.kind === 'unavailable' && <Notice title="Enrollment unavailable">{UNAVAILABLE_MESSAGE}</Notice>}
-        {access?.kind === 'not-enrolled' && <Notice title="You’re not enrolled for this app">Enrollment opens soon. You don’t need to own an app to promote one.</Notice>}
-        {stopped && <Notice tone="warn" title={stopped.title}>{stopped.body}</Notice>}
-
-        {choices.length === 0 ? (
-          <Notice title="You don’t own any apps">That’s fine — promoters don’t need to. Once enrollment opens you’ll pick an app to promote here.</Notice>
-        ) : (
-          <label className="block text-sm text-[var(--muted)]">
-            App{' '}
-            <select value={appId ?? ''} onChange={(e) => select(e.target.value)} className="rounded-lg border border-[var(--line-strong)] bg-[var(--panel)] px-2 py-1 text-[var(--ink)]">
-              <option value="">Choose an app…</option>
-              {choices.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-          </label>
-        )}
-
-        <div>
-          <button type="button" disabled className={`${BUTTON} bg-[var(--accent)] text-white disabled:opacity-50`}>Enroll</button>
-          <span className="ml-2 text-xs text-[var(--muted)]">Enrollment isn’t open yet.</span>
-        </div>
-
-        {!stopped && <ShareCard access={access ?? { kind: 'unavailable' }} />}
-        {access && !stopped && (
-          <Stats access={access} range={range} onRange={setRange} onRetry={() => setReloadKey((k) => k + 1)} onMore={loadMore} loadingMore={loadingMore} />
-        )}
-
-        <section className={CARD} aria-labelledby="guide-h">
-          <h2 id="guide-h" className="display-font text-lg font-bold text-[var(--ink)]">How it works</h2>
-          <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-[var(--muted)]">
-            <li>Enroll for an app and get your personal link and code.</li>
-            <li>Share them. A referral is pending until the new user is confirmed.</li>
-            <li>Confirmed referrals count toward your share of the app’s new users.</li>
-          </ol>
-        </section>
-      </main>
-    </div>
-  )
+    return () => { version.current++ }
+  }, [appId, range, periodNow, reload, load, user.id])
+  async function run(action: () => Promise<unknown>) {
+    if (actionLock.current) return
+    actionLock.current = true; setBusy(true); setActionMessage('')
+    const v = version.current
+    try { await action(); if (v === version.current) { setActionMessage('Saved.'); setReload((n) => n + 1) } }
+    catch (e) { if (v === version.current) setActionMessage(errorMessage(e)) }
+    finally { actionLock.current = false; setBusy(false) }
+  }
+  async function more() {
+    if (access?.kind !== 'enrolled' || !access.activity?.next || moreBusy) return
+    const v = version.current; setMoreBusy(true)
+    try {
+      const page = await ownActivity(access.appId, access.activity.next.before_id)
+      if (v === version.current) setAccess({ ...access, activity: { ...page, referrals: [...new Map([...access.activity.referrals, ...page.referrals].map((r) => [r.referral_id, r])).values()] }, activityError: undefined })
+    } catch (e) { if (v === version.current) setAccess({ ...access, activityError: errorMessage(e) }) }
+    finally { if (v === version.current) setMoreBusy(false) }
+  }
+  function select(id: string) {
+    setAppId(id || null); history.pushState(null, '', promoterHash(id)); onSelectApp?.(id || null)
+  }
+  const enrolled = access?.kind === 'enrolled' ? access : null
+  const active = enrolled?.promoter.status === 'active'
+  const promotion = enrolled?.report.contributions.promotion
+  const shareable = active && enrolled.promoter.code_active && enrolled.promoter.app_public !== false
+  return <div className="min-h-dvh text-[var(--ink)]">
+    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-4 py-3">
+      <h1 className="display-font text-xl font-bold">Promoter workspace</h1>
+      <div className="flex flex-wrap items-center gap-2"><span>Signed in as {user.name}</span><button className={PROMOTER_BUTTON} onClick={onSwitchAccount}>Switch account</button><button className={PROMOTER_BUTTON} onClick={onSignOut}>Sign out</button></div>
+    </header>
+    <main className="mx-auto max-w-3xl space-y-4 px-4 py-6">
+      {access && <label className="block">App <select aria-label="App" className={INPUT} value={appId ?? ''} onChange={(e) => select(e.target.value)} disabled={busy}>
+        <option value="">Choose an app…</option>{access.apps.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+      </select></label>}
+      {!access && !error && <p role="status">Loading…</p>}
+      {error && <div role="alert"><p>{error}</p><button className={PROMOTER_BUTTON} onClick={() => setReload((n) => n + 1)}>Retry</button></div>}
+      {access?.kind === 'choose' && <p>You do not need to own an app. Choose a public app to promote. {access.apps.length === 0 && 'No apps are currently open for enrollment.'}</p>}
+      {(access?.kind === 'not-enrolled' || enrolled?.promoter.status === 'withdrawn') && appId && <section className={PROMOTER_CARD}>
+        <h2 className="text-xl font-bold">{enrolled ? 'You have left this promotion' : 'Enroll to promote this app'}</h2>
+        <p>Your link is available after enrollment. A private, missing or closed app may refuse enrollment.</p>
+        <label className="mt-3 block">Optional display name <input className={INPUT} maxLength={60} value={name} onChange={(e) => setName(e.target.value)} /></label>
+        <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />I consent to enroll as a promoter for {appId}.</label>
+        <button className={PROMOTER_BUTTON} disabled={!consent || busy} onClick={() => void run(() => enrollPromoter(appId, name))}>{enrolled ? 'Re-enroll' : 'Enroll'}</button>
+      </section>}
+      {enrolled?.promoter.status === 'suspended' && <p role="status">Your promoter access is suspended. Your link is disabled. Only the owner can restore it. {enrolled.promoter.status_reason} Existing confirmed credit remains below.</p>}
+      {active && !shareable && <p role="status">This app is unavailable for sharing. Your existing contribution record is still shown.</p>}
+      {shareable && <ShareCard key={enrolled.appId} appId={enrolled.appId} link={enrolled.promoter.share_url} code={enrolled.promoter.code} />}
+      {enrolled && promotion && <section className={PROMOTER_CARD} aria-labelledby="stats-h">
+        <h2 id="stats-h" className="text-xl font-bold">Promotion / Marketing</h2>
+        <label className="mt-3 block">Period <select aria-label="Period" className={INPUT} value={range} onChange={(e) => { setPeriodNow(Date.now()); setRange(e.target.value as PromoterRange) }}>
+          {PROMOTER_RANGES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+        </select></label>
+        <dl className="my-4 grid grid-cols-2 gap-3 sm:grid-cols-4">{Object.entries(promotion.counts).map(([key, value]) => <div key={key}><dt className="capitalize">{key}</dt><dd className="text-2xl font-bold">{value}</dd></div>)}</dl>
+        <p>Your share: {promotion.share_of_referred_users.percent}%</p>
+        <p>Share = your {promotion.share_of_referred_users.numerator} confirmed referrals ÷ {promotion.share_of_referred_users.denominator} confirmed referrals from all promoters for this app and period. Organic and unattributed users are excluded.</p>
+        <p>Your standing: {promotion.standing.rank === null ? 'Not ranked yet' : `#${promotion.standing.rank} of ${promotion.standing.ranked_promoters}`}{promotion.standing.tied_on_count ? ' (tied on count)' : ''}.</p>
+        {!promotion.counts.confirmed && <p>No confirmed referrals in this period yet.</p>}
+        <p className="mt-3 text-sm text-[var(--muted)]">Updated {new Date(enrolled.report.freshness.as_of).toUTCString()}. {enrolled.report.freshness.note} {enrolled.report.freshness.referrals_recorded_since !== null && `Recorded since ${new Date(enrolled.report.freshness.referrals_recorded_since).toUTCString()}.`}</p>
+        <button className={PROMOTER_BUTTON} onClick={() => { setPeriodNow(Date.now()); setReload((n) => n + 1) }}>Refresh contributions</button>
+        <h3 className="mt-4 font-bold">Your activity (all time)</h3>
+        <p className="text-sm text-[var(--muted)]">The activity API is not period-filtered and omits expired captures. Totals above use the selected period.</p>
+        {enrolled.activityError && <p role="alert">Activity could not load: {enrolled.activityError} <button className={PROMOTER_BUTTON} onClick={() => setReload((n) => n + 1)}>Retry activity</button></p>}
+        {enrolled.activity?.referrals.length === 0 && <p>No activity yet.</p>}
+        <ul>{enrolled.activity?.referrals.map((r) => <li key={r.referral_id}>{new Date(r.confirmed_at ?? r.captured_at).toUTCString()} — {r.status}</li>)}</ul>
+        {enrolled.activity?.next && <button className={PROMOTER_BUTTON} disabled={moreBusy} onClick={() => void more()}>Load more activity</button>}
+        <h3 className="mt-4 font-bold">Code</h3><p>{enrolled.report.contributions.code.reason}</p>
+        <a href={`#/apps/${enrolled.appId}/contributions`} className="underline">Separate code contributions (app team access required)</a>
+      </section>}
+      <fieldset disabled={busy} className="contents">
+        {active && <ProfileControls key={enrolled.appId} appId={enrolled.appId} initialName={enrolled.promoter.display_name ?? ''} run={run} />}
+        {active && <section className={PROMOTER_CARD}><button className={PROMOTER_BUTTON} onClick={() => setWithdrawPreview(true)}>Withdraw from promotion</button>
+          {withdrawPreview && <div><p>Your link will stop working, your promoter name will be cleared and public promotion consent will be removed. Confirmed credits remain.</p><button className={PROMOTER_BUTTON} onClick={() => void run(() => withdrawPromoter(enrolled.appId))}>Confirm withdrawal</button><button className={PROMOTER_BUTTON} onClick={() => setWithdrawPreview(false)}>Cancel</button></div>}
+        </section>}
+      </fieldset>
+      <p role="status">{busy ? 'Saving…' : actionMessage}</p>
+      <section className={PROMOTER_CARD}><h2 className="text-xl font-bold">How it works</h2><ol className="list-decimal space-y-2 pl-5">
+        <li>Enroll for an app and get your personal link, code and QR.</li><li>Share voluntarily. Visits and QR scans do not count.</li><li>A person new to this app must claim your code and first use the app while authenticated. Pending claims expire after 14 days.</li><li>Confirmed referrals determine your share among promoters. These figures do not grant roles, ownership or payouts.</li>
+      </ol></section>
+    </main>
+  </div>
 }

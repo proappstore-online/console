@@ -1,6 +1,6 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 
-// Two projects:
+// Browser projects:
 // - `chromium`: mirrors fws/platform/packages/create's setup — public-only
 //   smoke specs run against prod (console.proappstore.online). Auth-gated flows
 //   would need a real PAS session token, which CI does not have.
@@ -8,6 +8,8 @@ import { defineConfig } from '@playwright/test';
 //   real console UI, built and served locally by `vite preview`, signed in with
 //   a fake token, with every backend request answered by an in-memory fake API
 //   (e2e/operator-flow.spec.ts). No network, no real session.
+// - promoter-chromium/promoter-webkit: mobile promoter flows against the local
+//   build, real SDK return routing and synthetic enrollment/referral fixtures.
 const PREVIEW_PORT = 4179;
 
 export default defineConfig({
@@ -29,13 +31,23 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: /operator-flow\.spec\.ts/,
+      testIgnore: /(operator|promoter)-flow\.spec\.ts/,
       use: { browserName: 'chromium', baseURL: 'https://console.proappstore.online' },
     },
     {
       name: 'operator-flow',
       testMatch: /operator-flow\.spec\.ts/,
       use: { browserName: 'chromium', baseURL: `http://localhost:${PREVIEW_PORT}` },
+    },
+    {
+      name: 'promoter-chromium',
+      testMatch: /promoter-flow\.spec\.ts/,
+      use: { ...devices['Pixel 7'], browserName: 'chromium', baseURL: `http://localhost:${PREVIEW_PORT}` },
+    },
+    {
+      name: 'promoter-webkit',
+      testMatch: /promoter-flow\.spec\.ts/,
+      use: { ...devices['iPhone 13'], browserName: 'webkit', baseURL: `http://localhost:${PREVIEW_PORT}` },
     },
   ],
   webServer: {

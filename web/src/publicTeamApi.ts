@@ -18,9 +18,18 @@ export interface RosterMember {
   updated_at: number | null
 }
 
-export interface ProfileInput { display_name: string; label: string; visible: boolean }
+export interface ProfileInput { display_name: string; label: string; visible: boolean; show_promotion?: boolean }
 
 const team = (appId: string) => `/apps/${encodeURIComponent(appId)}/team/public`
+
+/** Additive platform#552 contract. A 403/404 means preferences cannot be read;
+ * callers must not infer saved consent from public-list membership. */
+export interface OwnPublicProfile { display_name: string | null; label: string | null; visible: boolean; show_promotion: boolean; updated_at: string }
+export async function fetchOwnProfile(appId: string, token: string | null) {
+  const response = await apiFetch<{ appId: string; profile: OwnPublicProfile | null }>(`${team(appId)}/me`, { token, credentials: 'include' })
+  if (response.appId !== appId) throw new Error('App context mismatch.')
+  return response
+}
 
 /** What visitors see right now. No auth; a private or missing app is a 404. */
 export function fetchPublicTeam(appId: string) {
@@ -37,13 +46,14 @@ export function saveOwnProfile(appId: string, token: string | null, input: Profi
   const label = input.label.trim()
   return apiFetch<{ ok: true; visible: boolean }>(`${team(appId)}/me`, {
     token, method: 'PUT',
-    body: JSON.stringify({ display_name: input.display_name.trim(), ...(label ? { label } : {}), visible: input.visible }),
+    credentials: 'include',
+    body: JSON.stringify({ display_name: input.display_name.trim(), ...(label ? { label } : {}), visible: input.visible, ...(input.show_promotion !== undefined ? { show_promotion: input.show_promotion } : {}) }),
   })
 }
 
 /** Withdraw the caller's own profile from the public list (keeps what they wrote). */
 export function withdrawOwnProfile(appId: string, token: string | null) {
-  return apiFetch<{ ok: true; visible: false }>(`${team(appId)}/me`, { token, method: 'DELETE' })
+  return apiFetch<{ ok: true; visible: false }>(`${team(appId)}/me`, { token, credentials: 'include', method: 'DELETE' })
 }
 
 /** Owner: take one person off the public list. Not a ban — they may opt in again. */

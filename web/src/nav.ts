@@ -215,3 +215,22 @@ export function promoterAppFromHash(rawHash: string): string | null {
 export function promoterHash(appId?: string | null): string {
   return appId && PROMOTER_APP_ID.test(appId) ? `#/promoter?app=${appId}` : '#/promoter'
 }
+
+/** OAuth replaces the hash. Carry only a validated app slug through its query. */
+export function promoterSignInUrl(href: string): string {
+  const url = new URL(href)
+  const app = promoterAppFromHash(url.hash) ?? promoterOAuthReturn(url.search)?.appId
+  url.searchParams.delete('return_to')
+  url.searchParams.set('promoter', '1')
+  url.searchParams.delete('promoter_app')
+  if (app) url.searchParams.set('promoter_app', app)
+  url.hash = '#/promoter/return'
+  return `${url.pathname}${url.search}${url.hash}`
+}
+
+export function promoterOAuthReturn(search: string): { appId: string | null } | null {
+  const query = new URLSearchParams(search)
+  if (query.get('promoter') !== '1') return null
+  const app = query.get('promoter_app')
+  return { appId: app && PROMOTER_APP_ID.test(app) ? app : null }
+}

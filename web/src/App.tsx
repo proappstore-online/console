@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import type { User } from '@proappstore/sdk'
 import { pro } from './sdk'
 
-import { type View, type AppEntry, type AppTab, type AppSettingsTab, parseHash as parseHashString, hashFor, isPromoterReturn, promoterAppFromHash, promoterHash, deriveSlug, mergeApps, appTabsFor, effectiveAppTab } from './nav'
+import { type View, type AppEntry, type AppTab, type AppSettingsTab, parseHash as parseHashString, hashFor, isPromoterReturn, promoterAppFromHash, promoterHash, promoterOAuthReturn, deriveSlug, mergeApps, appTabsFor, effectiveAppTab } from './nav'
 import { fetchApps, fetchAgentProjects, fetchAdministeredApps, deleteAppApi, fetchIsAdmin } from './appsApi'
 import { probeOperatorAccess, type OperatorAccess } from './operator'
 import { safeReturnTo, syncTokenToCookie } from './authSync'
@@ -37,7 +37,7 @@ function RouteSpinner() {
 
 /** Parse the current location hash into view + optional param + tab (DOM wrapper). */
 function parseHash() {
-  return parseHashString(location.hash)
+  return parseHashString(promoterOAuthReturn(location.search) ? '#/promoter/return' : location.hash)
 }
 
 /** Update hash without triggering hashchange (DOM wrapper). `replace` avoids
@@ -98,15 +98,19 @@ export default function App() {
       syncTokenToCookie(pro.auth.token)
       // Sent here from a storefront page (e.g. /ideas "I'm building this"):
       // go back once signed in, now that the cookie is set.
-      const back = u ? safeReturnTo(window.location.search) : null
+      const back = u && parseHash().view !== 'promoter' ? safeReturnTo(window.location.search) : null
       if (back) window.location.replace(back)
     })
   }, [])
 
   // Sign-in landed on #/promoter/return: settle on the workspace URL (replace, so Back skips the landing).
   useEffect(() => {
-    if (user && view === 'promoter' && isPromoterReturn(location.hash)) {
-      history.replaceState(null, '', promoterHash(promoterAppFromHash(location.hash)))
+    const oauth = promoterOAuthReturn(location.search)
+    if (user && view === 'promoter' && (isPromoterReturn(location.hash) || oauth)) {
+      const url = new URL(location.href)
+      url.hash = promoterHash(oauth ? oauth.appId : promoterAppFromHash(location.hash))
+      url.searchParams.delete('promoter'); url.searchParams.delete('promoter_app')
+      history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
     }
   }, [user, view])
 
@@ -221,11 +225,10 @@ export default function App() {
     return (
       <PromoterPage
         user={user}
-        ownedApps={apps.map((a) => ({ id: a.id, name: a.name }))}
-        initialAppId={promoterAppFromHash(location.hash)}
-        onSelectApp={(id) => history.replaceState(null, '', promoterHash(id))}
+        key={user.id}
+        initialAppId={promoterOAuthReturn(location.search)?.appId ?? promoterAppFromHash(location.hash)}
         onSwitchAccount={() => { void pro.auth.signOut() }}
-        onSignOut={() => { void pro.auth.signOut(); setViewState('dashboard'); setHash('dashboard', null, null, null, true) }}
+        onSignOut={() => { void pro.auth.signOut() }}
       />
     )
   }
