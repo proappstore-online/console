@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { ErrorBoundary } from './ErrorBoundary'
 import { fetchListing, type Listing } from './listings'
 import { RolesManager } from './RolesManager'
+import { AppPromoters } from './AppPromoters'
 import { DbBrowser } from './DbBrowser'
 import { WebhooksManager } from './WebhooksManager'
 import { CodeHealth } from './CodeHealth'
@@ -207,6 +208,7 @@ export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, o
           {settingsTab === 'access' && (
             <div className="max-w-3xl space-y-6">
               <RolesManager appId={appId} getToken={getToken} />
+              <AppPromoters appId={appId} />
             </div>
           )}
 

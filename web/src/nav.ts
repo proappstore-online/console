@@ -2,7 +2,7 @@
 
 export type View =
   | 'dashboard' | 'app-detail' | 'publish' | 'payouts'
-  | 'subscription' | 'services' | 'admin' | 'profile' | 'ui-library' | 'connector-setup' | 'provision' | 'directory'
+  | 'subscription' | 'services' | 'admin' | 'profile' | 'ui-library' | 'connector-setup' | 'provision' | 'directory' | 'promoter'
 
 // Per-app workspace tabs, shown next to the project switcher in the navbar.
 //  - research: brainstorm chat + live Knowledge Base preview
@@ -121,6 +121,10 @@ export function parseHash(rawHash: string): ParsedRoute {
       : null
     return { view: 'app-detail', param, tab, settingsTab }
   }
+  // Promoter workspace (console#14): `#/promoter`, plus `#/promoter/return` as the sign-in landing.
+  // Any query after the path is ignored; nothing else under `promoter/` is a route.
+  const promoterPath = hash.split('?')[0]
+  if (promoterPath === 'promoter' || promoterPath === 'promoter/return') return { view: 'promoter', param: null, tab: null, settingsTab: null }
   if (hash.startsWith(CONNECTOR_SETUP_PATH)) return { view: 'connector-setup', param: null, tab: null, settingsTab: null }
   if (VALID_VIEWS.includes(hash as View)) return { view: hash as View, param: null, tab: null, settingsTab: null }
   return { view: 'dashboard', param: null, tab: null, settingsTab: null }
@@ -189,4 +193,23 @@ export function parseOperatorRecord(rawHash: string): { resourceId: string; key:
   } catch {
     return null // malformed %-escape
   }
+}
+
+/** True on the promoter sign-in landing (`#/promoter/return`); the console then normalizes to `#/promoter`. */
+export function isPromoterReturn(rawHash: string): boolean {
+  return rawHash.replace(/^#\/?/, '').split('?')[0] === 'promoter/return'
+}
+
+const PROMOTER_APP_ID = /^[a-z0-9][a-z0-9-]{0,55}$/
+
+/** The app the promoter workspace is scoped to (`#/promoter?app=<slug>`); null when absent or malformed. */
+export function promoterAppFromHash(rawHash: string): string | null {
+  const query = rawHash.replace(/^#\/?/, '').split('?')[1] ?? ''
+  const id = new URLSearchParams(query).get('app')
+  return id && PROMOTER_APP_ID.test(id) ? id : null
+}
+
+/** Hash for the promoter workspace, carrying the selected app so reloads and Back keep the context. */
+export function promoterHash(appId?: string | null): string {
+  return appId && PROMOTER_APP_ID.test(appId) ? `#/promoter?app=${appId}` : '#/promoter'
 }

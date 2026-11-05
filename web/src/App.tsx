@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import type { User } from '@proappstore/sdk'
 import { pro } from './sdk'
 
-import { type View, type AppEntry, type AppTab, type AppSettingsTab, parseHash as parseHashString, hashFor, deriveSlug, mergeApps, appTabsFor, effectiveAppTab } from './nav'
+import { type View, type AppEntry, type AppTab, type AppSettingsTab, parseHash as parseHashString, hashFor, isPromoterReturn, promoterAppFromHash, promoterHash, deriveSlug, mergeApps, appTabsFor, effectiveAppTab } from './nav'
 import { fetchApps, fetchAgentProjects, fetchAdministeredApps, deleteAppApi, fetchIsAdmin } from './appsApi'
 import { probeOperatorAccess, type OperatorAccess } from './operator'
 import { safeReturnTo, syncTokenToCookie } from './authSync'
@@ -10,6 +10,7 @@ import { Landing, Header } from './Header'
 import { MobileAppTabBar } from './AppTabBar'
 import { ErrorBoundary } from './ErrorBoundary'
 import { Dashboard } from './Dashboard'
+import { PromoterPage, PromoterSignIn } from './PromoterPage'
 import { NewAppModal } from './NewAppModal'
 import { ConnectorSetupView } from './ConnectorSetupView'
 
@@ -101,6 +102,13 @@ export default function App() {
       if (back) window.location.replace(back)
     })
   }, [])
+
+  // Sign-in landed on #/promoter/return: settle on the workspace URL (replace, so Back skips the landing).
+  useEffect(() => {
+    if (user && view === 'promoter' && isPromoterReturn(location.hash)) {
+      history.replaceState(null, '', promoterHash(promoterAppFromHash(location.hash)))
+    }
+  }, [user, view])
 
   const reloadApps = useCallback(async () => {
     try {
@@ -204,6 +212,21 @@ export default function App() {
       <div className="flex min-h-[100dvh] items-center justify-center">
         <p className="text-[var(--muted)]">Loading...</p>
       </div>
+    )
+  }
+
+  // Promoter workspace (console#14): its own sign-in and shell, with none of the creator navigation.
+  if (view === 'promoter') {
+    if (!user) return <PromoterSignIn />
+    return (
+      <PromoterPage
+        user={user}
+        ownedApps={apps.map((a) => ({ id: a.id, name: a.name }))}
+        initialAppId={promoterAppFromHash(location.hash)}
+        onSelectApp={(id) => history.replaceState(null, '', promoterHash(id))}
+        onSwitchAccount={() => { void pro.auth.signOut() }}
+        onSignOut={() => { void pro.auth.signOut(); setViewState('dashboard'); setHash('dashboard', null, null, null, true) }}
+      />
     )
   }
 
