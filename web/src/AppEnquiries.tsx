@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError } from './api'
-import { fetchEnquiries, setEnquiryStatus, type Enquiry, type EnquiryCursor, type EnquiryStatus } from './enquiriesApi'
+import { fetchEnquiries, setEnquiryStatus, type Enquiry, type EnquiryCursor, type EnquiryPage, type EnquiryStatus, type EnquiryType } from './enquiriesApi'
 
 interface Props {
   appId: string
@@ -17,7 +17,14 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: 'handled', label: 'Handled' },
   { key: 'all', label: 'All' },
 ]
+type TypeFilter = EnquiryType | 'any'
+const TYPE_FILTERS: { key: TypeFilter; label: string }[] = [
+  { key: 'any', label: 'All types' },
+  { key: 'general', label: 'General' },
+  { key: 'team_join', label: 'Team requests' },
+]
 const PAGE = 50
+type Counts = EnquiryPage['counts'] & Pick<EnquiryPage, 'new_general_count' | 'new_team_join_count'>
 
 function formatTime(value: number): string {
   return new Date(value).toLocaleString()
@@ -35,7 +42,8 @@ function errorMessage(error: unknown): string {
 export function AppEnquiries({ appId, getToken }: Props) {
   const [filter, setFilter] = useState<Filter>('new')
   const [enquiries, setEnquiries] = useState<Enquiry[]>([])
-  const [counts, setCounts] = useState<{ new: number; total: number } | null>(null)
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('any')
+  const [counts, setCounts] = useState<Counts | null>(null)
   const [next, setNext] = useState<EnquiryCursor | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -51,10 +59,10 @@ export function AppEnquiries({ appId, getToken }: Props) {
     if (append) setLoadingMore(true)
     else { setLoading(true); setError(null); setEnquiries([]); setSelectedId(null); setNext(null) }
     try {
-      const page = await fetchEnquiries(appId, getToken(), { status: filter === 'all' ? undefined : filter, before_id: cursor?.before_id, limit: PAGE })
+      const page = await fetchEnquiries(appId, getToken(), { status: filter === 'all' ? undefined : filter, type: typeFilter === 'any' ? undefined : typeFilter, before_id: cursor?.before_id, limit: PAGE })
       if (v !== version.current) return
       setEnquiries((prev) => append ? [...prev, ...page.enquiries] : page.enquiries)
-      setCounts(page.counts)
+      setCounts({ ...page.counts, new_general_count: page.new_general_count, new_team_join_count: page.new_team_join_count })
       // Older responses may omit `next`; even then use the row id, never a
       // timestamp that would skip other messages created in the same millisecond.
       const last = page.enquiries.at(-1)
@@ -65,7 +73,7 @@ export function AppEnquiries({ appId, getToken }: Props) {
     } finally {
       if (v === version.current) { setLoading(false); setLoadingMore(false) }
     }
-  }, [appId, getToken, filter])
+  }, [appId, getToken, filter, typeFilter])
 
   useEffect(() => { void load() }, [load])
   useEffect(() => () => { version.current += 1 }, [])
@@ -79,7 +87,13 @@ export function AppEnquiries({ appId, getToken }: Props) {
       setEnquiries((prev) => prev.map((e) => e.id === enquiry.id
         ? { ...e, status, handled_at: status === 'handled' ? Date.now() : null }
         : e))
-      setCounts((c) => c && { ...c, new: Math.max(0, c.new + (status === 'new' ? 1 : -1)) })
+      const delta = status === 'new' ? 1 : -1
+      const bump = (n: number | undefined) => n === undefined ? undefined : Math.max(0, n + delta)
+      setCounts((c) => c && {
+        ...c,
+        new: Math.max(0, c.new + delta),
+        ...(enquiry.type === 'team_join' ? { new_team_join_count: bump(c.new_team_join_count) } : { new_general_count: bump(c.new_general_count) }),
+      })
     } catch (e) {
       setSaveError(e instanceof ApiError ? e.message : 'Could not update the enquiry. Try again.')
     } finally {
@@ -98,7 +112,25 @@ export function AppEnquiries({ appId, getToken }: Props) {
           <div>
             <h2 id="app-enquiries-heading" className="display-font text-lg font-bold text-[var(--ink)]">Enquiries</h2>
             <p className="mt-1 text-sm text-[var(--muted)]">Messages visitors sent from this app’s about- site. Only you, the owner, can read them.</p>
-            {counts && <p className="mt-1 text-xs text-[var(--muted)]">{counts.new} new · {counts.total} total</p>}
+            {counts && (
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                {counts.new} new · {counts.total} total
+                {counts.new_team_join_count !== undefined && counts.new_general_count !== undefined && (
+                  <> · {counts.new_general_count} new general · {counts.new_team_join_count} new team requests</>
+                )}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+          <div role="tablist" aria-label="Enquiry type" className="flex items-center gap-0.5 rounded-lg border border-[var(--line-strong)] p-0.5">
+            {TYPE_FILTERS.map((f) => (
+              <button key={f.key} type="button" role="tab" aria-selected={typeFilter === f.key} onClick={() => setTypeFilter(f.key)}
+                className={`px-3 py-1 text-xs font-semibold rounded-md whitespace-nowrap transition-colors ${
+                  typeFilter === f.key ? 'bg-[var(--accent)] text-white' : 'text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--panel-hover)]'
+                }`}>
+                {f.label}
+              </button>
+            ))}
           </div>
           <div role="tablist" aria-label="Enquiry status" className="flex items-center gap-0.5 rounded-lg border border-[var(--line-strong)] p-0.5">
             {FILTERS.map((f) => (
@@ -109,6 +141,7 @@ export function AppEnquiries({ appId, getToken }: Props) {
                 {f.label}
               </button>
             ))}
+          </div>
           </div>
         </div>
       </div>
@@ -121,7 +154,7 @@ export function AppEnquiries({ appId, getToken }: Props) {
           <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-hidden">
             {enquiries.length === 0 ? (
               <p className="p-8 text-center text-sm text-[var(--muted)]">
-                {filter === 'new' ? 'No new enquiries.' : filter === 'handled' ? 'No handled enquiries yet.' : 'No enquiries yet. They arrive from the enquiry form on the app’s about- site.'}
+                {typeFilter === 'team_join' && filter !== 'handled' ? 'No team requests.' : filter === 'new' ? 'No new enquiries.' : filter === 'handled' ? 'No handled enquiries yet.' : 'No enquiries yet. They arrive from the enquiry form on the app’s about- site.'}
               </p>
             ) : (
               <ul>
@@ -135,6 +168,7 @@ export function AppEnquiries({ appId, getToken }: Props) {
                       </div>
                       <div className="mt-0.5 flex items-center gap-2">
                         <StatusBadge status={e.status} />
+                        {e.type === 'team_join' && <TeamBadge />}
                         <span className="text-xs text-[var(--muted)] truncate">{e.message}</span>
                       </div>
                     </button>
@@ -164,6 +198,11 @@ export function AppEnquiries({ appId, getToken }: Props) {
                   Received {formatTime(selected.created_at)}
                   {selected.status === 'handled' && selected.handled_at && <> · handled {formatTime(selected.handled_at)}</>}
                 </p>
+                {selected.type === 'team_join' && (
+                  <p className="rounded-lg border border-[var(--line-strong)] p-2 text-xs text-[var(--muted)]">
+                    A request to join your team. Reading it or marking it handled does not add this person — to invite them, use your team’s invitation flow and contact them yourself.
+                  </p>
+                )}
                 <p className="text-sm text-[var(--ink)] whitespace-pre-wrap break-words">{selected.message}</p>
                 {saveError && <p role="alert" className="text-xs text-[var(--error)]">{saveError}</p>}
                 {selected.status === 'new' ? (
@@ -186,6 +225,10 @@ export function AppEnquiries({ appId, getToken }: Props) {
       )}
     </section>
   )
+}
+
+function TeamBadge() {
+  return <span className="rounded-full border border-[var(--accent)] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">Team request</span>
 }
 
 function StatusBadge({ status }: { status: EnquiryStatus }) {

@@ -3,6 +3,7 @@ import { ErrorBoundary } from './ErrorBoundary'
 import { fetchListing, type Listing } from './listings'
 import { RolesManager } from './RolesManager'
 import { AppPromoters } from './AppPromoters'
+import { AppPublicTeam } from './AppPublicTeam'
 import { DbBrowser } from './DbBrowser'
 import { WebhooksManager } from './WebhooksManager'
 import { CodeHealth } from './CodeHealth'
@@ -44,9 +45,11 @@ interface Props {
   operatorAccess?: OperatorAccess
   /** Platform admin: the Server tab offers the worker on/off toggle. */
   isAdmin?: boolean
+  /** The signed-in user id (only used to find their own row in the public-team roster). */
+  userId?: string | null
 }
 
-export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, onTab, settingsTab, onSettingsTab, operatorAccess, isAdmin }: Props) {
+export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, onTab, settingsTab, onSettingsTab, operatorAccess, isAdmin, userId }: Props) {
   const [listing, setListing] = useState<Listing | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -208,6 +211,7 @@ export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, o
           {settingsTab === 'access' && (
             <div className="max-w-3xl space-y-6">
               <RolesManager appId={appId} getToken={getToken} />
+              <AppPublicTeam appId={appId} getToken={getToken} userId={userId} />
               <AppPromoters appId={appId} />
             </div>
           )}
