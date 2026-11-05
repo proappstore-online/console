@@ -1,200 +1,88 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { AppContributions } from './AppContributions'
-import {
-  loadContributions, rangeError, sharePct, utcDaysAgo,
-  type ContributionData, type ContributionLoader, type ContributionPerson,
-} from './contributionsApi'
-import { appTabsFor, parseHash, hashFor } from './nav'
-
-const person = (n: number, added: number, over: Partial<ContributionPerson> = {}): ContributionPerson =>
-  ({ id: `p${n}`, displayName: `Person ${n}`, added, removed: 10 * n, commits: n, ...over })
-
-function data(over: Partial<ContributionData> = {}): ContributionData {
-  return {
-    status: 'complete', asOf: '2026-11-05T00:00:00Z',
-    policy: { version: 'v1', summary: 'Source files only; lockfiles and generated files are excluded.' },
-    additionsDenominator: 1000,
-    people: [person(1, 600), person(2, 250)],
-    buckets: { automation: { added: 100, removed: 5, commits: 4 }, unmatched: { added: 50, removed: 1, commits: 2 } },
-    next: null, ...over,
-  }
+import { loadContributions, loadMorePeople, rangeError, type ContributionState } from './contributionsApi'
+import { people, person, summary } from './contributions.fixture'
+vi.mock('./sdk', () => ({ pro: { auth: { token: 'session', onChange: () => () => {} } } }))
+afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+function backend(status = 200) {
+ const fetcher = vi.fn(async (url: string) => new Response(JSON.stringify(status === 200 ? url.includes('/people') ? people() : summary() : { error: 'refused' }), { status }))
+ vi.stubGlobal('fetch', fetcher); return fetcher
 }
-const ok = (d: ContributionData) => ({ kind: 'ok' as const, data: d })
-
-afterEach(cleanup)
-
-describe('contribution helpers', () => {
-  it('share is additions ÷ the period denominator, with one decimal, and unknown when the denominator is zero', () => {
-    expect(sharePct(600, 1000)).toBe(60)
-    expect(sharePct(1, 3)).toBe(33.3)
-    expect(sharePct(0, 1000)).toBe(0)
-    expect(sharePct(5, 0)).toBeNull()
-    expect(sharePct(5, Number.NaN)).toBeNull()
-    expect(sharePct(2000, 1000)).toBe(100) // never above 100
-  })
-  it('validates explicit UTC date ranges', () => {
-    expect(rangeError('', '')).toBeNull()
-    expect(rangeError('2026-01-01', '2026-01-31')).toBeNull()
-    expect(rangeError('2026-02-01', '2026-01-31')).toMatch(/on or before/)
-    expect(rangeError('01/02/2026', '')).toMatch(/dates like/)
-    expect(rangeError('2026-13-45', '')).toMatch(/dates like/)
-  })
-  it('counts N days back in UTC', () => {
-    expect(utcDaysAgo(30, Date.parse('2026-11-05T23:30:00Z'))).toBe('2026-10-06')
-  })
+describe('contributions HTTP contract', () => {
+ it('sends auth, credentials, half-open bounds, page limit and encoded app/cursor; preserves raw shares', async () => {
+  const f = backend()
+  const r = await loadContributions('a', 'secret', { from: '2026-01-01', to: '2026-02-01', limit: 10 })
+  expect(r.accessState).toBe('ok'); expect(r.people?.people[0]?.share.percent).toBe(80)
+  expect(f.mock.calls.map(c => c[0])).toEqual(expect.arrayContaining([expect.stringContaining('contributions?from=2026-01-01&to=2026-02-01'), expect.stringContaining('/people?from=2026-01-01&to=2026-02-01&limit=10')]))
+  await loadMorePeople('a', 'secret', '1.80.1', { limit: 10 })
+  expect(f.mock.calls.at(-1)?.[0]).toContain('cursor=1.80.1')
+  const init = (f.mock.calls as unknown as [string, RequestInit][])[0]![1]
+  expect(init).toMatchObject({ credentials: 'include', cache: 'no-store', headers: { Authorization: 'Bearer secret' } })
+ })
+ it.each([[401, 'denied'], [403, 'denied'], [404, 'not-found'], [503, 'unavailable'], [500, 'error']])('maps %s and discards all data', async (status, state) => {
+  backend(Number(status)); expect(await loadContributions('a', 's')).toMatchObject({ accessState: state, summary: null, people: null })
+ })
+ it('rejects app mismatches in initial and later pages', async () => { backend(); expect((await loadContributions('other', 's')).accessState).toBe('error'); await expect(loadMorePeople('other', 's', 'c')).rejects.toThrow(/mismatch/) })
+ it.each(['policy', 'denominator', 'period', 'head', 'read'])('fails honestly when initial GETs straddle a refresh (%s)', async field => {
+  const p = people()
+  if (field === 'policy') p.policy_version++
+  if (field === 'denominator') p.eligible_additions++
+  if (field === 'period') p.period = { ...p.period, from: 99 }
+  if (field === 'head') p.freshness = { ...p.freshness!, head_sha: 'new-head' }
+  if (field === 'read') p.freshness = { ...p.freshness!, last_success_at: 99 }
+  const fetcher = vi.fn(async (url: string) => new Response(JSON.stringify(url.includes('/people') ? p : summary())))
+  vi.stubGlobal('fetch', fetcher)
+  render(<AppContributions appId="a" />)
+  await screen.findByText(/figures changed during this read/)
+  expect(screen.queryByRole('list')).toBeNull()
+  expect(screen.queryByText(/Total eligible additions/)).toBeNull()
+  expect(fetcher).toHaveBeenCalledTimes(2) // no automatic retry loop
+  p.policy_version = 1; p.eligible_additions = 100; p.period = summary().period; p.freshness = summary().freshness
+  fireEvent.click(screen.getByText('Refresh contributions'))
+  await screen.findByText(/Person 1/)
+  expect(fetcher).toHaveBeenCalledTimes(4)
+ })
+ it('prioritizes a concurrent denial over a summary failure', async () => {
+  vi.stubGlobal('fetch', async (url: string) => new Response(JSON.stringify({ error: 'failed' }), { status: url.includes('/people') ? 403 : 500 }))
+  expect(await loadContributions('a', 's')).toMatchObject({ accessState: 'denied', summary: null, people: null })
+ })
+ it('validates real calendar dates and exclusive bounds', () => { expect(rangeError('2026-02-30', '')).toBeTruthy(); expect(rangeError('2026-01-01', '2026-01-01')).toMatch(/exclusive/); expect(rangeError('', '')).toBeNull() })
 })
-
-describe('contributions tab routing', () => {
-  it('is a deep-linkable app tab', () => {
-    expect(parseHash('#/apps/x/contributions')).toMatchObject({ view: 'app-detail', param: 'x', tab: 'contributions' })
-    expect(hashFor('app-detail', 'x', 'contributions')).toBe('#/apps/x/contributions')
-    expect(appTabsFor(undefined).map((t) => t.key)).toContain('contributions')
-  })
-  it('is not offered for an app the caller only administers', () => {
-    const adminOnly = { id: 'x', name: 'X', createdAt: '', adminOnly: true }
-    expect(appTabsFor(adminOnly, 'allowed').map((t) => t.key)).toEqual(['operator'])
-  })
-})
-
-describe('AppContributions — API not deployed (default loader)', () => {
-  it('says unavailable, shows no people or figures, and keeps the policy statement', async () => {
-    render(<AppContributions appId="a" loader={loadContributions} />)
-    await screen.findByText('Contributions are not available yet')
-    expect(screen.queryByRole('list', { name: 'Contributor ranking' })).toBeNull()
-    expect(document.body.textContent).toMatch(/not surviving-code ownership/)
-    expect(document.body.textContent).not.toMatch(/\d+%/)
-  })
-})
-
-describe('AppContributions — contract states (loader injected)', () => {
-  it('ranks in server order with additions, separate removals, commits and share; states denominator and freshness', async () => {
-    render(<AppContributions appId="a" loader={async () => ok(data())} />)
-    const list = await screen.findByRole('list', { name: 'Contributor ranking' })
-    const rows = within(list).getAllByRole('listitem')
-    expect(rows[0]!.textContent).toContain('Person 1')
-    expect(rows[0]!.textContent).toContain('+600 / −10 · 1 commit · 60%')
-    expect(rows[1]!.textContent).toContain('+250 / −20 · 2 commits · 25%')
-    expect(document.body.textContent).toContain('÷ 1,000 eligible lines')
-    expect(document.body.textContent).toContain('Refreshed')
-    expect(document.body.textContent).toContain('Counting policy v1: Source files only')
-  })
-
-  it('keeps automation and unmatched authors out of the ranking', async () => {
-    render(<AppContributions appId="a" loader={async () => ok(data())} />)
-    const list = await screen.findByRole('list', { name: 'Contributor ranking' })
-    expect(within(list).queryByText(/Automation|Unmatched/)).toBeNull()
-    expect(screen.getByText(/Automation: \+100 \/ −5 · 4 commits/)).toBeTruthy()
-    expect(screen.getByText(/Unmatched authors: \+50 \/ −1 · 2 commits/)).toBeTruthy()
-  })
-
-  it('zero state: no counted commits; and an unknown (zero) denominator never invents a percentage', async () => {
-    const zero = data({ people: [], additionsDenominator: 0, buckets: { automation: { added: 0, removed: 0, commits: 0 }, unmatched: { added: 0, removed: 0, commits: 0 } } })
-    const { unmount } = render(<AppContributions appId="a" loader={async () => ok(zero)} />)
-    await screen.findByText('No counted commits in this period.')
-    unmount()
-    render(<AppContributions appId="a" loader={async () => ok(data({ additionsDenominator: 0 }))} />)
-    await screen.findByRole('list', { name: 'Contributor ranking' })
-    expect(document.body.textContent).toContain('share unknown')
-    expect(document.body.textContent).not.toMatch(/\d%/)
-  })
-
-  it.each([
-    ['incomplete_backfill', 'History is still being counted'],
-    ['stale', 'These figures are out of date'],
-  ] as const)('%s is announced, with the numbers still shown', async (status, title) => {
-    render(<AppContributions appId="a" loader={async () => ok(data({ status }))} />)
-    await screen.findByText(title)
-    expect(screen.getByRole('list', { name: 'Contributor ranking' })).toBeTruthy()
-  })
-
-  it('a complete result shows no status banner', async () => {
-    render(<AppContributions appId="a" loader={async () => ok(data())} />)
-    await screen.findByRole('list', { name: 'Contributor ranking' })
-    expect(screen.queryByText(/still being counted|out of date/)).toBeNull()
-  })
-
-  it('error state offers retry and recovers', async () => {
-    const loader = vi.fn<ContributionLoader>().mockRejectedValueOnce(new Error('boom')).mockResolvedValue(ok(data()))
-    render(<AppContributions appId="a" loader={loader} />)
-    await screen.findByText(/Couldn’t load contributions: boom/)
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-    await screen.findByRole('list', { name: 'Contributor ranking' })
-    expect(loader).toHaveBeenCalledTimes(2)
-  })
-
-  it('forbidden/revoked: shows a refusal and no project data', async () => {
-    render(<AppContributions appId="a" loader={async () => ({ kind: 'forbidden' })} />)
-    await screen.findByText(/don’t have access/)
-    expect(screen.queryByRole('list', { name: 'Contributor ranking' })).toBeNull()
-    expect(document.body.textContent).not.toMatch(/Person|\+\d/)
-  })
-})
-
-describe('AppContributions — periods and pagination', () => {
-  it('defaults to all history (no bounds) and sends explicit UTC bounds for presets and custom ranges', async () => {
-    const loader = vi.fn<ContributionLoader>(async () => ok(data()))
-    render(<AppContributions appId="a" loader={loader} />)
-    await screen.findByRole('list', { name: 'Contributor ranking' })
-    expect(loader).toHaveBeenLastCalledWith({ appId: 'a' })
-    fireEvent.click(screen.getByRole('button', { name: 'Last 30 days' }))
-    await waitFor(() => expect(loader.mock.calls.at(-1)![0]).toMatchObject({ appId: 'a', from: utcDaysAgo(30) }))
-    expect(loader.mock.calls.at(-1)![0].to).toBeUndefined()
-    fireEvent.click(screen.getByRole('button', { name: 'Custom' }))
-    fireEvent.change(screen.getByLabelText('From (UTC)'), { target: { value: '2026-01-01' } })
-    fireEvent.change(screen.getByLabelText('To (UTC)'), { target: { value: '2026-01-31' } })
-    await waitFor(() => expect(loader).toHaveBeenLastCalledWith({ appId: 'a', from: '2026-01-01', to: '2026-01-31' }))
-  })
-
-  it('does not query with an invalid range and says why', async () => {
-    const loader = vi.fn<ContributionLoader>(async () => ok(data()))
-    render(<AppContributions appId="a" loader={loader} />)
-    await screen.findByRole('list', { name: 'Contributor ranking' })
-    fireEvent.click(screen.getByRole('button', { name: 'Custom' }))
-    const calls = loader.mock.calls.length
-    fireEvent.change(screen.getByLabelText('From (UTC)'), { target: { value: '2026-02-01' } })
-    fireEvent.change(screen.getByLabelText('To (UTC)'), { target: { value: '2026-01-01' } })
-    expect((await screen.findByRole('alert')).textContent).toMatch(/on or before/)
-    expect(loader.mock.calls.slice(calls).every((c) => !(c[0].from === '2026-02-01' && c[0].to === '2026-01-01'))).toBe(true)
-  })
-
-  it('pages by the server cursor, appends without duplicates, and keeps ranks continuous', async () => {
-    const loader = vi.fn<ContributionLoader>(async (q) => q.cursor
-      ? ok(data({ people: [person(2, 250), person(3, 250)], next: null })) // person 2 repeats across the boundary
-      : ok(data({ people: [person(1, 600), person(2, 250)], next: 'c1' })))
-    render(<AppContributions appId="a" loader={loader} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Load more' }))
-    await waitFor(() => expect(within(screen.getByRole('list', { name: 'Contributor ranking' })).getAllByRole('listitem')).toHaveLength(3))
-    expect(loader).toHaveBeenLastCalledWith({ appId: 'a', cursor: 'c1' })
-    const rows = within(screen.getByRole('list', { name: 'Contributor ranking' })).getAllByRole('listitem').map((r) => r.textContent)
-    expect(rows[2]).toContain('3.')
-    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
-  })
-
-  it('changing the app clears the old project and ignores its late response', async () => {
-    let releaseA: (r: ReturnType<typeof ok>) => void = () => {}
-    const loader = vi.fn<ContributionLoader>((q) => q.appId === 'a'
-      ? new Promise((r) => { releaseA = r as typeof releaseA })
-      : Promise.resolve(ok(data({ people: [person(9, 500, { displayName: 'From B' })] }))))
-    const { rerender } = render(<AppContributions appId="a" loader={loader} />)
-    rerender(<AppContributions appId="b" loader={loader} />)
-    await screen.findByText(/From B/)
-    releaseA(ok(data({ people: [person(8, 900, { displayName: 'From A' })] })))
-    await new Promise((r) => setTimeout(r, 10))
-    expect(screen.queryByText(/From A/)).toBeNull()
-    expect(screen.getByText(/From B/)).toBeTruthy()
-  })
-
-  it('switching apps never shows the previous app’s people while the next one loads', async () => {
-    let releaseB: (r: ReturnType<typeof ok>) => void = () => {}
-    const loader = vi.fn<ContributionLoader>((q) => q.appId === 'a'
-      ? Promise.resolve(ok(data({ people: [person(1, 100, { displayName: 'Only A' })] })))
-      : new Promise((r) => { releaseB = r as typeof releaseB }))
-    const { rerender } = render(<AppContributions appId="a" loader={loader} />)
-    await screen.findByText(/Only A/)
-    rerender(<AppContributions appId="b" loader={loader} />)
-    expect(screen.queryByText(/Only A/)).toBeNull()
-    releaseB(ok(data({ people: [] })))
-  })
+describe('contributions UI', () => {
+ it.each(['ok', 'partial', 'stale', 'empty', 'error', 'unavailable'] as ContributionState[])('renders backend %s without turning unknown history into zero', async state => {
+  const s = { ...summary(), state, state_reason: 'Reason ' + state, complete: !['partial', 'error', 'unavailable'].includes(state) }
+  const p = { ...people(), state, state_reason: s.state_reason, people: state === 'empty' ? [] : [person()] }
+  if (state === 'empty') {
+   p.eligible_additions = 0
+   s.totals = { additions: 0, deletions: 0, commits: 0, people: 0, truncated_commits: 0, co_authored_commits: 0 }
+   s.buckets = { bots: { additions: 0, deletions: 0, commits: 0 }, unlinked: { additions: 0, deletions: 0, commits: 0 } }
+  }
+  render(<AppContributions appId="a" loader={async () => ({ accessState: 'ok', summary: s, people: p })} />)
+  await screen.findByText('Reason ' + state)
+  if (['error', 'unavailable'].includes(state)) expect(screen.queryByRole('list')).toBeNull()
+  else if (state === 'empty') expect(screen.getByText('No counted commits in this period.')).toBeTruthy()
+  else expect(screen.getByText(/Person 1/)).toBeTruthy()
+ })
+ it('renders unmatched people, buckets, server percentage and freshness', async () => {
+  const s = summary(); s.freshness!.age_ms = 46 * 60000
+  render(<AppContributions appId="a" loader={async () => ({ accessState: 'ok', summary: s, people: { ...people(), people: [person(), person(2)] } })} />)
+  await screen.findByText('Linked to PAS account'); expect(screen.getByText('Unmatched PAS account')).toBeTruthy()
+  expect(screen.getByText(/Bots: \+10/)).toBeTruthy(); expect(screen.getByText(/Unlinked authors: \+10/)).toBeTruthy(); expect(screen.getByText(/Staleness warning/)).toBeTruthy()
+ })
+ it('filters and pages, then clears every row on revoked access', async () => {
+  const loader = vi.fn<typeof loadContributions>(async () => ({ accessState: 'ok', summary: summary(), people: { ...people(), next: { cursor: '1.80.1' } } }))
+  const more = vi.fn<typeof loadMorePeople>().mockResolvedValueOnce({ ...people(), people: [person(2)], next: { cursor: '2.80.2' } }).mockRejectedValueOnce(new (await import('./api')).ApiError(403, 'revoked'))
+  render(<AppContributions appId="a" loader={loader} moreLoader={more} />)
+  fireEvent.click(await screen.findByText('Load more')); await screen.findByText(/Person 2/)
+  expect(more).toHaveBeenCalledWith('a', 'session', '1.80.1', {})
+  fireEvent.click(screen.getByText('Load more')); await screen.findByText(/Access denied/); expect(screen.queryByText(/Person 1/)).toBeNull(); expect(screen.queryByText(/Bots:/)).toBeNull()
+  fireEvent.click(screen.getByText('Last 30 days')); await waitFor(() => expect(loader.mock.calls.at(-1)?.[2]?.from).toMatch(/^\d{4}-/))
+ })
+ it.each([403, 404])('shows %s for a caller with no app access', async status => { backend(status); render(<AppContributions appId="a" />); await screen.findByText(status === 403 ? /Access denied/ : 'Project not found'); expect(screen.queryByRole('list')).toBeNull() })
+ it('hides previous app data synchronously while another app loads', async () => {
+  const loader = vi.fn<typeof loadContributions>().mockResolvedValueOnce({ accessState: 'ok', summary: summary(), people: people() }).mockImplementationOnce(() => new Promise(() => {}))
+  const view = render(<AppContributions appId="a" loader={loader} />); await screen.findByText(/Person 1/); view.rerender(<AppContributions appId="b" loader={loader} />); expect(screen.queryByText(/Person 1/)).toBeNull()
+ })
 })
