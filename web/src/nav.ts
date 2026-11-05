@@ -13,10 +13,11 @@ export type View =
 //  - enquiries: messages from the app's about- site — list, read, mark handled (console#9)
 //  - server:   the app worker, schedules, hooks, connectors and visibility (platform#261)
 //  - spending: cost breakdown by role, ticket, and ledger history
+//  - contributions: per-person code activity (lines added/removed, commits) for the project (console#13)
 //  - operator: oversight of the app (#240) — shown only when the platform admits you: the
 //              owner, or a holder of one of the app's admin_access roles (platform#293, #297)
 //  - settings: listing / domains / app roles + agent team config / danger zone
-export type AppTab = 'research' | 'build' | 'data' | 'test' | 'control' | 'analytics' | 'logs' | 'enquiries' | 'server' | 'spending' | 'style' | 'operator' | 'settings'
+export type AppTab = 'research' | 'build' | 'data' | 'test' | 'control' | 'analytics' | 'logs' | 'enquiries' | 'server' | 'spending' | 'contributions' | 'style' | 'operator' | 'settings'
 export type AppSettingsTab = 'storefront' | 'publishing' | 'agents' | 'integrations' | 'access' | 'danger'
 
 export const APP_TABS: { key: AppTab; label: string }[] = [
@@ -30,6 +31,7 @@ export const APP_TABS: { key: AppTab; label: string }[] = [
   { key: 'enquiries', label: 'Enquiries' },
   { key: 'server', label: 'Server' },
   { key: 'spending', label: 'Spending' },
+  { key: 'contributions', label: 'Contributions' },
   { key: 'style', label: 'Style' },
   { key: 'operator', label: 'Operator' },
   { key: 'settings', label: 'Settings' },

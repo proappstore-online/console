@@ -14,6 +14,7 @@ import { AppSecrets } from './AppSecrets'
 import { AppPublishing } from './AppPublishing'
 import { AppAgents } from './AppAgents'
 import { AppSpending } from './AppSpending'
+import { AppContributions } from './AppContributions'
 import { AppStyle } from './AppStyle'
 import { OperatorView } from './OperatorView'
 import { AppLogs } from './AppLogs'
@@ -128,6 +129,8 @@ export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, o
           <AppSpending appId={appId} getToken={getToken} />
         </div>
       )}
+
+      {tab === 'contributions' && <AppContributions appId={appId} />}
 
       {tab === 'style' && (
         <div className="overflow-y-auto min-h-0 flex-1 py-2">
