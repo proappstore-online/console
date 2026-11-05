@@ -72,10 +72,11 @@ export function RejectModal({
           {submission.name} · <span className="font-mono">{submission.app_id}</span>
         </p>
 
-        <label className="mt-4 block text-sm font-medium text-[var(--ink)] mb-1">
+        <label htmlFor="reject-reason" className="mt-4 block text-sm font-medium text-[var(--ink)] mb-1">
           Reason <span className="text-[var(--muted)] font-normal">(visible to creator)</span>
         </label>
         <textarea
+          id="reject-reason"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={4}
@@ -103,6 +104,7 @@ export function RejectModal({
             Cancel
           </button>
           <button
+            aria-label={busy ? 'Rejecting...' : 'Reject submission'}
             type="submit"
             disabled={busy || over || reason.trim().length === 0}
             className="rounded-lg bg-[var(--error)] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"

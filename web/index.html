@@ -33,14 +33,9 @@
     <meta property="og:url" content="https://console.proappstore.online/" />
     <meta property="og:image" content="https://console.proappstore.online/icon-512.png" />
     <meta name="twitter:card" content="summary" />
+    <meta name="twitter:image" content="https://console.proappstore.online/icon-512.png" />
     <!-- Structured data — exceeds the storefront's head (adopted from PAGS). -->
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"ProAppStore Creator Console","url":"https://console.proappstore.online","applicationCategory":"DeveloperApplication","description":"Manage and build your apps on ProAppStore."}</script>
-    <!-- CF Web Analytics beacon for the console itself. Cookieless, no PII.
-         Token is the literal string until set; replace PROAPPSTORE_CONSOLE_CF_BEACON_TOKEN
-         with the real Web Analytics site_token from the CF dashboard
-         (or wire a build-time substitution if/when the console grows a build pipeline). -->
-    <script defer src="https://static.cloudflareinsights.com/beacon.min.js"
-            data-cf-beacon='{"token":"PROAPPSTORE_CONSOLE_CF_BEACON_TOKEN"}'></script>
   </head>
   <body>
     <div id="root"></div>

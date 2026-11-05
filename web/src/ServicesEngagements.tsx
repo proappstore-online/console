@@ -234,12 +234,11 @@ export function EngagementsTab({ token }: { token: string | null }) {
               ))}
               {ratingScore > 0 && <span className="text-sm text-[var(--muted)] ml-2">{ratingScore}/5</span>}
             </div>
-            <textarea rows={2} value={ratingComment} onChange={(e) => setRatingComment(e.target.value)}
+            <textarea aria-label="Rating comment" rows={2} value={ratingComment} onChange={(e) => setRatingComment(e.target.value)}
               placeholder="Optional comment — what was the experience like?"
-              aria-label="Rating comment"
               className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm mb-3" />
             {ratingError && <p className="text-xs text-[var(--error)] mb-2">{ratingError}</p>}
-            <button type="button" onClick={submitRating} disabled={ratingBusy || ratingScore < 1}
+            <button aria-label={ratingBusy ? 'Submitting...' : 'Submit Rating'} type="button" onClick={submitRating} disabled={ratingBusy || ratingScore < 1}
               className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
               {ratingBusy ? 'Submitting...' : 'Submit Rating'}
             </button>
@@ -282,13 +281,12 @@ export function EngagementsTab({ token }: { token: string | null }) {
             <div className="p-3 border-t border-[var(--line)]">
               {sendError && <p className="text-xs text-[var(--error)] mb-2">{sendError}</p>}
               <div className="flex gap-2">
-                <input value={msgInput} onChange={(e) => { setMsgInput(e.target.value); setSendError(null) }}
+                <input aria-label="Service chat message" value={msgInput} onChange={(e) => { setMsgInput(e.target.value); setSendError(null) }}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg() } }}
                   placeholder={selected.role === 'developer' ? `Send (charges client $${(selected.promptRateCents / 100).toFixed(2)})` : 'Send a message (free)'}
                   disabled={sending}
-                  aria-label="Service chat message"
                   className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3 py-2 text-sm disabled:opacity-50" />
-                <button type="button" onClick={sendMsg} disabled={sending || !msgInput.trim()}
+                <button aria-label={sending ? '...' : 'Send'} type="button" onClick={sendMsg} disabled={sending || !msgInput.trim()}
                   className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
                   {sending ? '...' : 'Send'}
                 </button>

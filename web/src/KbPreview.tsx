@@ -194,9 +194,8 @@ export function KbPreview({
       {showShare && (
         <div className="border-b border-[var(--line)] p-4 space-y-3">
           <div className="flex items-center gap-2">
-            <input type="text" value={shareLabel} onChange={(e) => setShareLabel(e.target.value)}
+            <input aria-label="Share link label" type="text" value={shareLabel} onChange={(e) => setShareLabel(e.target.value)}
               placeholder="Label (optional, e.g. 'For investors')"
-              aria-label="Share link label"
               className="flex-1 rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-2 py-1.5 text-xs" />
             <button type="button" onClick={createShare}
               className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90">
@@ -205,7 +204,7 @@ export function KbPreview({
           </div>
           {shareCreated && (
             <div className="rounded-lg bg-[var(--success)]/10 p-2 flex items-center gap-2">
-              <input type="text" readOnly value={shareCreated}
+              <input type="text" readOnly aria-label="Share link" value={shareCreated}
                 className="flex-1 text-xs font-mono bg-transparent border-none outline-none text-[var(--ink)]"
                 onFocus={(e) => e.target.select()} />
               <button type="button" onClick={() => { navigator.clipboard.writeText(shareCreated); }}
@@ -250,7 +249,7 @@ export function KbPreview({
               ? 'The Architect is researching your app and writing KNOWLEDGE.md + docs/ — this panel updates live as it writes. If nothing appears after a minute, press Retry to re-run it.'
               : 'Brainstorm what you want in the chat, then press 📖 Build KB. The Architect will research the app and write its KNOWLEDGE.md + docs/ — the source of truth the rest of the team builds from.'}
           </p>
-          <button type="button" onClick={onBuildKb} disabled={building}
+          <button aria-label={building ? 'Starting…' : kbStarted ? '↻ Retry — run the Architect' : '📖 Build the Knowledge Base'} type="button" onClick={onBuildKb} disabled={building}
             className="mt-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 hover:bg-teal-200 disabled:opacity-50 transition-colors">
             {building ? 'Starting…' : kbStarted ? '↻ Retry — run the Architect' : '📖 Build the Knowledge Base'}
           </button>

@@ -124,7 +124,7 @@ export function AppSecrets({ appId, getToken }: { appId: string; getToken: () =>
             onKeyDown={(e) => { if (e.key === 'Enter') save() }}
             className="mt-1 w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-2 py-1.5 text-sm text-[var(--ink)]" />
         </label>
-        <button type="button" onClick={save} disabled={busy || !name.trim() || !value}
+        <button aria-label={busy ? 'Saving…' : 'Add'} type="button" onClick={save} disabled={busy || !name.trim() || !value}
           className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
           {busy ? 'Saving…' : 'Add'}
         </button>

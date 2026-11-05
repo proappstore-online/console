@@ -147,7 +147,7 @@ function Stats({ access, range, onRange, onRetry, onMore, loadingMore }: {
             </ul>
           )}
           {access.activity.nextCursor && (
-            <button type="button" onClick={onMore} disabled={loadingMore} className={`${OUTLINE} mt-3`}>
+            <button aria-label={loadingMore ? 'Loading…' : 'Load more'} type="button" onClick={onMore} disabled={loadingMore} className={`${OUTLINE} mt-3`}>
               {loadingMore ? 'Loading…' : 'Load more'}
             </button>
           )}

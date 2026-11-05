@@ -108,6 +108,7 @@ export function QueryTab({
 
       <div className="flex items-center gap-3">
         <button
+          aria-label={running ? 'Running...' : 'Run'}
           onClick={run}
           disabled={running || !sql.trim() || (dangerous && !confirmed)}
           className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"

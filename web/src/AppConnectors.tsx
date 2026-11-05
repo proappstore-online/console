@@ -92,7 +92,7 @@ export function AppConnectors({ appId, getToken }: { appId: string; getToken: ()
             ))}
           </div>
           {data.configured ? (
-            <button type="button" onClick={connect} disabled={busy}
+            <button aria-label={busy ? 'Opening GitHub…' : 'Connect GitHub'} type="button" onClick={connect} disabled={busy}
               className="mt-3 rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
               {busy ? 'Opening GitHub…' : 'Connect GitHub'}
             </button>

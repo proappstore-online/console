@@ -177,6 +177,7 @@ function StatusCard({
           KYC, banking details, and tax forms — the platform never sees them.
         </p>
         <button
+          aria-label={busy ? 'Opening Stripe…' : 'Connect Stripe'}
           onClick={onConnect}
           disabled={busy}
           className="rounded-xl bg-[var(--accent)] px-6 py-3 text-sm font-semibold text-white shadow-lg hover:opacity-90 disabled:opacity-50"
@@ -204,6 +205,7 @@ function StatusCard({
         </p>
         <div className="flex gap-3">
           <button
+            aria-label={busy ? 'Opening Stripe…' : 'Finish setup'}
             onClick={onConnect}
             disabled={busy}
             className="rounded-xl bg-[var(--accent)] px-6 py-3 text-sm font-semibold text-white shadow-lg hover:opacity-90 disabled:opacity-50"

@@ -84,7 +84,7 @@ export function AnalyticsConfigForm({
         />
       </label>
       <div className="flex items-center gap-3">
-        <button type="submit"
+        <button aria-label={state === 'saving' ? 'Saving…' : 'Save analytics tags'} type="submit"
           disabled={state === 'saving'}
           className="px-4 py-2 text-sm font-medium rounded-lg bg-[var(--accent)] text-[var(--paper)] disabled:opacity-50"
         >

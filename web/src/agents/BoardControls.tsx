@@ -141,9 +141,8 @@ export function BoardConfig({ appId, project, roles, getToken, onUpdateProject, 
             {buildRoles.map(r => (
               <div key={r.role} className="flex items-center gap-2 mb-1">
                 <span className="text-[11px] font-bold w-7" style={{ color: ROLE_COLOR[r.role] }}>{r.role}</span>
-                <select value={`${r.runtime}|${r.model}`}
+                <select aria-label={`Model for ${r.role}`} value={`${r.runtime}|${r.model}`}
                   onChange={e => { const [rt, m] = e.target.value.split('|'); saveRole(r.role, rt!, m!) }}
-                  aria-label={`Model for ${r.role}`}
                   className="flex-1 text-[11px] text-[var(--ink)] bg-transparent border border-[var(--line)] rounded px-1.5 py-1 cursor-pointer hover:border-[var(--accent)]">
                   {Object.entries(MODEL_SUGGESTIONS).map(([rt, models]) => {
                     const provider = RUNTIME_TO_PROVIDER[rt] ?? rt
@@ -169,16 +168,14 @@ export function BoardConfig({ appId, project, roles, getToken, onUpdateProject, 
           <div className="border-t border-[var(--line)] pt-2 grid grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] font-semibold text-[var(--muted)] uppercase tracking-wide block mb-1">Run timeout</label>
-              <select value={timeout} onChange={e => saveBudget({ maxRunMinutes: Number(e.target.value) })}
-                aria-label="Agent run timeout"
+              <select aria-label="Agent run timeout" value={timeout} onChange={e => saveBudget({ maxRunMinutes: Number(e.target.value) })}
                 className="w-full text-[11px] text-[var(--ink)] bg-transparent border border-[var(--line)] rounded px-1.5 py-1 cursor-pointer hover:border-[var(--accent)]">
                 {[5, 10, 15, 20, 30, 45, 60].map(m => <option key={m} value={m}>{m} min</option>)}
               </select>
             </div>
             <div>
               <label className="text-[10px] font-semibold text-[var(--muted)] uppercase tracking-wide block mb-1">Monthly cap</label>
-              <select value={cap} onChange={e => saveBudget({ costCapMonthlyUsd: Number(e.target.value) })}
-                aria-label="Monthly cost cap"
+              <select aria-label="Monthly cost cap" value={cap} onChange={e => saveBudget({ costCapMonthlyUsd: Number(e.target.value) })}
                 className="w-full text-[11px] text-[var(--ink)] bg-transparent border border-[var(--line)] rounded px-1.5 py-1 cursor-pointer hover:border-[var(--accent)]">
                 {[10, 25, 50, 100, 200, 500, 1000].map(v => <option key={v} value={v}>${v}</option>)}
               </select>
@@ -190,7 +187,7 @@ export function BoardConfig({ appId, project, roles, getToken, onUpdateProject, 
               {buildRoles.map(r => (
                 <div key={r.role}>
                   <span className="text-[10px] font-bold block mb-0.5" style={{ color: ROLE_COLOR[r.role] }}>{r.role}</span>
-                  <select value={r.maxTokens ?? 8192}
+                  <select aria-label={`Max tokens for ${r.role}`} value={r.maxTokens ?? 8192}
                     onChange={e => {
                       const token = getToken(); if (!token) return;
                       const snapshot = [...roles];
@@ -198,7 +195,6 @@ export function BoardConfig({ appId, project, roles, getToken, onUpdateProject, 
                       onUpdateRoles(() => next);
                       api(`/projects/${appId}/roles`, token, { method: 'PUT', body: { roles: next } }).catch(() => onUpdateRoles(() => snapshot));
                     }}
-                    aria-label={`Max tokens for ${r.role}`}
                     className="w-full text-[10px] text-[var(--ink)] bg-transparent border border-[var(--line)] rounded px-1 py-0.5 cursor-pointer hover:border-[var(--accent)]">
                     {[2048, 4096, 8192, 16384, 32768].map(v => <option key={v} value={v}>{(v/1024).toFixed(0)}k</option>)}
                   </select>

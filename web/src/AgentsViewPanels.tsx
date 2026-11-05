@@ -135,7 +135,7 @@ export function EditPanel({ draft, setDraft, toggleTool, onSave, onCancel, savin
 
       <div className="flex items-center justify-end gap-2 pt-1">
         <button type="button" onClick={onCancel} className="rounded-lg border border-[var(--line-strong)] px-3 py-1.5 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]">Cancel</button>
-        <button type="button" onClick={onSave} disabled={saving}
+        <button aria-label={saving ? 'Saving…' : 'Save'} type="button" onClick={onSave} disabled={saving}
           className="rounded-lg bg-[var(--accent)] px-4 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
           {saving ? 'Saving…' : 'Save'}
         </button>
@@ -189,7 +189,7 @@ export function BudgetCard({ appId, getToken, cost, onSaved, setError }: {
               onChange={(e) => setCap(Number(e.target.value) || 0)}
               className="mt-1 w-24 rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-2 py-1 text-sm text-[var(--ink)]" />
           </label>
-          <button type="button" onClick={save} disabled={saving}
+          <button aria-label={saving ? 'Saving…' : 'Save'} type="button" onClick={save} disabled={saving}
             className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
             {saving ? 'Saving…' : 'Save'}
           </button>

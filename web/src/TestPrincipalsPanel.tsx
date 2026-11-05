@@ -114,6 +114,7 @@ export function TestPrincipalsPanel({ getToken }: { getToken: () => string | nul
           />
         </label>
         <button
+          aria-label={creating ? 'Creating...' : 'New principal'}
           type="submit"
           disabled={creating || !newSlug.trim()}
           className="rounded-lg bg-[var(--accent)] px-3 py-1.5 font-semibold text-white disabled:opacity-50"
@@ -383,7 +384,7 @@ function NewGrantForm({
           <option value="creator">creator</option>
         </select>
       </label>
-      <button type="submit" disabled={busy} className="rounded-lg bg-[var(--accent)] px-3 py-1.5 font-semibold text-white disabled:opacity-50">
+      <button aria-label={busy ? 'Creating...' : 'New grant'} type="submit" disabled={busy} className="rounded-lg bg-[var(--accent)] px-3 py-1.5 font-semibold text-white disabled:opacity-50">
         {busy ? 'Creating...' : 'New grant'}
       </button>
       {error && <p className="w-full text-[var(--error)]">{error}</p>}

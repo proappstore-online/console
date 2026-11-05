@@ -206,7 +206,7 @@ export function AppStyle({ appId, getToken }: { appId: string; getToken: () => s
         </div>
         <div className="flex items-center gap-2">
           {saved && <span className="text-xs text-[var(--success)] font-semibold">Saved! PO will apply it.</span>}
-          <button onClick={save} disabled={saving} className="btn btn-primary text-xs">
+          <button aria-label={saving ? 'Saving...' : 'Apply Style'} onClick={save} disabled={saving} className="btn btn-primary text-xs">
             {saving ? 'Saving...' : 'Apply Style'}
           </button>
         </div>

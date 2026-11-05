@@ -43,11 +43,11 @@ export function BrandingSection({ appId, listing, update, getToken }: SectionPro
           <Preview iconUrl={draft.iconUrl ?? null} splashColor={draft.splashColor ?? null} />
           <div className="flex flex-col gap-2">
             <input
+              aria-label="App icon file"
               ref={fileRef}
               type="file"
               accept="image/png,image/jpeg,image/webp,image/svg+xml"
               onChange={(e) => { const f = e.target.files?.[0]; if (f) handleIconFile(f) }}
-              aria-label="App icon file"
               className="hidden"
             />
             <button type="button"
@@ -118,9 +118,9 @@ export function ListingCopySection({ appId, listing, update, getToken }: Section
       </div>
       <Row label="Category">
         <select
+          aria-label="Category"
           value={draft.category ?? ''}
           onChange={(e) => set('category', e.target.value || null)}
-          aria-label="Category"
           className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40"
         >
           <option value="">— pick one —</option>
@@ -129,23 +129,23 @@ export function ListingCopySection({ appId, listing, update, getToken }: Section
       </Row>
       <Row label="Tagline" hint={`Up to 60 chars. ${(draft.tagline ?? '').length}/60`}>
         <input
+          aria-label="Tagline"
           type="text"
           maxLength={60}
           value={draft.tagline ?? ''}
           onChange={(e) => set('tagline', e.target.value || null)}
           placeholder="One sentence that sells the app."
-          aria-label="Tagline"
           className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm"
         />
       </Row>
       <Row label="Long description" hint="Markdown supported on the storefront. 5000 chars max.">
         <textarea
+          aria-label="Long description"
           rows={6}
           maxLength={5000}
           value={draft.longDescription ?? ''}
           onChange={(e) => set('longDescription', e.target.value || null)}
           placeholder="Describe your app in detail. What does it do, who is it for, what's special about it?"
-          aria-label="Long description"
           className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm font-mono"
         />
       </Row>

@@ -166,7 +166,7 @@ export function AppPublicTeam({ appId, getToken, userId }: Props) {
               <p className="text-xs text-[var(--muted)]">Your saved profile can’t be shown here; saving replaces it.</p>
             )}
             <div className="flex flex-wrap gap-2">
-              <button type="submit" disabled={busy || (visible && !shownName)} className="rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">
+              <button aria-label={busy ? 'Saving…' : 'Save profile'} type="submit" disabled={busy || (visible && !shownName)} className="rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">
                 {busy ? 'Saving…' : 'Save profile'}
               </button>
               <button type="button" onClick={() => void withdraw()} disabled={busy} className="rounded-lg border border-[var(--line-strong)] px-3 py-2 text-sm text-[var(--ink)] disabled:opacity-50">

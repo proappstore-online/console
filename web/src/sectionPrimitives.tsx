@@ -117,18 +117,18 @@ export function ColorInput({ value, onChange, placeholder }: { value: string; on
   return (
     <div className="flex items-center gap-2">
       <input
+        aria-label={`${placeholder} (color picker)`}
         type="color"
         value={/^#[0-9a-fA-F]{6}$/.test(value) ? value : '#000000'}
         onChange={(e) => onChange(e.target.value)}
-        aria-label={`${placeholder} (color picker)`}
         className="h-9 w-12 rounded border border-[var(--line-strong)] cursor-pointer bg-transparent"
       />
       <input
+        aria-label={placeholder}
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value || null)}
         placeholder={placeholder}
-        aria-label={placeholder}
         className="flex-1 rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm font-mono"
       />
     </div>
@@ -142,11 +142,11 @@ export function PrefixedInput({
     <div className="flex rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] overflow-hidden">
       <span className="px-3 py-2 text-sm text-[var(--muted)] bg-[var(--panel)] border-r border-[var(--line-strong)]">{prefix}</span>
       <input
+        aria-label={`${prefix}${placeholder}`}
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value.replace(/^@/, ''))}
         placeholder={placeholder}
-        aria-label={`${prefix}${placeholder}`}
         className="flex-1 px-3 py-2 text-sm bg-transparent focus:outline-none"
       />
     </div>

@@ -21,31 +21,31 @@ export function DeveloperSection({ appId, listing, update, getToken }: SectionPr
     <Section title="Developer" hint="How people get in touch when something breaks." state={state} onSave={save}>
       <Row label="Website">
         <input
+          aria-label="Website"
           type="url"
           value={draft.websiteUrl ?? ''}
           onChange={(e) => set('websiteUrl', e.target.value || null)}
           placeholder="https://your-company.com"
-          aria-label="Website"
           className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm"
         />
       </Row>
       <Row label="Support email">
         <input
+          aria-label="Support email"
           type="email"
           value={draft.supportEmail ?? ''}
           onChange={(e) => set('supportEmail', e.target.value || null)}
           placeholder="support@your-company.com"
-          aria-label="Support email"
           className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm"
         />
       </Row>
       <Row label="Support URL" hint="A help center or contact page. Optional if you've set a support email.">
         <input
+          aria-label="Support URL"
           type="url"
           value={draft.supportUrl ?? ''}
           onChange={(e) => set('supportUrl', e.target.value || null)}
           placeholder="https://help.your-company.com"
-          aria-label="Support URL"
           className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm"
         />
       </Row>
@@ -77,11 +77,11 @@ export function SocialSection({ appId, listing, update, getToken }: SectionProps
       </Row>
       <Row label="Mastodon URL">
         <input
+          aria-label="Mastodon URL"
           type="url"
           value={draft.socialMastodon ?? ''}
           onChange={(e) => set('socialMastodon', e.target.value || null)}
           placeholder="https://mastodon.social/@you"
-          aria-label="Mastodon URL"
           className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm"
         />
       </Row>
@@ -156,11 +156,11 @@ export function LegalSection({ appId, listing, update, getToken }: SectionProps)
       <Row label="Privacy policy">
         <div className="flex flex-col gap-2">
           <input
+            aria-label="Privacy policy URL"
             type="url"
             value={draft.privacyPolicyUrl ?? ''}
             onChange={(e) => set('privacyPolicyUrl', e.target.value || null)}
             placeholder="https://your-site.com/privacy"
-            aria-label="Privacy policy URL"
             className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm"
           />
           <input
@@ -213,11 +213,11 @@ export function LegalSection({ appId, listing, update, getToken }: SectionProps)
       <Row label="Terms of service">
         <div className="flex flex-col gap-2">
           <input
+            aria-label="Terms of service URL"
             type="url"
             value={draft.termsUrl ?? ''}
             onChange={(e) => set('termsUrl', e.target.value || null)}
             placeholder="https://your-site.com/terms"
-            aria-label="Terms of service URL"
             className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm"
           />
           <input

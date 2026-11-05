@@ -183,7 +183,7 @@ export function TestResults({ appId, live = false, getToken, onFileClick }: { ap
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-[10px] font-semibold text-[var(--muted)] uppercase tracking-wide">Spec files ({specFiles.length})</h3>
             {!hasHistory && (
-              <button type="button" onClick={triggerRun} disabled={running || e2eSpecs.length === 0}
+              <button aria-label={running ? 'Running...' : 'Run Tests'} type="button" onClick={triggerRun} disabled={running || e2eSpecs.length === 0}
                 className="flex items-center gap-1.5 rounded-lg border border-green-500/30 bg-green-500/5 px-2.5 py-1 text-[10px] font-semibold text-green-600 hover:bg-green-500/10 disabled:opacity-50">
                 {running ? 'Running...' : 'Run Tests'}
               </button>

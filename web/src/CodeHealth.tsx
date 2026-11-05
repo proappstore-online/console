@@ -160,7 +160,7 @@ export function CodeHealth({ appId, live = false, getToken }: Props) {
         </p>
         {loadError && <p className="text-xs text-[var(--error)] mt-1">{loadError}</p>}
         {live && (
-          <button type="button" onClick={load} disabled={refreshing}
+          <button aria-label={refreshing ? 'Checking…' : 'Refresh'} type="button" onClick={load} disabled={refreshing}
             className="mt-3 text-[11px] text-[var(--muted)] hover:text-[var(--ink)] px-2 py-0.5 rounded border border-[var(--line)] hover:border-[var(--accent)] disabled:opacity-50">
             {refreshing ? 'Checking…' : 'Refresh'}
           </button>
@@ -196,7 +196,7 @@ export function CodeHealth({ appId, live = false, getToken }: Props) {
           </div>
           <div className="flex items-center gap-2">
             {!badgeError && (
-              <img src={`https://${appId}.proappstore.online/.vcqa/badge.svg`} alt="" className="h-5"
+              <img alt="" src={`https://${appId}.proappstore.online/.vcqa/badge.svg`} className="h-5"
                 onError={() => setBadgeError(true)} />
             )}
             <span className="text-xs text-[var(--muted)]">
@@ -204,7 +204,7 @@ export function CodeHealth({ appId, live = false, getToken }: Props) {
               {live && fetchedAt && ` · ${ago(fetchedAt)}`}
             </span>
             {live && (
-              <button type="button" onClick={load} disabled={refreshing}
+              <button aria-label={refreshing ? 'Checking…' : 'Refresh'} type="button" onClick={load} disabled={refreshing}
                 className="flex items-center gap-1 text-[11px] text-[var(--muted)] hover:text-[var(--ink)] px-2 py-0.5 rounded border border-[var(--line)] hover:border-[var(--accent)] disabled:opacity-50">
                 {refreshing ? 'Checking…' : 'Refresh'}
               </button>

@@ -189,10 +189,11 @@ export function SubmissionForm({
 
       {/* App ID */}
       <div>
-        <label className="block text-sm font-medium text-[var(--ink)] mb-1">
+        <label htmlFor="submission-app-id" className="block text-sm font-medium text-[var(--ink)] mb-1">
           App ID <span className="text-[var(--muted)] font-normal">(used as subdomain)</span>
         </label>
         <input
+          id="submission-app-id"
           type="text"
           value={form.appId}
           onChange={(e) => onAppIdChange(e.target.value)}
@@ -213,8 +214,9 @@ export function SubmissionForm({
 
       {/* Name */}
       <div>
-        <label className="block text-sm font-medium text-[var(--ink)] mb-1">Name</label>
+        <label htmlFor="submission-name" className="block text-sm font-medium text-[var(--ink)] mb-1">Name</label>
         <input
+          id="submission-name"
           type="text"
           value={form.name}
           onChange={(e) => update('name', e.target.value)}
@@ -226,8 +228,9 @@ export function SubmissionForm({
 
       {/* Category */}
       <div>
-        <label className="block text-sm font-medium text-[var(--ink)] mb-1">Category</label>
+        <label htmlFor="submission-category" className="block text-sm font-medium text-[var(--ink)] mb-1">Category</label>
         <select
+          id="submission-category"
           value={form.category}
           onChange={(e) => update('category', e.target.value)}
           className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40"
@@ -240,8 +243,9 @@ export function SubmissionForm({
 
       {/* Description */}
       <div>
-        <label className="block text-sm font-medium text-[var(--ink)] mb-1">Description</label>
+        <label htmlFor="submission-description" className="block text-sm font-medium text-[var(--ink)] mb-1">Description</label>
         <textarea
+          id="submission-description"
           value={form.description}
           onChange={(e) => update('description', e.target.value)}
           rows={3}
@@ -278,13 +282,13 @@ export function SubmissionForm({
             </span>
           ))}
           <input
+            aria-label="Add a Pro feature"
             type="text"
             value={featureInput}
             onChange={(e) => setFeatureInput(e.target.value)}
             onKeyDown={onFeatureKey}
             onBlur={addFeature}
             placeholder={form.proFeatures.length === 0 ? 'Type and press Enter…' : ''}
-            aria-label="Add a Pro feature"
             className="flex-1 min-w-[8rem] bg-transparent px-1 py-1 text-sm text-[var(--ink)] focus:outline-none"
           />
         </div>
@@ -305,10 +309,11 @@ export function SubmissionForm({
 
       {/* Repo URL */}
       <div>
-        <label className="block text-sm font-medium text-[var(--ink)] mb-1">
+        <label htmlFor="submission-repo" className="block text-sm font-medium text-[var(--ink)] mb-1">
           Repo URL <span className="text-[var(--muted)] font-normal">(optional)</span>
         </label>
         <input
+          id="submission-repo"
           type="url"
           value={form.repoUrl}
           onChange={(e) => update('repoUrl', e.target.value)}
@@ -320,10 +325,11 @@ export function SubmissionForm({
       {/* Icon */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto_auto]">
         <div>
-          <label className="block text-sm font-medium text-[var(--ink)] mb-1">
+          <label htmlFor="submission-icon" className="block text-sm font-medium text-[var(--ink)] mb-1">
             Icon <span className="text-[var(--muted)] font-normal">(HTML entity)</span>
           </label>
           <input
+            id="submission-icon"
             type="text"
             value={form.icon}
             onChange={(e) => update('icon', e.target.value)}
@@ -332,8 +338,9 @@ export function SubmissionForm({
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-[var(--ink)] mb-1">Icon bg</label>
+          <label htmlFor="submission-icon-bg" className="block text-sm font-medium text-[var(--ink)] mb-1">Icon bg</label>
           <input
+            id="submission-icon-bg"
             type="color"
             value={form.iconBg}
             onChange={(e) => update('iconBg', e.target.value)}
@@ -353,6 +360,7 @@ export function SubmissionForm({
       {/* Actions */}
       <div className="flex flex-wrap items-center gap-3 pt-2">
         <button
+          aria-label={submitting ? 'Submitting...' : initial ? 'Resubmit for review' : 'Submit for review'}
           type="submit"
           disabled={submitting || !!appIdError || descOver}
           className="rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-white shadow-lg hover:opacity-90 disabled:opacity-50"

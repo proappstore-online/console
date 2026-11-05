@@ -244,10 +244,10 @@ export function WebhooksManager({ appId, getToken }: Props) {
         <form onSubmit={handleAdd} className="space-y-3">
           <div className="flex gap-2 flex-col sm:flex-row">
             <select
+              aria-label="Webhook event"
               value={event}
               onChange={(e) => setEvent(e.target.value)}
               disabled={addState === 'saving'}
-              aria-label="Webhook event"
               className="rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--ink)] disabled:opacity-50"
             >
               {SUPPORTED_EVENTS.map((ev) => (
@@ -255,17 +255,18 @@ export function WebhooksManager({ appId, getToken }: Props) {
               ))}
             </select>
             <input
+              aria-label="Webhook URL"
               type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://example.com/webhook"
-              aria-label="Webhook URL"
               disabled={addState === 'saving'}
               className="flex-1 rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm font-mono text-[var(--ink)] placeholder:text-[var(--muted)]/60 focus:outline-none focus:border-[var(--ink)] disabled:opacity-50"
             />
           </div>
           <div className="flex items-center gap-3">
             <button
+              aria-label={addState === 'saving' ? 'Adding...' : 'Add webhook'}
               type="submit"
               disabled={addState === 'saving' || !url.trim()}
               className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"

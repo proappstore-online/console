@@ -80,21 +80,19 @@ export function RequestsTab({ token }: { token: string | null }) {
 
       {showNew && (
         <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-5 space-y-3">
-          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What do you want built?"
-            aria-label="Build request title"
+          <input aria-label="Build request title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What do you want built?"
             className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm" />
-          <textarea rows={3} value={desc} onChange={(e) => setDesc(e.target.value)}
+          <textarea aria-label="Build request description" rows={3} value={desc} onChange={(e) => setDesc(e.target.value)}
             placeholder="Describe the app in detail — features, target users, any tech preferences..."
-            aria-label="Build request description"
             className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm" />
           <div className="flex items-center gap-2">
             <span className="text-sm text-[var(--muted)]">Budget (optional): $</span>
-            <input type="number" min="10" step="10" value={budget} onChange={(e) => setBudget(e.target.value)}
-              placeholder="—" aria-label="Budget amount"
+            <input aria-label="Budget amount" type="number" min="10" step="10" value={budget} onChange={(e) => setBudget(e.target.value)}
+              placeholder="—"
               className="w-24 rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm" />
           </div>
           {postError && <p className="text-xs text-[var(--error)]">{postError}</p>}
-          <button type="button" onClick={post} disabled={posting || !title.trim() || !desc.trim()}
+          <button aria-label={posting ? 'Posting...' : 'Post Request'} type="button" onClick={post} disabled={posting || !title.trim() || !desc.trim()}
             className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
             {posting ? 'Posting...' : 'Post Request'}
           </button>

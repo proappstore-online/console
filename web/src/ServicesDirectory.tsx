@@ -73,14 +73,14 @@ export function DirectoryTab({ token }: { token: string | null }) {
       {/* Search + filters */}
       <div className="flex flex-wrap items-center gap-2">
         <input
+          aria-label="Search developers"
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search developers..."
-          aria-label="Search developers"
           className="flex-1 min-w-[200px] rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm"
         />
-        <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort by"
+        <select aria-label="Sort by" value={sort} onChange={(e) => setSort(e.target.value)}
           className="rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)]">
           <option value="quality">Best quality</option>
           <option value="rate">Lowest rate</option>
@@ -89,9 +89,9 @@ export function DirectoryTab({ token }: { token: string | null }) {
         </select>
         <div className="flex items-center gap-1">
           <span className="text-xs text-[var(--muted)]">Max $/prompt:</span>
-          <input type="number" min="0.10" step="0.50" value={maxRate}
+          <input aria-label="Max rate per prompt" type="number" min="0.10" step="0.50" value={maxRate}
             onChange={(e) => setMaxRate(e.target.value)}
-            placeholder="any" aria-label="Max rate per prompt"
+            placeholder="any"
             className="w-20 rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-2 py-2 text-sm" />
         </div>
       </div>
@@ -164,9 +164,8 @@ export function DirectoryTab({ token }: { token: string | null }) {
                 <p className="text-xs text-[var(--muted)] text-center">Sign in to hire</p>
               ) : hiring === d.creatorId ? (
                 <div className="space-y-2">
-                  <textarea rows={2} value={hireDesc} onChange={(e) => setHireDesc(e.target.value)}
+                  <textarea aria-label="Project description" rows={2} value={hireDesc} onChange={(e) => setHireDesc(e.target.value)}
                     placeholder="Describe what you want built (optional)"
-                    aria-label="Project description"
                     className="w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-2 py-1.5 text-xs" />
                   <div className="flex gap-2">
                     <button type="button" onClick={() => hire(d.creatorId)} disabled={hiringBusy}

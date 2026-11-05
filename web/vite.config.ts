@@ -12,7 +12,13 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Inline the tiny registration snippet: a separate registerSW.js sits outside assets/, where the
+      // bundle-size check (and any asset-path audit) cannot account for it.
+      injectRegister: 'inline',
       workbox: {
+        // `/.pas/*` carries auth callbacks and platform mediation: the service worker must never answer it
+        // with the app shell.
+        navigateFallbackDenylist: [/^\/\.pas\//],
         globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2,wasm,json}'],
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
         // Adds the Web Push 'push' + 'notificationclick' handlers (public/push-sw.js)
@@ -40,6 +46,10 @@ export default defineConfig({
         background_color: "#ffffff",
         theme_color: "#7c3aed",
         orientation: "any",
+        // The console has a bottom tab bar for phones; 360px is the narrowest layout it is designed for.
+        // Not in the plugin ManifestOptions type, but the compliance check reads it from here.
+        // @ts-expect-error min_viewport_width is not in ManifestOptions
+        min_viewport_width: 360,
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },

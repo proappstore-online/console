@@ -103,18 +103,18 @@ export function DomainsSection({
 
       <form onSubmit={onAttach} className="flex gap-2">
         <input
+          aria-label="Custom domain"
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="app.yourdomain.com"
-          aria-label="Custom domain"
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
           disabled={attachState === 'attaching'}
           className="flex-1 rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm font-mono text-[var(--ink)] placeholder:text-[var(--muted)]/60 focus:outline-none focus:border-[var(--ink)] disabled:opacity-50"
         />
-        <button type="submit"
+        <button aria-label={attachState === 'attaching' ? 'Attaching…' : 'Attach'} type="submit"
           disabled={!input.trim() || attachState === 'attaching'}
           className="rounded-lg bg-[var(--ink)] px-4 py-2 text-sm font-semibold text-[var(--paper)] hover:opacity-90 disabled:opacity-50"
         >
@@ -203,7 +203,7 @@ function DomainRow({
         </div>
         <div className="flex gap-1 shrink-0">
           {d.status !== 'active' && (
-            <button type="button"
+            <button aria-label={verifyState === 'verifying' ? 'Checking…' : 'Verify'} type="button"
               onClick={onVerify}
               disabled={verifyState === 'verifying'}
               className="rounded-lg border border-[var(--line-strong)] px-3 py-1.5 text-xs font-semibold text-[var(--ink)] hover:bg-[var(--ink)]/5 disabled:opacity-50"

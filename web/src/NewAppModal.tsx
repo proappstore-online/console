@@ -53,8 +53,9 @@ export function NewAppModal({ onClose, onCreate }: { onClose: () => void; onCrea
           ))}
         </div>
 
-        <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wide mb-1">Name</label>
+        <label htmlFor="new-app-name" className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wide mb-1">Name</label>
         <input
+          id="new-app-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Chess Academy"
@@ -65,8 +66,9 @@ export function NewAppModal({ onClose, onCreate }: { onClose: () => void; onCrea
             {deriveSlug(name)}.proappstore.online
           </p>
         )}
-        <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wide mb-1 mt-2">Idea (optional)</label>
+        <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wide mb-1 mt-2" htmlFor="new-app-idea">Idea (optional)</label>
         <textarea
+          id="new-app-idea"
           value={idea}
           onChange={(e) => setIdea(e.target.value)}
           rows={3}
@@ -76,7 +78,7 @@ export function NewAppModal({ onClose, onCreate }: { onClose: () => void; onCrea
         {error && <p className="mt-3 text-sm text-[var(--error)]">{error}</p>}
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" onClick={onClose} className="rounded-lg border border-[var(--line-strong)] px-4 py-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]">Cancel</button>
-          <button type="button" onClick={submit} disabled={!name.trim() || busy} className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
+          <button aria-label={busy ? 'Creating…' : 'Create app'} type="button" onClick={submit} disabled={!name.trim() || busy} className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
             {busy ? 'Creating…' : 'Create app'}
           </button>
         </div>

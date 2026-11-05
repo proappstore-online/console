@@ -54,6 +54,7 @@ export function SubmissionCard({
       <div className="mt-3 flex flex-wrap gap-2">
         {submission.status === 'pending' && (
           <button
+            aria-label={busy ? 'Cancelling...' : 'Cancel submission'}
             type="button"
             onClick={handleCancel}
             disabled={busy}

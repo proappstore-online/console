@@ -124,6 +124,7 @@ export function AdminSubmissionCard({
           {submission.status === 'pending' && (
             <div className="mt-3 flex flex-wrap gap-2">
               <button
+                aria-label={busy ? 'Approving...' : 'Approve'}
                 type="button"
                 onClick={approve}
                 disabled={busy}

@@ -175,7 +175,7 @@ function DeveloperTab({ token }: { token: string | null }) {
         </label>
 
         <div className="flex items-center gap-3">
-          <button type="button" onClick={save} disabled={saving}
+          <button aria-label={saving ? 'Saving...' : 'Save Profile'} type="button" onClick={save} disabled={saving}
             className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
             {saving ? 'Saving...' : 'Save Profile'}
           </button>
@@ -382,11 +382,10 @@ function ClientTab({ token }: { token: string | null }) {
         </div>
         <div className="flex items-center gap-2 mt-4">
           <span className="text-sm text-[var(--ink)]">$</span>
-          <input type="number" min="10" step="5" value={depositAmount}
+          <input aria-label="Deposit amount" type="number" min="10" step="5" value={depositAmount}
             onChange={(e) => setDepositAmount(e.target.value)}
-            aria-label="Deposit amount"
             className="w-24 rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm" />
-          <button type="button" onClick={deposit} disabled={depositing || parseFloat(depositAmount) < 10}
+          <button aria-label={depositing ? 'Redirecting...' : 'Top Up'} type="button" onClick={deposit} disabled={depositing || parseFloat(depositAmount) < 10}
             className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
             {depositing ? 'Redirecting...' : 'Top Up'}
           </button>

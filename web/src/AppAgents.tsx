@@ -505,14 +505,15 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
           build it, and review it — you just press Play and chat.
         </p>
         <textarea
+          aria-label="App idea"
           value={idea}
           onChange={e => setIdea(e.target.value)}
           rows={4}
-          aria-label="App idea"
           placeholder="e.g. A chess training app with daily puzzles, ELO tracking, and spaced-repetition review."
           className="block w-full rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-3 text-sm text-[var(--ink)]"
         />
         <button
+          aria-label={starting ? 'Starting...' : 'Start agent team'}
           type="button"
           onClick={startTeam}
           disabled={starting}
@@ -705,10 +706,10 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
         <div className="p-3 border-t border-[var(--line)]">
           <div className="flex gap-2">
             <input
+              aria-label={activeThread === 'research' ? 'Chat with the Architect' : 'Chat with the PO'}
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
-              aria-label={activeThread === 'research' ? 'Chat with the Architect' : 'Chat with the PO'}
               placeholder={activeThread === 'research' ? 'Brainstorm the app / shape the KB…' : 'Describe what you want built…'}
               disabled={sending}
               className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3 py-2.5 text-sm text-[var(--ink)] disabled:opacity-50"
@@ -794,7 +795,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
             <div className="flex items-center gap-3">
               <h3 className="text-sm font-bold text-[var(--ink)]">Tasks</h3>
               {project && (
-                <button type="button" onClick={togglePlay}
+                <button type="button" aria-label={playControlAction === 'pause' ? 'Pause' : 'Play'} onClick={togglePlay}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
                     playControlAction === 'pause'
                       ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 hover:bg-amber-200'
@@ -880,8 +881,7 @@ export function AppAgents({ appId, appName, getToken, tab }: { appId: string; ap
                         <span className="text-[11px] font-semibold text-[var(--ink)]">{sec.label}</span>
                         <span className="text-[11px] text-[var(--muted)]">{matched.length}</span>
                         {isDone && (
-                          <select value={doneShown} onChange={(e) => setDoneShown(Number(e.target.value))}
-                            aria-label="Number of recently done tickets to show"
+                          <select aria-label="Number of recently done tickets to show" value={doneShown} onChange={(e) => setDoneShown(Number(e.target.value))}
                             className="ml-1 text-[10px] text-[var(--muted)] bg-transparent border border-[var(--line)] rounded px-1 py-0 cursor-pointer">
                             {[3, 5, 10, 20, 50].map(n => (
                               <option key={n} value={n}>Show {n}</option>

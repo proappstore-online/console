@@ -9,3 +9,7 @@ on:
 jobs:
   ci:
     uses: proappstore-online/proappstore/.github/workflows/app-ci.yml@main
+    with:
+      # Deliberate pin (console#12): the version the Console's baseline was repaired and verified against.
+      # Bump it on purpose, together with any new findings, rather than inheriting the reusable default.
+      compliance_cli_version: "2.6.65"

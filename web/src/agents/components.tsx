@@ -177,7 +177,7 @@ export function AgentSettingsModal({ appId, token, onClose }: { appId: string; t
         <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-[var(--line)] sticky bottom-0 bg-[var(--panel-solid)]">
           {saved && <span className="text-xs text-[var(--success)]">Saved</span>}
           <button type="button" onClick={onClose} className="rounded-lg border border-[var(--line-strong)] px-4 py-2 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]">Close</button>
-          <button type="button" onClick={save} disabled={saving || !roles}
+          <button aria-label={saving ? 'Saving…' : 'Save'} type="button" onClick={save} disabled={saving || !roles}
             className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
             {saving ? 'Saving…' : 'Save'}
           </button>
@@ -224,12 +224,10 @@ export function MemoryPanel({ entries, onAdd, onDelete, onClose }: {
         ))}
       </div>
       <div className="p-3 border-t border-[var(--line)] space-y-2">
-        <input value={k} onChange={e => setK(e.target.value)} placeholder="key (e.g. auth)"
-          aria-label="Memory key"
+        <input aria-label="Memory key" value={k} onChange={e => setK(e.target.value)} placeholder="key (e.g. auth)"
           className="w-full rounded-lg border border-[var(--line)] bg-[var(--panel)] px-2 py-1.5 text-xs text-[var(--ink)]" />
         <div className="flex gap-2">
-          <input value={v} onChange={e => setV(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submit() }} placeholder="value (e.g. GitHub OAuth)"
-            aria-label="Memory value"
+          <input aria-label="Memory value" value={v} onChange={e => setV(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submit() }} placeholder="value (e.g. GitHub OAuth)"
             className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-2 py-1.5 text-xs text-[var(--ink)]" />
           <button type="button" onClick={submit} disabled={!k.trim() || !v.trim()}
             className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50">Add</button>
