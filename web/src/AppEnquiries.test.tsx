@@ -13,6 +13,25 @@ function response(body: unknown, status = 200) { return new Response(JSON.string
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 describe('AppEnquiries (console#9)', () => {
+  it.each([true, false])('keeps same-time enquiries across pages (server cursor: %s)', async withCursor => {
+    const row = (n: number) => ({ ...enquiry, id: `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`, name: `Applicant ${n}` })
+    const first = Array.from({ length: 50 }, (_, index) => row(index + 1))
+    const fetchMock = vi.fn(async (url: string) => {
+      const cursor = new URL(url).searchParams.get('before_id')
+      return response(cursor
+        ? { enquiries: [row(51)], counts: { new: 51, total: 51 }, next: null }
+        : { enquiries: first, counts: { new: 51, total: 51 }, ...(withCursor ? { next: { before_id: row(50).id } } : {}) })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<AppEnquiries appId="chess-clubs" getToken={() => 'tok'} />)
+    fireEvent.click(await screen.findByText('Load more', { selector: 'button' }))
+    await screen.findByLabelText('Enquiry from Applicant 51')
+    expect(screen.getAllByLabelText(/^Enquiry from Applicant/)).toHaveLength(51)
+    const url = new URL(fetchMock.mock.calls[1]![0])
+    expect(url.searchParams.get('before_id')).toBe(row(50).id)
+    expect(url.searchParams.has('before')).toBe(false)
+    expect(screen.queryByText('Load more', { selector: 'button' })).toBeNull()
+  })
   it('lists new enquiries, opens one and marks it handled', async () => {
     const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
       if (init?.method === 'PATCH') return response({ id: 'enq-1', status: 'handled' })

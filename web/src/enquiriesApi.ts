@@ -13,19 +13,22 @@ export interface Enquiry {
 }
 
 export type EnquiryStatus = 'new' | 'handled'
+export interface EnquiryCursor { before_id: string }
 
 export interface EnquiryPage {
   enquiries: Enquiry[]
   counts: { new: number; total: number }
+  next?: EnquiryCursor | null
 }
 
 const base = (appId: string) => `/apps/${encodeURIComponent(appId)}/enquiries`
 
-/** Owner-only, newest first. `before` is the created_at of the last row already shown. */
-export function fetchEnquiries(appId: string, token: string | null, opts: { status?: EnquiryStatus; before?: number; limit?: number } = {}) {
+/** Owner-only, newest first. Prefer the stable cursor returned by the API. */
+export function fetchEnquiries(appId: string, token: string | null, opts: { status?: EnquiryStatus; before_id?: string; before?: number; limit?: number } = {}) {
   const params = new URLSearchParams()
   if (opts.status) params.set('status', opts.status)
   if (opts.before !== undefined) params.set('before', String(opts.before))
+  if (opts.before_id !== undefined) params.set('before_id', opts.before_id)
   if (opts.limit !== undefined) params.set('limit', String(opts.limit))
   const q = params.toString()
   return apiFetch<EnquiryPage>(`${base(appId)}${q ? `?${q}` : ''}`, { token })

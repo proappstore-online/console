@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError } from './api'
-import { fetchEnquiries, setEnquiryStatus, type Enquiry, type EnquiryStatus } from './enquiriesApi'
+import { fetchEnquiries, setEnquiryStatus, type Enquiry, type EnquiryCursor, type EnquiryStatus } from './enquiriesApi'
 
 interface Props {
   appId: string
@@ -36,7 +36,7 @@ export function AppEnquiries({ appId, getToken }: Props) {
   const [filter, setFilter] = useState<Filter>('new')
   const [enquiries, setEnquiries] = useState<Enquiry[]>([])
   const [counts, setCounts] = useState<{ new: number; total: number } | null>(null)
-  const [hasMore, setHasMore] = useState(false)
+  const [next, setNext] = useState<EnquiryCursor | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -45,17 +45,20 @@ export function AppEnquiries({ appId, getToken }: Props) {
   const [saveError, setSaveError] = useState<string | null>(null)
   const version = useRef(0)
 
-  const load = useCallback(async (before?: number) => {
+  const load = useCallback(async (cursor?: EnquiryCursor) => {
     const v = ++version.current
-    const append = before !== undefined
+    const append = cursor !== undefined
     if (append) setLoadingMore(true)
-    else { setLoading(true); setError(null); setEnquiries([]); setSelectedId(null) }
+    else { setLoading(true); setError(null); setEnquiries([]); setSelectedId(null); setNext(null) }
     try {
-      const page = await fetchEnquiries(appId, getToken(), { status: filter === 'all' ? undefined : filter, before, limit: PAGE })
+      const page = await fetchEnquiries(appId, getToken(), { status: filter === 'all' ? undefined : filter, before_id: cursor?.before_id, limit: PAGE })
       if (v !== version.current) return
       setEnquiries((prev) => append ? [...prev, ...page.enquiries] : page.enquiries)
       setCounts(page.counts)
-      setHasMore(page.enquiries.length === PAGE)
+      // Older responses may omit `next`; even then use the row id, never a
+      // timestamp that would skip other messages created in the same millisecond.
+      const last = page.enquiries.at(-1)
+      setNext(page.next === undefined ? (page.enquiries.length === PAGE && last ? { before_id: last.id } : null) : page.next)
     } catch (e) {
       if (v !== version.current) return
       setError(errorMessage(e))
@@ -85,8 +88,7 @@ export function AppEnquiries({ appId, getToken }: Props) {
   }
 
   const more = () => {
-    const last = enquiries.at(-1)
-    if (last) void load(last.created_at)
+    if (next) void load(next)
   }
 
   return (
@@ -140,7 +142,7 @@ export function AppEnquiries({ appId, getToken }: Props) {
                 ))}
               </ul>
             )}
-            {hasMore && (
+            {next && (
               <div className="border-t border-[var(--line)] p-3">
                 <button type="button" onClick={more} disabled={loadingMore} className="rounded-lg border border-[var(--line-strong)] px-3 py-2 text-sm text-[var(--ink)] disabled:opacity-50">
                   {loadingMore ? 'Loading…' : 'Load more'}
