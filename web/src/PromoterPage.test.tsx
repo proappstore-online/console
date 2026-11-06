@@ -33,7 +33,7 @@ describe('promoter contract client', () => {
       const u = new URL(url); calls.push(u.pathname + u.search)
       if (u.pathname.endsWith('/readiness')) return json(ready)
       if (u.pathname.includes('/storefront/')) return json({ apps: [{ appId: 'a' }, { appId: 'b' }], next: null })
-      expect(init.credentials).toBe('include')
+      expect(init.credentials).toBe('omit')
       expect(init.headers).toMatchObject({ Authorization: 'Bearer person-token' })
       if (u.pathname === '/v1/promoters/me') return json({ promoters: options.noOwn ? [] : [promoter] })
       if (u.pathname.endsWith('/contributions')) return json({ ...report, contributions: { ...report.contributions, promotion: { ...report.contributions.promotion, promoter_status: options.status ?? 'active' } } })

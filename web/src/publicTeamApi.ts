@@ -26,7 +26,7 @@ const team = (appId: string) => `/apps/${encodeURIComponent(appId)}/team/public`
  * callers must not infer saved consent from public-list membership. */
 export interface OwnPublicProfile { display_name: string | null; label: string | null; visible: boolean; show_promotion: boolean; updated_at: string }
 export async function fetchOwnProfile(appId: string, token: string | null) {
-  const response = await apiFetch<{ appId: string; profile: OwnPublicProfile | null }>(`${team(appId)}/me`, { token, credentials: 'include' })
+  const response = await apiFetch<{ appId: string; profile: OwnPublicProfile | null }>(`${team(appId)}/me`, { token, credentials: 'omit' })
   const profile = response.profile
   if (profile !== null && (!profile || typeof profile !== 'object'
     || typeof profile.visible !== 'boolean' || typeof profile.show_promotion !== 'boolean'
@@ -52,14 +52,14 @@ export function saveOwnProfile(appId: string, token: string | null, input: Profi
   const label = input.label.trim()
   return apiFetch<{ ok: true; visible: boolean }>(`${team(appId)}/me`, {
     token, method: 'PUT',
-    credentials: 'include',
+    credentials: 'omit',
     body: JSON.stringify({ display_name: input.display_name.trim(), ...(label ? { label } : {}), visible: input.visible, ...(input.show_promotion !== undefined ? { show_promotion: input.show_promotion } : {}) }),
   })
 }
 
 /** Withdraw the caller's own profile from the public list (keeps what they wrote). */
 export function withdrawOwnProfile(appId: string, token: string | null) {
-  return apiFetch<{ ok: true; visible: false }>(`${team(appId)}/me`, { token, credentials: 'include', method: 'DELETE' })
+  return apiFetch<{ ok: true; visible: false }>(`${team(appId)}/me`, { token, credentials: 'omit', method: 'DELETE' })
 }
 
 /** Owner: take one person off the public list. Not a ban — they may opt in again. */

@@ -45,8 +45,10 @@ export interface Discovery { apps: { appId: string; iconUrl: string | null; tagl
 export interface PromoterQuery { appId: string | null; range: PromoterRange; cursor?: string; now?: number }
 export type PromoterAccess = { readiness?: ReferralReadiness | null; readinessError?: string } & ({ kind: 'choose' | 'not-enrolled'; apps: PromoterApp[]; appId: string | null } | { kind: 'enrolled'; apps: PromoterApp[]; appId: string; promoter: Promoter; report: ContributionReport; activity: ActivityPage | null; activityError?: string })
 export type PromoterLoader = (q: PromoterQuery) => Promise<PromoterAccess>
+// The first-party Console uses its SDK bearer session. Cross-origin cookie
+// mode would require credentialed CORS, which this API intentionally does not use.
 export function promoterRequest<T>(path: string, init: RequestInit = {}) {
-  return apiFetch<T>(path, { credentials: 'include', ...init, token: pro.auth.token })
+  return apiFetch<T>(path, { credentials: 'omit', ...init, token: pro.auth.token })
 }
 export const appPath = (id: string) => `/apps/${encodeURIComponent(id)}`
 export function periodQuery(range: PromoterRange, now = Date.now()) {
