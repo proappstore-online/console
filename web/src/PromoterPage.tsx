@@ -160,7 +160,7 @@ export function PromoterPage({ user, initialAppId, onSelectApp, onSwitchAccount,
   return <div className="min-h-dvh text-[var(--ink)]">
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-4 py-3">
       <h1 className="display-font text-xl font-bold">Promoter workspace</h1>
-      <div className="flex flex-wrap items-center gap-2"><span>Signed in as {user.name}</span><button className={PROMOTER_BUTTON} onClick={onSwitchAccount}>Switch account</button><button className={PROMOTER_BUTTON} onClick={onSignOut}>Sign out</button></div>
+      <div className="flex flex-wrap items-center gap-2"><a href="#/" className={PROMOTER_BUTTON}>Creator Console</a><span>Signed in as {user.name}</span><button className={PROMOTER_BUTTON} onClick={onSwitchAccount}>Switch account</button><button className={PROMOTER_BUTTON} onClick={onSignOut}>Sign out</button></div>
     </header>
     <main className="mx-auto max-w-3xl space-y-4 px-4 py-6">
       {access && <label className="block">App <select aria-label="App" className={INPUT} value={appId ?? ''} onChange={(e) => select(e.target.value)} disabled={busy}>

@@ -6,7 +6,7 @@ import { test, expect, type Page } from '@playwright/test'
 const user = { id: 'google:synthetic', name: 'Synthetic Pat', login: 'synthetic', avatarUrl: null, dateOfBirth: null, isChild: false }
 const token = 'synthetic-person-session'
 
-async function setup(page: Page, options: { ready?: boolean; enrolled?: boolean } = {}) {
+async function setup(page: Page, options: { ready?: boolean; enrolled?: boolean; admin?: boolean } = {}) {
   let enrolled = options.enrolled ?? false, confirmed = false, pending = false
   const writes: { path: string; body: unknown }[] = []
   const unexpected: string[] = []
@@ -41,7 +41,9 @@ async function setup(page: Page, options: { ready?: boolean; enrolled?: boolean 
     if (path === '/v1/auth/me') return reply(user)
     if (path === '/v1/apps/console/roles/ensure-member') return reply({ ok: true })
     if (path === '/v1/apps' || path === '/v1/me/administered-apps') return reply({ apps: [] })
-    if (path === '/v1/me/is-admin') return reply({ admin: false })
+    if (path === '/v1/me/is-admin') return reply({ admin: options.admin ?? false })
+    if (path === '/v1/subscription') return reply(null)
+    if (path === '/v1/usage/owner-summary') return reply({ activeUsers: 0 })
     if (path === '/v1/projects') return reply({ projects: [] })
     if (path === '/v1/promoters/me') return reply({ promoters: enrolled ? [p()] : [] })
     if (path === '/v1/apps/stash/promoters/enroll') {
@@ -65,6 +67,31 @@ async function setup(page: Page, options: { ready?: boolean; enrolled?: boolean 
   await page.context().route((url) => !['localhost', 'api.proappstore.online', 'agents.proappstore.online', 'referral-fixture.test'].includes(url.hostname), (route) => route.abort())
   return { writes, unexpected }
 }
+
+for (const admin of [false, true]) test(`creator navigation opens Promoters and returns to dashboard (admin=${admin})`, async ({ page }) => {
+  const fixture = await setup(page, { admin })
+  await page.goto('/#pas_session=' + token)
+  await expect(page.getByRole('heading', { name: 'Welcome, synthetic' })).toBeVisible()
+  for (const width of [1280, 375]) {
+    await page.setViewportSize({ width, height: 812 })
+    const entry = page.getByRole('navigation').getByRole('button', { name: 'Promoters', exact: true })
+    await expect(entry).toBeVisible()
+    if (width === 1280) await expect(entry.getByText('Promoters')).toBeVisible()
+    await entry.click()
+    await expect(page).toHaveURL(/#\/promoter$/)
+    await expect(page.getByRole('heading', { name: 'Promoter workspace' })).toBeVisible()
+    await page.getByLabel('App', { exact: true }).selectOption('stash')
+    await expect(page.getByRole('heading', { name: 'Enroll to promote this app' })).toBeVisible()
+    await page.reload()
+    await expect(page).toHaveURL(/#\/promoter\?app=stash$/)
+    await expect(page.getByLabel('App', { exact: true })).toHaveValue('stash')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.getByRole('link', { name: 'Creator Console', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Welcome, synthetic' })).toBeVisible()
+  }
+  expect(fixture.writes).toEqual([])
+  expect(fixture.unexpected).toEqual([])
+})
 
 test('mobile: SDK sign-in, no-owned-app enrollment, link/QR, qualified fixture activation, own contribution, history and account switch', async ({ page, context }) => {
   const fixture = await setup(page)

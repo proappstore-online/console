@@ -68,6 +68,7 @@ function Icon({ d, children }: { d?: string; children?: ReactNode }) {
 const TAB_ICONS: Record<View, ReactNode> = {
   dashboard: <Icon><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></Icon>,
   directory: <Icon><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></Icon>,
+  promoter: <Icon><path d="m3 10 15-6v16l-15-6v-4Z" /><path d="m7 16 1 5h4l-2-4M21 9v6" /></Icon>,
   publish: <Icon><path d="M12 19V6" /><path d="m5 12 7-7 7 7" /></Icon>,
   payouts: <Icon><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /></Icon>,
   subscription: <Icon><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></Icon>,
@@ -75,13 +76,14 @@ const TAB_ICONS: Record<View, ReactNode> = {
   'ui-library': <Icon><path d="m12 3 9 5-9 5-9-5 9-5Z" /><path d="m3 13 9 5 9-5" /></Icon>,
   admin: <Icon d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />,
   // Views without their own nav tab (rendered elsewhere) — fall back to a dot.
-  'app-detail': null, promoter: null, profile: null, 'connector-setup': null, provision: null,
+  'app-detail': null, profile: null, 'connector-setup': null, provision: null,
 }
 
 
 const TABS: { key: View; label: string }[] = [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'directory', label: 'Directory' },
+  { key: 'promoter', label: 'Promoters' },
   { key: 'publish', label: 'Publish' },
   { key: 'payouts', label: 'Payouts' },
   { key: 'subscription', label: 'Subscription' },
