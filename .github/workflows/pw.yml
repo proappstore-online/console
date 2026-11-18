@@ -35,9 +35,13 @@ concurrency:
 
 jobs:
   pw:
-    # Playwright 1.60 supports Ubuntu 24.04; latest currently selects 26.04.
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    # Keep this tag aligned with pnpm-lock.yaml. The image includes both browsers
+    # and OS dependencies, avoiding slow apt mirrors consuming the test budget.
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble
+      options: --ipc=host
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -49,20 +53,6 @@ jobs:
       - name: Install
         working-directory: web
         run: pnpm install --frozen-lockfile
-
-      # Cache the Playwright browser binaries so we don't re-download
-      # Chromium and WebKit on every run. OS dependencies are installed below
-      # even on a cache hit, because the runner itself is new each time.
-      - name: Cache Playwright browsers
-        id: pw-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: pw-chromium-webkit-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-
-      - name: Install Chromium and WebKit
-        working-directory: web
-        run: pnpm exec playwright install --with-deps chromium webkit
 
       - name: Run Playwright
         working-directory: web
