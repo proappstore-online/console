@@ -118,12 +118,15 @@ test.describe('Services — UI shell', () => {
     expect(body && body.length > 0).toBe(true);
   });
 
-  test('storefront /services page loads developer directory', async ({ page }) => {
+  test('storefront /services page links to the Console services directory', async ({ page }) => {
     await page.goto('https://proappstore.online/services', { waitUntil: 'domcontentloaded' });
     const title = await page.title();
     expect(title).toContain('Hire a Developer');
-    // Wait for the API-loaded developer grid
-    await page.waitForSelector('.developers-grid', { timeout: 5000 });
+    // The public page is the service overview; the directory lives in Console.
+    await expect(page.getByRole('heading', { name: 'Get Your App Built', exact: true })).toBeVisible();
+    const directory = page.getByRole('link', { name: 'Open the Console', exact: true });
+    await expect(directory).toBeVisible();
+    await expect(directory).toHaveAttribute('href', '/app/#/services');
   });
 
   test('storefront nav links point to /app (not console.proappstore.online)', async ({ page }) => {
