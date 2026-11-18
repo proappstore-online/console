@@ -17,6 +17,7 @@ export function Landing() {
   return (
     <div className="flex min-h-[100dvh] items-center justify-center px-4">
       <div className="text-center max-w-md">
+        <img src={`${import.meta.env.BASE_URL}favicon.svg`} width="64" height="64" alt="ProAppStore" className="mx-auto mb-5" />
         <h1 className="display-font text-4xl font-bold text-[var(--ink)]">Creator Console</h1>
         <p className="mt-4 text-[var(--muted)] text-lg">
           Sign in to manage your apps on ProAppStore.
@@ -128,6 +129,7 @@ export function Header({
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
           ) : (
             <>
+              <img src={`${import.meta.env.BASE_URL}favicon.svg`} width="28" height="28" alt="" className="mr-2 shrink-0" />
               <span className="sm:hidden">Console</span>
               <span className="hidden sm:inline">Creator Console</span>
             </>
