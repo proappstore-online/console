@@ -294,13 +294,13 @@ export function SubmissionForm({
         </div>
       </div>
 
-      {/* Pricing note — replaces the old per-app price field. ProAppStore uses
-          one platform subscription, so apps do not set their own price. */}
+      {/* Pricing note — replaces the old per-app price field. ProAppStore is free
+          for users during the trial, so apps do not set a price. */}
       <div className="rounded-lg border border-[var(--line)] bg-[var(--paper-soft,var(--paper))] p-3 text-xs text-[var(--muted)]">
         <p>
           <strong className="text-[var(--ink)]">Pricing:</strong>{' '}
-          ProAppStore uses one $5/mo subscription for every Pro app. Do not add per-app
-          checkout, in-app upgrade prompts, or hidden paywalls.{' '}
+          ProAppStore is free for users during the trial. Do not add checkout,
+          upgrade prompts, or paywalls for now.{' '}
           <a href="https://proappstore.online/pricing" target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--ink)]">
             Pricing details
           </a>.
