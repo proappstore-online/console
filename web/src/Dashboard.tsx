@@ -125,7 +125,7 @@ export function Dashboard({
             {apps.map((a) => (
               <button
                 key={a.id}
-                onClick={() => onOpenApp(a.id, 'build')}
+                onClick={() => onOpenApp(a.id)}
                 className="w-full min-w-0 text-left rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4 hover:bg-[var(--panel-hover)] shadow-sm"
               >
                 <div className="flex items-center justify-between gap-2">

@@ -20,22 +20,48 @@ export type View =
 export type AppTab = 'research' | 'build' | 'data' | 'test' | 'control' | 'analytics' | 'logs' | 'enquiries' | 'server' | 'spending' | 'contributions' | 'style' | 'operator' | 'settings'
 export type AppSettingsTab = 'storefront' | 'publishing' | 'agents' | 'integrations' | 'access' | 'danger'
 
+// Operate tabs come first: an app opens on how it is running (console#18). The
+// development tools are a separate mode; Settings is shown in both.
 export const APP_TABS: { key: AppTab; label: string }[] = [
-  { key: 'research', label: 'Research' },
-  { key: 'build', label: 'Build' },
-  { key: 'data', label: 'Data' },
-  { key: 'test', label: 'Test' },
-  { key: 'control', label: 'Control' },
+  { key: 'operator', label: 'Operator' },
   { key: 'analytics', label: 'Analytics' },
   { key: 'logs', label: 'Logs' },
   { key: 'enquiries', label: 'Enquiries' },
-  { key: 'server', label: 'Server' },
   { key: 'spending', label: 'Spending' },
+  { key: 'build', label: 'Build' },
+  { key: 'research', label: 'Research' },
+  { key: 'data', label: 'Data' },
+  { key: 'test', label: 'Test' },
+  { key: 'control', label: 'Control' },
+  { key: 'server', label: 'Server' },
   { key: 'contributions', label: 'Contributions' },
   { key: 'style', label: 'Style' },
-  { key: 'operator', label: 'Operator' },
   { key: 'settings', label: 'Settings' },
 ]
+
+/** The two halves of the per-app workspace (console#18). */
+export type AppMode = 'operate' | 'develop'
+
+const OPERATE_TABS: AppTab[] = ['operator', 'analytics', 'logs', 'enquiries', 'spending']
+
+/** The mode a tab belongs to; null for Settings, which both modes show. */
+export function appModeOf(tab: AppTab): AppMode | null {
+  if (tab === 'settings') return null
+  return OPERATE_TABS.includes(tab) ? 'operate' : 'develop'
+}
+
+/** The tab an app opens on when none is named: the operator view, or the metrics when the
+ *  platform refuses it; Build for an app not published yet, which has nothing to operate. */
+export function defaultAppTab(app: AppEntry | undefined, operator: OperatorAccessStatus = 'unknown'): AppTab {
+  if (app?.adminOnly) return 'operator'
+  if (app?.published === false) return 'build'
+  return operator === 'refused' ? 'analytics' : 'operator'
+}
+
+/** The tab a mode switch lands on. */
+export function modeHomeTab(mode: AppMode, operator: OperatorAccessStatus = 'unknown'): AppTab {
+  return mode === 'develop' ? 'build' : (operator === 'refused' ? 'analytics' : 'operator')
+}
 
 export const APP_SETTINGS_TABS: { key: AppSettingsTab; label: string }[] = [
   { key: 'storefront', label: 'Storefront' },
@@ -74,9 +100,11 @@ export type OperatorAccessStatus = 'unknown' | 'allowed' | 'refused'
  * from a team role. An app the caller only administers offers nothing else: its
  * other tabs are the owner's and team's, and their data would be refused.
  */
-export function appTabsFor(app: AppEntry | undefined, operator: OperatorAccessStatus = 'unknown'): { key: AppTab; label: string }[] {
+export function appTabsFor(app: AppEntry | undefined, operator: OperatorAccessStatus = 'unknown', mode?: AppMode): { key: AppTab; label: string }[] {
   const tabs = app?.adminOnly ? APP_TABS.filter((t) => t.key === 'operator') : APP_TABS
-  return operator === 'allowed' ? tabs : tabs.filter((t) => t.key !== 'operator')
+  const admitted = operator === 'allowed' ? tabs : tabs.filter((t) => t.key !== 'operator')
+  if (!mode || app?.adminOnly) return admitted
+  return admitted.filter((t) => { const m = appModeOf(t.key); return m === null || m === mode })
 }
 
 /** The tab an app opens on: the operator view for an app the caller only administers. */

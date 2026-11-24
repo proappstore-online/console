@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseHash, hashFor, deriveSlug, mergeApps, appTabsFor, effectiveAppTab, operatorRecordHash, parseOperatorRecord, parseConnectorSetup, type AppEntry } from './nav'
+import { parseHash, hashFor, deriveSlug, mergeApps, appTabsFor, effectiveAppTab, defaultAppTab, appModeOf, modeHomeTab, operatorRecordHash, parseOperatorRecord, parseConnectorSetup, type AppEntry } from './nav'
 
 describe('parseHash', () => {
   it('defaults to dashboard for empty/`#`/`#/`', () => {
@@ -240,5 +240,34 @@ describe('connector setup landing (platform#258)', () => {
   it('extracts the params GitHub returned', () => {
     expect(parseConnectorSetup(hash)).toEqual({ installation_id: '5', setup_action: 'install', state: 's.t', code: 'c0de' })
     expect(parseConnectorSetup('#/connectors/github/setup')).toEqual({})
+  })
+})
+
+describe('Operate | Develop workspace modes (console#18)', () => {
+  const app: AppEntry = { id: 'rideshare', name: 'Rideshare', createdAt: '2026-01-01T00:00:00.000Z', published: true }
+  const keys = (mode: 'operate' | 'develop') => appTabsFor(app, 'allowed', mode).map((t) => t.key)
+
+  it('an app opens on the operator view, the metrics when refused, Build before it is published', () => {
+    expect(defaultAppTab(app, 'allowed')).toBe('operator')
+    expect(defaultAppTab(app, 'unknown')).toBe('operator') // the operator view shows Loading until the probe answers
+    expect(defaultAppTab(app, 'refused')).toBe('analytics')
+    expect(defaultAppTab({ ...app, published: false }, 'refused')).toBe('build')
+    expect(defaultAppTab({ ...app, adminOnly: true }, 'unknown')).toBe('operator')
+    expect(parseHash('#/apps/rideshare').tab).toBeNull()
+  })
+
+  it('each mode shows only its own tabs, Settings in both', () => {
+    expect(keys('operate')).toEqual(['operator', 'analytics', 'logs', 'enquiries', 'spending', 'settings'])
+    expect(keys('develop')).toEqual(['build', 'research', 'data', 'test', 'control', 'server', 'contributions', 'style', 'settings'])
+    expect(appTabsFor({ ...app, adminOnly: true }, 'allowed', 'develop').map((t) => t.key)).toEqual(['operator'])
+  })
+
+  it('a deep-linked tab selects its mode; a mode switch lands on its first tab', () => {
+    expect(appModeOf('research')).toBe('develop')
+    expect(appModeOf('analytics')).toBe('operate')
+    expect(appModeOf('settings')).toBeNull()
+    expect(modeHomeTab('develop', 'allowed')).toBe('build')
+    expect(modeHomeTab('operate', 'allowed')).toBe('operator')
+    expect(modeHomeTab('operate', 'refused')).toBe('analytics')
   })
 })

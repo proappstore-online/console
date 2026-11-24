@@ -3,7 +3,7 @@ import type { User } from '@proappstore/sdk'
 import { pro } from './sdk'
 import { AGENT_BASE } from './api'
 
-import { type View, type AppEntry, type AppTab, type AppSettingsTab, parseHash as parseHashString, hashFor, isPromoterReturn, promoterAppFromHash, promoterHash, promoterOAuthReturn, deriveSlug, mergeApps, appTabsFor, effectiveAppTab } from './nav'
+import { type View, type AppEntry, type AppTab, type AppSettingsTab, parseHash as parseHashString, hashFor, isPromoterReturn, promoterAppFromHash, promoterHash, promoterOAuthReturn, deriveSlug, mergeApps, appTabsFor, effectiveAppTab, defaultAppTab, appModeOf, modeHomeTab, type AppMode } from './nav'
 import { fetchApps, fetchAgentProjects, fetchAdministeredApps, deleteAppApi, fetchIsAdmin } from './appsApi'
 import { probeOperatorAccess, type OperatorAccess } from './operator'
 import { safeReturnTo, syncTokenToCookie } from './authSync'
@@ -62,7 +62,10 @@ export default function App() {
   const initial = parseHash()
   const [view, setViewState] = useState<View>(initial.view)
   const [selectedAppId, setSelectedAppId] = useState<string | null>(initial.param)
-  const [appTab, setAppTab] = useState<AppTab>(initial.tab ?? 'build')
+  // null = no tab named: the app opens on its default (console#18, nav.ts defaultAppTab).
+  const [appTab, setAppTab] = useState<AppTab | null>(initial.tab)
+  // The mode Settings is shown under; every other tab carries its own (nav.ts appModeOf).
+  const [settingsMode, setSettingsMode] = useState<AppMode>('operate')
   const [appSettingsTab, setAppSettingsTab] = useState<AppSettingsTab>(initial.settingsTab ?? 'storefront')
   const [apps, setApps] = useState<AppEntry[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
@@ -83,7 +86,7 @@ export default function App() {
       setViewState(v)
       if (v === 'app-detail' && param) {
         setSelectedAppId(param)
-        if (tab) setAppTab(tab) // restore the deep-linked tab on back/forward
+        setAppTab(tab) // restore the deep-linked tab on back/forward; none = the app's default
         if (tab === 'settings') setAppSettingsTab(settingsTab ?? 'storefront')
       }
     }
@@ -151,9 +154,11 @@ export default function App() {
     return () => { cancelled = true }
   }, [user, view, selectedAppId])
 
-  const openAppDetail = useCallback((id: string, requested: AppTab = 'build') => {
-    const tab = effectiveAppTab(apps.find((a) => a.id === id), requested)
+  // No tab requested = the app's default, resolved once its operator access is known.
+  const openAppDetail = useCallback((id: string, requested?: AppTab) => {
+    const tab = requested ? effectiveAppTab(apps.find((a) => a.id === id), requested) : null
     setAppTab(tab)
+    setSettingsMode('operate')
     setSelectedAppId(id)
     setViewState('app-detail')
     setHash('app-detail', id, tab, tab === 'settings' ? appSettingsTab : null)
@@ -172,6 +177,8 @@ export default function App() {
   // returns to the previous view rather than cycling through each tab).
   const changeAppTab = useCallback((t: AppTab) => {
     setAppTab(t)
+    const mode = appModeOf(t)
+    if (mode) setSettingsMode(mode)
     if (selectedAppId) setHash('app-detail', selectedAppId, t, t === 'settings' ? appSettingsTab : null, true)
   }, [appSettingsTab, selectedAppId])
 
@@ -238,9 +245,12 @@ export default function App() {
 
   const selected = apps.find((a) => a.id === selectedAppId)
   const access: OperatorAccess = operatorAccess && operatorAccess.appId === selectedAppId ? operatorAccess.access : { status: 'unknown' }
-  const appTabs = appTabsFor(selected, access.status)
   // An app the user only administers opens on the operator view: its other tabs are the owner's.
-  const currentTab = effectiveAppTab(selected, appTab)
+  const currentTab = effectiveAppTab(selected, appTab ?? defaultAppTab(selected, access.status))
+  const appMode = appModeOf(currentTab) ?? settingsMode
+  const appTabs = appTabsFor(selected, access.status, appMode)
+  // Operate | Develop (console#18); an app the user only administers has nothing to develop.
+  const changeAppMode = selected?.adminOnly ? undefined : (m: AppMode) => changeAppTab(modeHomeTab(m, access.status))
 
   return (
     <div className="h-[100dvh] flex flex-col overflow-hidden">
@@ -255,6 +265,8 @@ export default function App() {
         appTab={currentTab}
         onAppTab={changeAppTab}
         appTabs={appTabs}
+        appMode={appMode}
+        onAppMode={changeAppMode}
       />
       <main className={view === 'app-detail'
         ? 'flex-1 flex flex-col w-full px-1.5 pt-2 pb-[calc(3.5rem+env(safe-area-inset-bottom))] sm:px-2 sm:py-2 sm:pb-2 min-h-0'
@@ -311,7 +323,7 @@ export default function App() {
         </ErrorBoundary>
       </main>
       {view === 'app-detail' && selectedAppId && (
-        <MobileAppTabBar tabs={appTabs} appTab={currentTab} onAppTab={changeAppTab} />
+        <MobileAppTabBar tabs={appTabs} appTab={currentTab} onAppTab={changeAppTab} appMode={appMode} onAppMode={changeAppMode} />
       )}
       {showNewApp && <NewAppModal onClose={() => setShowNewApp(false)} onCreate={createApp} />}
     </div>

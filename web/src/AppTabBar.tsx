@@ -6,7 +6,7 @@
 // bar is hidden. The icon map is shared with Header.
 
 import type { ReactNode } from 'react'
-import type { AppTab } from './nav'
+import type { AppMode, AppTab } from './nav'
 
 function Icon({ d, children }: { d?: string; children?: ReactNode }) {
   return (
@@ -33,12 +33,43 @@ export const APP_TAB_ICONS: Record<AppTab, ReactNode> = {
   settings: <Icon><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 7 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H1a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 2.6 7a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H7a1.7 1.7 0 0 0 1-1.5V1a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V7a1.7 1.7 0 0 0 1.5 1H23a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" /></Icon>,
 }
 
+const APP_MODES: { key: AppMode; label: string }[] = [
+  { key: 'operate', label: 'Operate' },
+  { key: 'develop', label: 'Develop' },
+]
+
+/** The Operate | Develop switch for the per-app workspace (console#18). */
+/** `className` sets the display (e.g. `flex`, `hidden sm:flex`). */
+export function AppModeSwitch({ appMode, onAppMode, className }: { appMode: AppMode; onAppMode: (m: AppMode) => void; className?: string }) {
+  return (
+    <div role="group" aria-label="Workspace mode" className={`items-center rounded-lg border border-[var(--line-strong)] p-0.5 flex-shrink-0 ${className}`}>
+      {APP_MODES.map((m) => (
+        <button
+          key={m.key}
+          type="button"
+          onClick={() => { if (m.key !== appMode) onAppMode(m.key) }}
+          aria-pressed={appMode === m.key}
+          className={`px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap transition-colors ${
+            appMode === m.key ? 'bg-[var(--ink)] text-[var(--panel)]' : 'text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--panel-hover)]'
+          }`}
+        >
+          {m.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 /** Fixed bottom tab bar for the per-app workspace — mobile only (sm:hidden).
  *  Icon + label, scrolls horizontally if the tabs exceed the width. */
-export function MobileAppTabBar({ tabs, appTab, onAppTab }: { tabs: { key: AppTab; label: string }[]; appTab: AppTab; onAppTab: (t: AppTab) => void }) {
+export function MobileAppTabBar({ tabs, appTab, onAppTab, appMode, onAppMode }: {
+  tabs: { key: AppTab; label: string }[]; appTab: AppTab; onAppTab: (t: AppTab) => void
+  appMode: AppMode; onAppMode?: (m: AppMode) => void
+}) {
   return (
     <div className="sm:hidden fixed inset-x-0 bottom-0 z-30 border-t border-[var(--line)] bg-[var(--panel)] backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
-      <nav aria-label="Workspace" className="flex overflow-x-auto">
+      <nav aria-label="Workspace" className="flex items-center overflow-x-auto">
+        {onAppMode && <AppModeSwitch appMode={appMode} onAppMode={onAppMode} className="flex mx-1.5" />}
         {tabs.map((t) => {
           const active = appTab === t.key
           return (

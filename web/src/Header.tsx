@@ -5,8 +5,8 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react'
 import type { User } from '@proappstore/sdk'
 import { pro } from './sdk'
-import type { View, AppEntry, AppTab } from './nav'
-import { APP_TAB_ICONS } from './AppTabBar'
+import type { View, AppEntry, AppMode, AppTab } from './nav'
+import { APP_TAB_ICONS, AppModeSwitch } from './AppTabBar'
 import { GitHubIcon, GoogleIcon } from './dashboardShared'
 
 const SIGN_IN_BUTTON = 'inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold shadow-lg hover:opacity-90'
@@ -93,7 +93,7 @@ const TABS: { key: View; label: string }[] = [
 ]
 
 export function Header({
-  user, view, onNavigate, isAdmin, apps, selectedAppId, onOpenApp, appTab, onAppTab, appTabs,
+  user, view, onNavigate, isAdmin, apps, selectedAppId, onOpenApp, appTab, onAppTab, appTabs, appMode, onAppMode,
 }: {
   user: User
   view: View
@@ -106,6 +106,9 @@ export function Header({
   onAppTab: (t: AppTab) => void
   /** The selected app's workspace tabs (nav.ts appTabsFor, with the operator-access probe). */
   appTabs: { key: AppTab; label: string }[]
+  appMode: AppMode
+  /** Absent for an app the user only administers: it has no Develop side. */
+  onAppMode?: (m: AppMode) => void
 }) {
   const tabs: { key: View; label: string }[] = isAdmin
     ? [...TABS.slice(0, -1), { key: 'admin', label: 'Admin' }, TABS[TABS.length - 1]!]
@@ -151,6 +154,7 @@ export function Header({
             />
             {/* Per-app workspace tabs (sm+). On mobile these live in the fixed
                 bottom tab bar (MobileAppTabBar) instead. */}
+            {onAppMode && <AppModeSwitch appMode={appMode} onAppMode={onAppMode} className="hidden sm:flex ml-1" />}
             <div className="hidden sm:flex items-center rounded-lg border border-[var(--line-strong)] overflow-x-auto ml-1 min-w-0">
               {appTabs.map((t, i) => (
                 <button
@@ -269,7 +273,7 @@ function ProjectSwitcher({
             <button
               key={a.id}
               type="button"
-              onClick={() => { setOpen(false); if (a.id !== selectedAppId) onOpenApp(a.id, 'build') }}
+              onClick={() => { setOpen(false); if (a.id !== selectedAppId) onOpenApp(a.id) }}
               className={`flex items-center justify-between gap-2 w-full px-3 py-2 text-sm hover:bg-[var(--panel-hover)] ${
                 a.id === selectedAppId ? 'text-[var(--ink)] font-semibold' : 'text-[var(--muted)] hover:text-[var(--ink)]'
               }`}
