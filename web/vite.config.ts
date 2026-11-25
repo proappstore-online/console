@@ -27,6 +27,10 @@ export default defineConfig(({ mode }) => ({
         // `/.pas/*` carries auth callbacks and platform mediation: the service worker must never answer it
         // with the app shell.
         navigateFallbackDenylist: [/^\/\.pas\//],
+        // A new build takes over as soon as it installs (console#21). Without these the worker waits for
+        // every console tab to close, so a deploy never reached an open console. main.tsx reloads on the swap.
+        skipWaiting: true,
+        clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2,wasm,json}'],
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
         // Adds the Web Push 'push' + 'notificationclick' handlers (public/push-sw.js)
