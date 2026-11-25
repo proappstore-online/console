@@ -169,9 +169,9 @@ export function Header({
                   }`}
                 >
                   {APP_TAB_ICONS[t.key]}
-                  {/* Icon-only until lg — 8 tabs + the project switcher won't fit
-                      a label row on phones/tablets. */}
-                  <span className="hidden lg:inline">{t.label}</span>
+                  {/* Icon-only until lg — every label + the project switcher won't fit
+                      on tablets — except the active tab, which always says where you are (console#22). */}
+                  <span className={appTab === t.key ? 'inline' : 'hidden lg:inline'}>{t.label}</span>
                 </button>
               ))}
             </div>
