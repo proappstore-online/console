@@ -120,6 +120,12 @@ export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, o
         <AppEnquiries appId={appId} getToken={getToken} />
       )}
 
+      {tab === 'promoters' && (
+        <div className="max-w-4xl overflow-y-auto min-h-0 flex-1">
+          <AppPromoters appId={appId} />
+        </div>
+      )}
+
       {tab === 'server' && (
         <AppServer appId={appId} getToken={getToken} isAdmin={isAdmin} />
       )}
@@ -215,7 +221,6 @@ export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, o
             <div className="max-w-3xl space-y-6">
               <RolesManager appId={appId} getToken={getToken} />
               <AppPublicTeam appId={appId} getToken={getToken} userId={userId} />
-              <AppPromoters appId={appId} />
             </div>
           )}
 

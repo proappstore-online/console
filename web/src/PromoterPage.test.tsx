@@ -325,6 +325,15 @@ describe('owner controls', () => {
     expect(correct).toHaveBeenCalledWith('a', 'r1', 'reverse', 'correction', 'Invalid capture')
     expect(document.body.textContent).toContain('10 organic/unattributed')
   })
+  it('leads with number tiles and hides empty sections (console#20)', async () => {
+    const empty: api.OwnerPromoters = { ...owner, people: { ...owner.people, promoters: [] }, referrals: { ...owner.referrals, referrals: [] }, report: { ...owner.report, standings: [] } }
+    render(<AppPromoters appId="a" load={async () => empty} />)
+    expect(await screen.findByText('No promoters have referred anyone in this period.')).toBeTruthy()
+    expect(screen.getByText('Confirmed').previousElementSibling?.textContent).toBe(String(owner.report.totals.confirmed))
+    expect(screen.queryByText('Referral review')).toBeNull()
+    expect(screen.queryByText('No audit events.')).toBeNull()
+    expect(screen.getByText('no changes yet')).toBeTruthy()
+  })
   it('previews enrollment and promoter suspension without direct counter edits', async () => {
     const change = vi.spyOn(api, 'setPromoterStatus').mockResolvedValue({})
     render(<AppPromoters appId="a" load={async () => owner} />)

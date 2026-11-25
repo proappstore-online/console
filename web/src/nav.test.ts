@@ -257,7 +257,7 @@ describe('Operate | Develop workspace modes (console#18)', () => {
   })
 
   it('each mode shows only its own tabs, Settings in both', () => {
-    expect(keys('operate')).toEqual(['operator', 'analytics', 'logs', 'enquiries', 'spending', 'settings'])
+    expect(keys('operate')).toEqual(['operator', 'analytics', 'logs', 'enquiries', 'promoters', 'spending', 'settings'])
     expect(keys('develop')).toEqual(['build', 'research', 'data', 'test', 'control', 'server', 'contributions', 'style', 'settings'])
     expect(appTabsFor({ ...app, adminOnly: true }, 'allowed', 'develop').map((t) => t.key)).toEqual(['operator'])
   })

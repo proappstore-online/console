@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { PROMOTER_BUTTON as BUTTON, PROMOTER_CARD as CARD } from './promoterShared'
 import {
-  loadOwnerPromoters, setEnrollment, setPromoterStatus, correctReferral, promoterRequest, appPath, periodQuery, errorMessage, isDenied, readinessMessage, PROMOTER_RANGES,
+  loadOwnerPromoters, setEnrollment, trackingReady, setPromoterStatus, correctReferral, promoterRequest, appPath, periodQuery, errorMessage, isDenied, readinessMessage, PROMOTER_RANGES,
   type OwnerPromoters, type OwnerPromotersLoader, type PromoterRange, type AuditPage,
 } from './promoterApi'
 
@@ -66,40 +66,88 @@ export function AppPromoters({ appId, load = loadOwnerPromoters }: { appId: stri
     } catch (e) { if (v === version.current) { if (isDenied(e)) setState(null); setError(errorMessage(e)) } }
     finally { lock.current = false; setBusy(false) }
   }
+  const totals = state?.report.totals
+  const acq = state?.report.acquisition
+  const ready = state ? trackingReady(state.settings) : false
+  const tile = (label: string, value: number) => <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] px-4 py-3">
+    <div className="text-2xl font-bold text-[var(--ink)] tabular-nums">{value}</div>
+    <div className="text-xs text-[var(--muted)]">{label}</div>
+  </div>
+  const history = state ? state.events.events.length + state.referralEvents.events.length : 0
   return <section aria-labelledby="promoters-h" className={CARD}>
-    <h3 id="promoters-h" className="text-xl font-bold text-[var(--ink)]">Promoters</h3>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h3 id="promoters-h" className="text-xl font-bold text-[var(--ink)]">Promoters</h3>
+        <p className="text-sm text-[var(--muted)]">People who share your app with their link, and the sign-ups they bring.</p>
+      </div>
+      {state && <select aria-label="Contribution period" className="min-h-11 rounded border border-[var(--line)] bg-[var(--panel)] px-3 text-[var(--ink)]" value={range} disabled={busy} onChange={(e) => { setNow(Date.now()); setRange(e.target.value as PromoterRange) }}>{PROMOTER_RANGES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}</select>}
+    </div>
     {!state && !error && <p role="status">Loading…</p>}
     {error && <div role="alert"><p>{error}</p><button className={BUTTON} onClick={() => setReload((n) => n + 1)}>Retry</button></div>}
-    {state && <fieldset disabled={busy} className="mt-3 space-y-4">
-      <label>Contribution period <select className="min-h-11 rounded border border-[var(--line)] bg-[var(--panel)] px-3" value={range} onChange={(e) => { setNow(Date.now()); setRange(e.target.value as PromoterRange) }}>{PROMOTER_RANGES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}</select></label>
-      <p>{state.report.totals.promoters} promoters · {state.report.totals.pending} pending · {state.report.totals.confirmed} confirmed · {state.report.totals.reversed} reversed · {state.report.totals.expired} expired.</p>
-      <p>Enrollment is {state.settings.enrollment_open ? 'open' : 'closed'}. Closing enrollment leaves existing active links working.</p>
-      <p>{readinessMessage(state.settings)}</p>
-      <p>Readiness requires SDK 1.16.104 or newer, platform-cookie authentication on the PAS host with auth/API mediation, and a successful synthetic verification of the uploaded build reported by its authorized deployment workflow. Opening enrollment does not verify tracking. Existing credits remain.</p>
-      <a className="underline" href="https://github.com/proappstore-online/platform/blob/main/docs/promoter-readiness.md" target="_blank" rel="noreferrer">Deployment verification requirements</a>
-      <button className={BUTTON} onClick={() => openPreview({ type: 'enrollment', open: !state.settings.enrollment_open })}>{state.settings.enrollment_open ? 'Close enrollment' : 'Open enrollment'}</button>
-      <p>Owner acquisition: {state.report.acquisition.activations_recorded} recorded activations · {state.report.acquisition.referred_confirmed} referred confirmed · {state.report.acquisition.referred_reversed} referred reversed · {state.report.acquisition.organic} organic/unattributed.</p>
-      <p className="text-sm text-[var(--muted)]">{state.report.acquisition.note} Updated {new Date(state.report.freshness.as_of).toUTCString()}. {state.report.freshness.note}</p>
-      <h4 className="font-bold">Promotion standings</h4>
-      <p>Share is confirmed referrals divided by all promoters' confirmed referrals in the same app and period. Code metrics remain separate.</p>
-      <ul>{state.report.standings.map((p) => <li key={p.promoter_id}>{p.rank === null ? 'Unranked' : `#${p.rank}`} {p.display_name || 'Unnamed promoter'} · {p.counts.confirmed} confirmed · {p.share_of_referred_users.percent}%</li>)}</ul>
-      {state.report.next && <button className={BUTTON} onClick={() => void more('report')}>More standings</button>}
-      <a className="underline" href={`#/apps/${appId}/contributions`}>Separate code contributions</a>
-      <h4 className="font-bold">Promoter status (all time)</h4>
-      <p>{state.people.counts.active} active · {state.people.counts.suspended} suspended · {state.people.counts.withdrawn} withdrawn</p>
-      <ul className="space-y-3">{state.people.promoters.map((p) => <li key={p.promoter_id}>
-        <p>{p.display_name || 'Unnamed promoter'} · {p.code} · {p.status} {p.status_reason}</p>
-        {p.status !== 'withdrawn' && <button className={BUTTON} onClick={() => openPreview({ type: 'status', id: p.promoter_id, name: p.display_name || p.code, status: p.status === 'active' ? 'suspended' : 'active' })}>{p.status === 'active' ? 'Suspend' : 'Restore'} {p.display_name || p.code}</button>}
-      </li>)}</ul>
-      {state.people.next && <button className={BUTTON} onClick={() => void more('people')}>More promoters</button>}
-      <h4 className="font-bold">Referral review (all time)</h4>
-      <p>No automatic review queue is supplied. Review records below; corrections change the ledger and are audited.</p>
-      {state.referrals.referrals.length === 0 && <p>No referrals to review.</p>}
-      <ul className="space-y-3">{state.referrals.referrals.map((r) => <li key={r.referral_id}>
-        <p>{r.referral_id} · {r.status} · {new Date(r.confirmed_at ?? r.captured_at).toUTCString()} {r.reversal_kind} {r.reversal_reason}</p>
-        {(r.status === 'confirmed' || r.status === 'reversed') && <button className={BUTTON} onClick={() => openPreview({ type: 'referral', id: r.referral_id, action: r.status === 'confirmed' ? 'reverse' : 'restore' })}>{r.status === 'confirmed' ? 'Reverse' : 'Restore'} referral {r.referral_id}</button>}
-      </li>)}</ul>
-      {state.referrals.next && <button className={BUTTON} onClick={() => void more('referrals')}>More referrals</button>}
+    {state && totals && acq && <fieldset disabled={busy} className="mt-4 space-y-5">
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--line)] px-4 py-3">
+        <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${state.settings.enrollment_open ? 'bg-[var(--success)]/15 text-[var(--success)]' : 'bg-[var(--line)] text-[var(--muted)]'}`}>Enrollment {state.settings.enrollment_open ? 'open' : 'closed'}</span>
+        <span className="flex-1 min-w-[12rem] text-sm text-[var(--muted)]">{state.settings.enrollment_open ? 'Anyone can sign up to promote this app.' : 'No new promoters can sign up. Existing links keep working.'}</span>
+        <button className={BUTTON} onClick={() => openPreview({ type: 'enrollment', open: !state.settings.enrollment_open })}>{state.settings.enrollment_open ? 'Close enrollment' : 'Open enrollment'}</button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {tile('Promoters', totals.promoters)}
+        {tile('Pending', totals.pending)}
+        {tile('Confirmed', totals.confirmed)}
+        {tile('Reversed', totals.reversed)}
+      </div>
+      <p className="text-sm text-[var(--muted)]">{acq.activations_recorded} sign-ups in this period: {acq.referred_confirmed} referred, {acq.organic} organic/unattributed{acq.referred_reversed ? `, ${acq.referred_reversed} referred then reversed` : ''}{totals.expired ? `. ${totals.expired} referrals expired` : ''}.</p>
+
+      <details className="rounded-xl border border-[var(--line)] px-4 py-3">
+        <summary className="cursor-pointer text-sm">
+          <span className={`font-semibold ${ready ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>{ready ? 'Referral tracking verified' : 'Referral tracking not verified'}</span>
+          <span className="ml-2 text-[var(--muted)]">What does this need?</span>
+        </summary>
+        <div className="mt-2 space-y-2 text-sm text-[var(--muted)]">
+          <p>{readinessMessage(state.settings)}</p>
+          <p>Readiness requires SDK 1.16.104 or newer, platform-cookie authentication on the PAS host with auth/API mediation, and a successful synthetic verification of the uploaded build reported by its authorized deployment workflow. Opening enrollment does not verify tracking. Existing credits remain.</p>
+          <a className="underline" href="https://github.com/proappstore-online/platform/blob/main/docs/promoter-readiness.md" target="_blank" rel="noreferrer">Deployment verification requirements</a>
+          <p>{acq.note} Updated {new Date(state.report.freshness.as_of).toUTCString()}. {state.report.freshness.note}</p>
+        </div>
+      </details>
+
+      <div>
+        <h4 className="font-bold text-[var(--ink)]">Standings</h4>
+        {state.report.standings.length === 0
+          ? <p className="text-sm text-[var(--muted)]">No promoters have referred anyone in this period.</p>
+          : <>
+            <p className="text-xs text-[var(--muted)]">Share is each promoter's confirmed referrals out of all promoters' confirmed referrals in this period.</p>
+            <ol className="mt-2 divide-y divide-[var(--line)]">{state.report.standings.map((p) => <li key={p.promoter_id} className="flex items-center gap-3 py-2 text-sm">
+              <span className="w-10 text-[var(--muted)]">{p.rank === null ? '—' : `#${p.rank}`}</span>
+              <span className="flex-1 truncate text-[var(--ink)]">{p.display_name || 'Unnamed promoter'}</span>
+              <span className="tabular-nums text-[var(--muted)]">{p.counts.confirmed} confirmed · {p.share_of_referred_users.percent}%</span>
+            </li>)}</ol>
+          </>}
+        {state.report.next && <button className={BUTTON} onClick={() => void more('report')}>More standings</button>}
+      </div>
+
+      {state.people.promoters.length > 0 && <div>
+        <h4 className="font-bold text-[var(--ink)]">Promoters</h4>
+        <p className="text-xs text-[var(--muted)]">{state.people.counts.active} active · {state.people.counts.suspended} suspended · {state.people.counts.withdrawn} withdrawn (all time)</p>
+        <ul className="mt-2 divide-y divide-[var(--line)]">{state.people.promoters.map((p) => <li key={p.promoter_id} className="flex flex-wrap items-center gap-3 py-2 text-sm">
+          <span className="flex-1 min-w-0 truncate text-[var(--ink)]">{p.display_name || 'Unnamed promoter'} <span className="font-mono text-xs text-[var(--muted)]">{p.code}</span></span>
+          <span className="text-xs text-[var(--muted)]">{p.status}{p.status_reason ? ` — ${p.status_reason}` : ''}</span>
+          {p.status !== 'withdrawn' && <button className={BUTTON} onClick={() => openPreview({ type: 'status', id: p.promoter_id, name: p.display_name || p.code, status: p.status === 'active' ? 'suspended' : 'active' })}>{p.status === 'active' ? 'Suspend' : 'Restore'} {p.display_name || p.code}</button>}
+        </li>)}</ul>
+        {state.people.next && <button className={BUTTON} onClick={() => void more('people')}>More promoters</button>}
+      </div>}
+
+      {state.referrals.referrals.length > 0 && <div>
+        <h4 className="font-bold text-[var(--ink)]">Referral review</h4>
+        <p className="text-xs text-[var(--muted)]">Reversing or restoring a referral changes the totals and is recorded in History.</p>
+        <ul className="mt-2 divide-y divide-[var(--line)]">{state.referrals.referrals.map((r) => <li key={r.referral_id} className="flex flex-wrap items-center gap-3 py-2 text-sm">
+          <span className="flex-1 min-w-0 text-[var(--ink)]"><span className="font-mono text-xs">{r.referral_id}</span> · {r.status} · {new Date(r.confirmed_at ?? r.captured_at).toUTCString()} {r.reversal_kind} {r.reversal_reason}</span>
+          {(r.status === 'confirmed' || r.status === 'reversed') && <button className={BUTTON} onClick={() => openPreview({ type: 'referral', id: r.referral_id, action: r.status === 'confirmed' ? 'reverse' : 'restore' })}>{r.status === 'confirmed' ? 'Reverse' : 'Restore'} referral {r.referral_id}</button>}
+        </li>)}</ul>
+        {state.referrals.next && <button className={BUTTON} onClick={() => void more('referrals')}>More referrals</button>}
+      </div>}
+
       {preview && <section className={CARD} aria-label="Change preview">
         <h4 className="font-bold">Review this change</h4>
         <p>{preview.type === 'enrollment' ? `${preview.open ? 'Open' : 'Close'} enrollment for ${appId}. Existing active links keep working.` : preview.type === 'status' ? `Set ${preview.name} to ${preview.status} in ${appId}. Suspension disables their link; confirmed credit stays.` : `${preview.action} referral ${preview.id} in ${appId}. Confirmed totals, denominator and ranks will be recalculated by the server. This preview does not estimate the resulting numbers.`}</p>
@@ -107,11 +155,14 @@ export function AppPromoters({ appId, load = loadOwnerPromoters }: { appId: stri
         {preview.type === 'referral' && preview.action === 'reverse' && <label>Reversal kind <select className="min-h-11 rounded border border-[var(--line)] bg-[var(--panel)] px-3" value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}><option value="correction">Correction</option><option value="fraud_invalid">Fraud / invalid</option></select></label>}
         <div className="flex flex-wrap gap-2"><button className={BUTTON} disabled={preview.type !== 'enrollment' && !reason.trim()} onClick={() => void confirm()}>Confirm change</button><button className={BUTTON} onClick={() => setPreview(null)}>Cancel</button></div>
       </section>}
-      {(['events', 'referralEvents'] as const).map((key) => <section key={key}><h4 className="font-bold">{key === 'events' ? 'Promoter audit' : 'Referral audit'}</h4>
-        {!state[key].events.length && <p>No audit events.</p>}
-        <ul>{state[key].events.map((e) => <li key={e.id}>{e.id} · {new Date(e.created_at).toUTCString()} · {e.actor_kind} · {e.action} · {e.from_status || 'none'} → {e.to_status || 'none'} · {e.reason || 'No reason recorded'}</li>)}</ul>
-        {state[key].next && <button className={BUTTON} onClick={() => void more(key)}>More {key === 'events' ? 'promoter' : 'referral'} audit</button>}
-      </section>)}
+
+      <details className="rounded-xl border border-[var(--line)] px-4 py-3">
+        <summary className="cursor-pointer text-sm font-semibold text-[var(--ink)]">History <span className="font-normal text-[var(--muted)]">{history === 0 ? 'no changes yet' : `${history}${state.events.next || state.referralEvents.next ? '+' : ''} changes`}</span></summary>
+        {(['events', 'referralEvents'] as const).map((key) => state[key].events.length > 0 && <section key={key} className="mt-3"><h4 className="text-sm font-bold">{key === 'events' ? 'Promoter changes' : 'Referral changes'}</h4>
+          <ul className="text-xs text-[var(--muted)] space-y-1">{state[key].events.map((e) => <li key={e.id}>{new Date(e.created_at).toUTCString()} · {e.actor_kind} · {e.action} · {e.from_status || 'none'} → {e.to_status || 'none'} · {e.reason || 'No reason recorded'}</li>)}</ul>
+          {state[key].next && <button className={BUTTON} onClick={() => void more(key)}>More {key === 'events' ? 'promoter' : 'referral'} audit</button>}
+        </section>)}
+      </details>
     </fieldset>}
     {busy && <p role="status">Saving or loading…</p>}
   </section>

@@ -11,13 +11,14 @@ export type View =
 //  - test:     automated QA / E2E (Playwright, manual/opt-in)
 //  - control:  the live VCQA code-health dashboard (ops/control)
 //  - enquiries: messages from the app's about- site — list, read, mark handled (console#9)
+//  - promoters: the referral program — enrollment, standings, referral review (console#20)
 //  - server:   the app worker, schedules, hooks, connectors and visibility (platform#261)
 //  - spending: cost breakdown by role, ticket, and ledger history
 //  - contributions: per-person code activity (lines added/removed, commits) for the project (console#13)
 //  - operator: oversight of the app (#240) — shown only when the platform admits you: the
 //              owner, or a holder of one of the app's admin_access roles (platform#293, #297)
 //  - settings: listing / domains / app roles + agent team config / danger zone
-export type AppTab = 'research' | 'build' | 'data' | 'test' | 'control' | 'analytics' | 'logs' | 'enquiries' | 'server' | 'spending' | 'contributions' | 'style' | 'operator' | 'settings'
+export type AppTab = 'research' | 'build' | 'data' | 'test' | 'control' | 'analytics' | 'logs' | 'enquiries' | 'promoters' | 'server' | 'spending' | 'contributions' | 'style' | 'operator' | 'settings'
 export type AppSettingsTab = 'storefront' | 'publishing' | 'agents' | 'integrations' | 'access' | 'danger'
 
 // Operate tabs come first: an app opens on how it is running (console#18). The
@@ -27,6 +28,7 @@ export const APP_TABS: { key: AppTab; label: string }[] = [
   { key: 'analytics', label: 'Analytics' },
   { key: 'logs', label: 'Logs' },
   { key: 'enquiries', label: 'Enquiries' },
+  { key: 'promoters', label: 'Promoters' },
   { key: 'spending', label: 'Spending' },
   { key: 'build', label: 'Build' },
   { key: 'research', label: 'Research' },
@@ -42,7 +44,7 @@ export const APP_TABS: { key: AppTab; label: string }[] = [
 /** The two halves of the per-app workspace (console#18). */
 export type AppMode = 'operate' | 'develop'
 
-const OPERATE_TABS: AppTab[] = ['operator', 'analytics', 'logs', 'enquiries', 'spending']
+const OPERATE_TABS: AppTab[] = ['operator', 'analytics', 'logs', 'enquiries', 'promoters', 'spending']
 
 /** The mode a tab belongs to; null for Settings, which both modes show. */
 export function appModeOf(tab: AppTab): AppMode | null {
