@@ -129,7 +129,7 @@ export function AppPublicTeam({ appId, getToken, userId }: Props) {
       <div>
         <h3 id="public-team-h" className="display-font text-lg font-bold text-[var(--ink)]">Public team</h3>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          Who visitors see behind this app. Nobody is public until they choose to be. A label such as “Designer” is only a title — it never changes what anyone can do.
+          Who visitors see behind this app. Each person chooses to appear; a label is only a title and grants nothing.
         </p>
       </div>
 
@@ -145,14 +145,16 @@ export function AppPublicTeam({ appId, getToken, userId }: Props) {
         <>
           <form onSubmit={(e) => { e.preventDefault(); void save() }} className="space-y-3" aria-label="Your public profile">
             <h4 className="text-sm font-semibold text-[var(--ink)]">Your public profile</h4>
-            <label className="block text-sm text-[var(--muted)]">
-              Display name
-              <input value={name} maxLength={NAME_MAX} onChange={(e) => setName(e.target.value)} className={field} autoComplete="off" />
-            </label>
-            <label className="block text-sm text-[var(--muted)]">
-              Label (optional)
-              <input value={label} maxLength={LABEL_MAX} onChange={(e) => setLabel(e.target.value)} className={field} autoComplete="off" />
-            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block text-sm text-[var(--muted)]">
+                Display name
+                <input value={name} maxLength={NAME_MAX} onChange={(e) => setName(e.target.value)} className={field} autoComplete="off" />
+              </label>
+              <label className="block text-sm text-[var(--muted)]">
+                Label (optional)
+                <input value={label} maxLength={LABEL_MAX} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Designer" className={field} autoComplete="off" />
+              </label>
+            </div>
             <label className="flex items-center gap-2 text-sm text-[var(--ink)]">
               <input type="checkbox" checked={visible} onChange={(e) => setVisible(e.target.checked)} />
               Show me on this app’s public team
@@ -169,9 +171,11 @@ export function AppPublicTeam({ appId, getToken, userId }: Props) {
               <button aria-label={busy ? 'Saving…' : 'Save profile'} type="submit" disabled={busy || (visible && !shownName)} className="rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">
                 {busy ? 'Saving…' : 'Save profile'}
               </button>
-              <button type="button" onClick={() => void withdraw()} disabled={busy} className="rounded-lg border border-[var(--line-strong)] px-3 py-2 text-sm text-[var(--ink)] disabled:opacity-50">
-                Withdraw from public team
-              </button>
+              {visible && (
+                <button type="button" onClick={() => void withdraw()} disabled={busy} className="rounded-lg border border-[var(--line-strong)] px-3 py-2 text-sm text-[var(--ink)] disabled:opacity-50">
+                  Withdraw from public team
+                </button>
+              )}
             </div>
             {visible && !shownName && <p className="text-xs text-[var(--muted)]">Add a display name to appear publicly.</p>}
           </form>
@@ -189,27 +193,32 @@ export function AppPublicTeam({ appId, getToken, userId }: Props) {
             )}
           </div>
 
-          {roster && (
-            <div>
-              <h4 className="text-sm font-semibold text-[var(--ink)]">Moderate the public list</h4>
-              <p className="mt-1 text-xs text-[var(--muted)]">You can take someone off the list; you can’t publish for them. Hiding isn’t a ban — to remove a person for good, remove them from the team.</p>
+          {/* Owner moderation, collapsed under the public list it acts on (console#19). */}
+          {roster && roster.filter((m) => m.user_id !== userId).length > 0 && (
+            <details className="rounded-xl border border-[var(--line)] px-4 py-2">
+              <summary className="cursor-pointer text-sm font-semibold text-[var(--ink)]">Moderate the public list</summary>
+              <p className="mt-1 text-xs text-[var(--muted)]">You can take someone off the list, not publish for them. To remove a person for good, remove them from the team.</p>
               <ul className="mt-2 divide-y divide-[var(--line)]">
                 {roster.filter((m) => m.user_id !== userId).map((m) => (
                   <li key={m.user_id} className="flex items-center justify-between gap-2 py-2 text-sm">
                     <span className="min-w-0 truncate text-[var(--ink)]">
                       {m.display_name ?? 'No public profile'}{m.label ? <span className="text-[var(--muted)]"> · {m.label}</span> : null}
-                      <span className="ml-2 text-xs text-[var(--muted)]">{m.visible ? 'public' : 'not public'}</span>
                     </span>
-                    {m.visible && (
-                      <button type="button" disabled={busy} onClick={() => void hide(m)} aria-label={`Hide ${m.display_name ?? 'member'} from the public list`}
-                        className="rounded-lg border border-[var(--line-strong)] px-3 py-1.5 text-xs text-[var(--ink)] disabled:opacity-50">
-                        Hide
-                      </button>
-                    )}
+                    <span className="flex items-center gap-2 shrink-0">
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${m.visible ? 'bg-[var(--success)]/15 text-[var(--success)]' : 'bg-[var(--line)] text-[var(--muted)]'}`}>
+                        {m.visible ? 'Public' : 'Not public'}
+                      </span>
+                      {m.visible && (
+                        <button type="button" disabled={busy} onClick={() => void hide(m)} aria-label={`Hide ${m.display_name ?? 'member'} from the public list`}
+                          className="rounded-lg border border-[var(--line-strong)] px-3 py-1.5 text-xs text-[var(--ink)] disabled:opacity-50">
+                          Hide
+                        </button>
+                      )}
+                    </span>
                   </li>
                 ))}
               </ul>
-            </div>
+            </details>
           )}
         </>
       )}
