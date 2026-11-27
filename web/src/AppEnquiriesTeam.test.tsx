@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { AppEnquiries } from './AppEnquiries'
+vi.mock('./AppRecruitment', () => ({ AppRecruitment: () => null }))
 
 const base = { email: 'sam@example.com', status: 'new', created_at: 1_700_000_000_000, handled_at: null, handled_by: null }
 const general = { ...base, id: 'g1', type: 'general', name: 'Gina General', message: 'Pricing?' }

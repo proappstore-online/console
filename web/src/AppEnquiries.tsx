@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError } from './api'
 import { fetchEnquiries, setEnquiryStatus, type Enquiry, type EnquiryCursor, type EnquiryPage, type EnquiryStatus, type EnquiryType } from './enquiriesApi'
+import { AppRecruitment } from './AppRecruitment'
 
 interface Props {
   appId: string
@@ -107,6 +108,7 @@ export function AppEnquiries({ appId, getToken }: Props) {
 
   return (
     <section className="max-w-6xl space-y-4 overflow-y-auto min-h-0 flex-1" aria-labelledby="app-enquiries-heading">
+      <AppRecruitment key={`${appId}:${getToken() ?? ''}`} appId={appId} token={getToken()} />
       <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-5">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
