@@ -1,14 +1,16 @@
 import { test, expect } from '@playwright/test'
 import { summary, people, person } from '../src/contributions.fixture'
 
-test('mobile contribution filters, pagination, partial history, zero and revoked access', async ({ page }) => {
+for (const width of [320, 390]) test(`mobile contribution filters, pagination, partial history, zero and revoked access at ${width}px`, async ({ page }) => {
+ await page.setViewportSize({ width, height: 812 })
  let denied = false
  let mode = 'ok'
  const seen: URL[] = []
  await page.addInitScript(() => localStorage.setItem('pas:session', JSON.stringify({ token: 'synthetic', user: { id: 'gh:1', name: 'Fixture', login: 'fixture', avatarUrl: null } })))
  await page.route(/^https:\/\/(api|agents)\.proappstore\.online\//, async route => {
   const req = route.request(), url = new URL(req.url())
-  const headers = { 'access-control-allow-origin': 'http://localhost:4179', 'access-control-allow-credentials': 'true', 'access-control-allow-headers': 'authorization,content-type', 'access-control-allow-methods': 'GET,OPTIONS' }
+  // Match the deployed bearer-auth API: it deliberately does not allow credentialed CORS.
+  const headers = { 'access-control-allow-origin': 'http://localhost:4179', 'access-control-allow-headers': 'authorization,content-type', 'access-control-allow-methods': 'GET,OPTIONS' }
   const reply = (json: unknown, status = 200) => route.fulfill({ status, headers, json })
   if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
   if (url.pathname.includes('/contributions')) {

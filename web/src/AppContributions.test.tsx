@@ -11,7 +11,7 @@ function backend(status = 200) {
  vi.stubGlobal('fetch', fetcher); return fetcher
 }
 describe('contributions HTTP contract', () => {
- it('sends auth, credentials, half-open bounds, page limit and encoded app/cursor; preserves raw shares', async () => {
+ it('sends bearer auth without credentialed CORS, half-open bounds, page limit and encoded app/cursor; preserves raw shares', async () => {
   const f = backend()
   const r = await loadContributions('a', 'secret', { from: '2026-01-01', to: '2026-02-01', limit: 10 })
   expect(r.accessState).toBe('ok'); expect(r.people?.people[0]?.share.percent).toBe(80)
@@ -19,7 +19,8 @@ describe('contributions HTTP contract', () => {
   await loadMorePeople('a', 'secret', '1.80.1', { limit: 10 })
   expect(f.mock.calls.at(-1)?.[0]).toContain('cursor=1.80.1')
   const init = (f.mock.calls as unknown as [string, RequestInit][])[0]![1]
-  expect(init).toMatchObject({ credentials: 'include', cache: 'no-store', headers: { Authorization: 'Bearer secret' } })
+  expect(init).toMatchObject({ cache: 'no-store', headers: { Authorization: 'Bearer secret' } })
+  expect(init.credentials).toBeUndefined()
  })
  it.each([[401, 'denied'], [403, 'denied'], [404, 'not-found'], [503, 'unavailable'], [500, 'error']])('maps %s and discards all data', async (status, state) => {
   backend(Number(status)); expect(await loadContributions('a', 's')).toMatchObject({ accessState: state, summary: null, people: null })

@@ -50,7 +50,8 @@ function query(opts: ContributionOptions, people: boolean) {
  return q.size ? '?' + q : ''
 }
 function read<T>(appId: string, token: string | null, suffix: string, opts: ContributionOptions) {
- return apiFetch<T>('/apps/' + encodeURIComponent(appId) + '/contributions' + suffix + query(opts, suffix === '/people'), { credentials: 'include', cache: 'no-store', token })
+ // The platform authenticates this cross-origin read with a bearer token, not cookies.
+ return apiFetch<T>('/apps/' + encodeURIComponent(appId) + '/contributions' + suffix + query(opts, suffix === '/people'), { cache: 'no-store', token })
 }
 export async function loadMorePeople(appId: string, token: string | null, cursor: string, opts: ContributionOptions = {}): Promise<PeopleResponse> {
  const page = await read<PeopleResponse>(appId, token, '/people', { ...opts, cursor })
