@@ -8,11 +8,15 @@ const me = { user_id: 'gh:1', role: 'owner', display_name: 'Ada L.', label: 'Mai
 const other = { user_id: 'gh:2', role: 'admin', display_name: 'Bob', label: 'Designer', visible: true, updated_at: 1 }
 const hidden = { user_id: 'gh:3', role: 'viewer', display_name: null, label: null, visible: false, updated_at: null }
 
-function route(opts: { roster?: unknown[] | 403; pub?: unknown[]; onWrite?: (m: string, url: string, body: unknown) => Response }) {
+function route(opts: { roster?: unknown[] | 403; pub?: unknown[]; own?: unknown; ownStatus?: number; onWrite?: (m: string, url: string, body: unknown) => Response }) {
   return vi.fn(async (url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET'
     if (method !== 'GET') return opts.onWrite?.(method, url, init?.body ? JSON.parse(String(init.body)) : null) ?? response({ ok: true })
     if (url.includes('/storefront/')) return response({ members: opts.pub ?? [] })
+    if (url.endsWith('/public/me')) {
+      const saved = (opts.own !== undefined ? opts.own : Array.isArray(opts.roster) ? opts.roster[0] ?? null : null) as Record<string, unknown> | null
+      return response({ appId: 'a', profile: saved && { ...saved, updated_at: '2026-11-01', show_promotion: saved.show_promotion ?? false } }, opts.ownStatus)
+    }
     if (opts.roster === 403) return response({ error: 'forbidden' }, 403)
     return response({ appId: 'a', members: opts.roster ?? [] })
   })
@@ -38,7 +42,7 @@ describe('AppPublicTeam (console#11)', () => {
     fireEvent.change(screen.getByLabelText('Label (optional)'), { target: { value: '' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save profile' }))
     await screen.findByText('Saved. Your profile is public.')
-    expect(writes[0]).toEqual(['PUT', '/v1/apps/a/team/public/me', { display_name: 'Ada Lovelace', visible: true }])
+    expect(writes[0]).toEqual(['PUT', '/v1/apps/a/team/public/me', { display_name: 'Ada Lovelace', visible: true, show_promotion: false }])
     fireEvent.click(screen.getByRole('button', { name: 'Withdraw from public team' }))
     await screen.findByText(/Withdrawn/)
     expect(writes[1]).toEqual(['DELETE', '/v1/apps/a/team/public/me', null])
@@ -60,6 +64,39 @@ describe('AppPublicTeam (console#11)', () => {
     expect(screen.queryByText('Moderate the public list')).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.getByText('Ada L.')).toBeTruthy()
+  })
+
+  it('loads a collaborator’s saved hidden preferences independently of the owner roster and public list', async () => {
+    vi.stubGlobal('fetch', route({ roster: 403, own: { display_name: 'Saved member', label: 'Designer', visible: false } }))
+    render(<AppPublicTeam appId="a" getToken={() => 't'} userId="gh:2" />)
+    expect(((await screen.findByLabelText('Display name')) as HTMLInputElement).value).toBe('Saved member')
+    expect((screen.getByLabelText('Label (optional)') as HTMLInputElement).value).toBe('Designer')
+    expect((screen.getByLabelText(/Show me on/) as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('uses saved preferences even when the owner roster disagrees and preserves promotion consent on save', async () => {
+    const writes: unknown[] = []
+    vi.stubGlobal('fetch', route({ roster: [hidden], own: { display_name: 'Promoter', label: 'Maintainer', visible: true, show_promotion: true },
+      onWrite: (_m, _u, body) => { writes.push(body); return response({ ok: true }) } }))
+    render(<AppPublicTeam appId="a" getToken={() => 't'} userId="gh:3" />)
+    expect(((await screen.findByLabelText('Display name')) as HTMLInputElement).value).toBe('Promoter')
+    fireEvent.change(screen.getByLabelText('Label (optional)'), { target: { value: 'Developer' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }))
+    await screen.findByText('Saved. Your profile is public.')
+    expect(writes[0]).toEqual({ display_name: 'Promoter', label: 'Developer', visible: true, show_promotion: true })
+    fireEvent.click(screen.getByLabelText(/Show me on/))
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }))
+    await screen.findByText('Saved. Your profile is not public.')
+    expect(writes[1]).toEqual({ display_name: 'Promoter', label: 'Developer', visible: false, show_promotion: false })
+  })
+
+  it.each([403, 500])('blocks editing when saved preferences cannot be read (%s), without guessing from the roster', async (ownStatus) => {
+    vi.stubGlobal('fetch', route({ roster: [me], ownStatus }))
+    render(<AppPublicTeam appId="a" getToken={() => 't'} userId="gh:1" />)
+    await screen.findByRole('alert')
+    expect(screen.queryByRole('button', { name: 'Save profile' })).toBeNull()
+    expect(screen.queryByLabelText('Display name')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy()
   })
 
   it('shows the server refusal when a non-member tries to publish (403)', async () => {
@@ -86,7 +123,7 @@ describe('AppPublicTeam (console#11)', () => {
 
   it('load error offers retry; a private/missing app (404) is an empty list, not an error', async () => {
     const f = vi.fn().mockRejectedValueOnce(new Error('offline')).mockRejectedValueOnce(new Error('offline'))
-      .mockImplementation(async (url: string) => url.includes('/storefront/') ? response({ error: 'not found' }, 404) : response({ appId: 'a', members: [] }))
+      .mockImplementation(async (url: string) => url.includes('/storefront/') ? response({ error: 'not found' }, 404) : url.endsWith('/public/me') ? response({ appId: 'a', profile: null }) : response({ appId: 'a', members: [] }))
     vi.stubGlobal('fetch', f)
     render(<AppPublicTeam appId="a" getToken={() => 't'} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
@@ -99,6 +136,7 @@ describe('AppPublicTeam (console#11)', () => {
       if (url.includes('/apps/a/team/public')) return new Promise<Response>((r) => { release = r })
       if (url.includes('/storefront/apps/a/')) return Promise.resolve(response({ members: [{ display_name: 'From A', label: null, is_creator: false }] }))
       if (url.includes('/storefront/apps/b/')) return Promise.resolve(response({ members: [{ display_name: 'From B', label: null, is_creator: false }] }))
+      if (url.endsWith('/public/me')) return Promise.resolve(response({ appId: 'b', profile: null }))
       return Promise.resolve(response({ appId: 'b', members: [] }))
     })
     vi.stubGlobal('fetch', f)

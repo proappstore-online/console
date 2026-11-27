@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError } from './api'
 import {
-  LABEL_MAX, NAME_MAX, fetchPublicTeam, fetchRoster, hideMember, saveOwnProfile, withdrawOwnProfile,
+  LABEL_MAX, NAME_MAX, fetchOwnProfile, fetchPublicTeam, fetchRoster, hideMember, saveOwnProfile, withdrawOwnProfile,
   type PublicMember, type RosterMember,
 } from './publicTeamApi'
 
@@ -34,6 +34,7 @@ export function AppPublicTeam({ appId, getToken, userId }: Props) {
   const [name, setName] = useState('')
   const [label, setLabel] = useState('')
   const [visible, setVisible] = useState(false)
+  const [showPromotion, setShowPromotion] = useState(false)
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null)
   const version = useRef(0)
@@ -41,18 +42,21 @@ export function AppPublicTeam({ appId, getToken, userId }: Props) {
   const load = useCallback(async () => {
     const v = ++version.current
     setLoading(true); setLoadError(null); setStatus(null)
-    setPub([]); setRoster(null); setName(''); setLabel(''); setVisible(false)
+    setPub([]); setRoster(null); setName(''); setLabel(''); setVisible(false); setShowPromotion(false)
     try {
-      const [publicList, rosterResult] = await Promise.all([
+      const [publicList, rosterResult, own] = await Promise.all([
         fetchPublicTeam(appId).then((r) => r.members, (e) => { if (e instanceof ApiError && e.status === 404) return [] as PublicMember[]; throw e }),
         // 403 just means "not the owner": the owner-only roster is skipped, the own-profile form still works.
         fetchRoster(appId, getToken()).then((r) => r.members, (e) => { if (e instanceof ApiError && e.status === 403) return null; throw e }),
+        fetchOwnProfile(appId, getToken()),
       ])
       if (v !== version.current) return // a newer load (app switch) superseded this one
       setPub(publicList)
       setRoster(rosterResult)
-      const mine = rosterResult?.find((m) => m.user_id === userId)
-      if (mine) { setName(mine.display_name ?? ''); setLabel(mine.label ?? ''); setVisible(mine.visible) }
+      // Saved consent belongs to the person, including collaborators who cannot read the owner's roster.
+      // Never infer their preferences from the public list or replace an unreadable profile with defaults.
+      const mine = own.profile
+      if (mine) { setName(mine.display_name ?? ''); setLabel(mine.label ?? ''); setVisible(mine.visible); setShowPromotion(mine.show_promotion) }
     } catch (e) {
       if (v === version.current) setLoadError(message(e, 'Could not load the public team.'))
     } finally {
@@ -76,8 +80,9 @@ export function AppPublicTeam({ appId, getToken, userId }: Props) {
     setBusy(true); setStatus(null)
     const v = version.current
     try {
-      await saveOwnProfile(appId, getToken(), { display_name: name, label, visible })
+      await saveOwnProfile(appId, getToken(), { display_name: name, label, visible, show_promotion: visible && showPromotion })
       if (v !== version.current) return
+      setShowPromotion(visible && showPromotion)
       setStatus({ ok: true, text: visible ? 'Saved. Your profile is public.' : 'Saved. Your profile is not public.' })
       void refreshPublic()
     } catch (e) {
@@ -95,6 +100,7 @@ export function AppPublicTeam({ appId, getToken, userId }: Props) {
       await withdrawOwnProfile(appId, getToken())
       if (v !== version.current) return
       setVisible(false)
+      setShowPromotion(false)
       setStatus({ ok: true, text: 'Withdrawn. Your profile is no longer public.' })
       void refreshPublic()
     } catch (e) {
