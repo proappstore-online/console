@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { User } from '@proappstore/sdk'
 import { pro } from './sdk'
 import { API_BASE as API } from './api'
+import { DeveloperReputation } from './DeveloperReputation'
 
 interface Provider { id: string; name: string; docs_url: string | null; key_prefix: string | null }
 interface KeyStatus { provider: string; label: string | null; createdAt: number; lastUsedAt: number | null }
@@ -32,6 +33,7 @@ export function ProfileView({ user }: { user: User }) {
         </div>
       </header>
 
+      <DeveloperReputation key={`${user.id}:${pro.auth.token ?? ''}`} token={pro.auth.token} />
       <ApiKeysSection />
       <NotificationsSection />
       <ThemeSection />

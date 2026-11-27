@@ -31,7 +31,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: /(operator|promoter|contributions)-flow\.spec\.ts/,
+      testIgnore: /(operator|promoter|contributions|developer-profile)-flow\.spec\.ts/,
       use: { browserName: 'chromium', baseURL: 'https://console.proappstore.online' },
     },
     {
@@ -43,6 +43,16 @@ export default defineConfig({
       name: 'contributions-webkit',
       testMatch: /contributions-flow\.spec\.ts/,
       use: { ...devices['iPhone 13'], viewport: { width: 375, height: 812 }, browserName: 'webkit', baseURL: `http://localhost:${PREVIEW_PORT}` },
+    },
+    {
+      name: 'developer-profile-chromium',
+      testMatch: /developer-profile-flow\.spec\.ts/,
+      use: { ...devices['Pixel 7'], browserName: 'chromium', baseURL: `http://localhost:${PREVIEW_PORT}` },
+    },
+    {
+      name: 'developer-profile-webkit',
+      testMatch: /developer-profile-flow\.spec\.ts/,
+      use: { ...devices['iPhone 13'], browserName: 'webkit', baseURL: `http://localhost:${PREVIEW_PORT}` },
     },
     {
       name: 'operator-flow',
