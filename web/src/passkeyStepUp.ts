@@ -2,7 +2,7 @@
  * Passkey step-up for the operator view (#244). Opening an identity document
  * needs a recent passkey verification, not just a recent sign-in. The console
  * runs the WebAuthn ceremony against the platform's console relying party
- * (console.proappstore.online) and gets back a short-lived session stamped
+ * (proappstore.online, platform#698) and gets back a short-lived session stamped
  * `auth_method: passkey`.
  *
  * That session is held in memory only, never in localStorage, and only until
@@ -13,13 +13,20 @@
 import { API_BASE, ApiError, authHeaders } from './api'
 
 export const CONSOLE_HOST = 'console.proappstore.online'
+/**
+ * The hosts the console is served from: its own, and the storefront's
+ * proappstore.online/app/ mirror. Console passkeys belong to the parent domain
+ * proappstore.online, and the platform accepts a ceremony from exactly these
+ * origins (platform#698).
+ */
+const PASSKEY_HOSTS: ReadonlySet<string> = new Set([CONSOLE_HOST, 'proappstore.online'])
 const DEFAULT_WINDOW_SECONDS = 300
 
 let held: { token: string; until: number } | null = null
 
-/** Passkeys are bound to the console's own hostname: they work only there, in a browser that supports them. */
+/** Passkeys work only on a console host, in a browser that supports them. */
 export function passkeysAvailable(): boolean {
-  return typeof window !== 'undefined' && window.location.hostname === CONSOLE_HOST
+  return typeof window !== 'undefined' && PASSKEY_HOSTS.has(window.location.hostname)
     && typeof window.PublicKeyCredential !== 'undefined' && !!navigator.credentials
 }
 
