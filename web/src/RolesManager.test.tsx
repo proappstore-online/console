@@ -37,4 +37,51 @@ describe('RolesManager (console#19)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove editor' }))
     await waitFor(() => expect(calls).toContain('DELETE'))
   })
+
+  it('changes a member\'s role from their row: grants the new one, then revokes the old (console#23)', async () => {
+    const calls: Array<[string, unknown]> = []
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method) calls.push([init.method, JSON.parse(String(init.body))])
+      return response(init?.method ? { ok: true } : { roles })
+    }))
+    render(<RolesManager appId="a" getToken={() => 't'} />)
+    await screen.findByText('@bob')
+    fireEvent.change(screen.getByLabelText('Role for @bob'), { target: { value: 'moderator' } })
+    await waitFor(() => expect(calls).toEqual([
+      ['POST', { userId: 'gh:2', role: 'moderator' }],
+      ['DELETE', { userId: 'gh:2', role: 'editor' }],
+    ]))
+  })
+
+  it('gives a signed-in user a role from their row without revoking member (console#23)', async () => {
+    const calls: Array<[string, unknown]> = []
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method) calls.push([init.method, JSON.parse(String(init.body))])
+      return response(init?.method ? { ok: true } : { roles })
+    }))
+    render(<RolesManager appId="a" getToken={() => 't'} />)
+    await screen.findByText('@bob')
+    fireEvent.change(screen.getByLabelText('Role for google:9'), { target: { value: 'editor' } })
+    await waitFor(() => expect(calls).toEqual([['POST', { userId: 'google:9', role: 'editor' }]]))
+  })
+
+  it('adds a signed-in person by name, sending their ID, and lists a team member only once (console#23)', async () => {
+    const withMembers = [...roles,
+      { user_id: 'google:7', role_name: 'member', granted_at: 4, user_login: 'cara' },
+      { user_id: 'gh:2', role_name: 'member', granted_at: 5, user_login: 'bob' },
+    ]
+    const posts: unknown[] = []
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') posts.push(JSON.parse(String(init.body)))
+      return response(init?.method ? { ok: true } : { roles: withMembers })
+    }))
+    render(<RolesManager appId="a" getToken={() => 't'} />)
+    await screen.findByText('@bob')
+    expect(screen.getAllByText('@bob')).toHaveLength(1)
+    expect(screen.getByText(/2 signed-in users/)).toBeTruthy()
+    expect(document.querySelector('#roles-people option[value="cara"]')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Person'), { target: { value: 'cara' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Assign role' }))
+    await waitFor(() => expect(posts).toEqual([{ userId: 'google:7', role: 'moderator' }]))
+  })
 })

@@ -131,8 +131,10 @@ export function RolesManager({ appId, getToken }: Props) {
     e.preventDefault()
     const token = getToken()
     if (!token) return
-    const uid = userId.trim()
-    if (!uid) return
+    const typed = userId.trim()
+    if (!typed) return
+    // A name picked from the suggestions resolves to that person's ID, so nobody needs to know it.
+    const uid = roles.find((r) => r.userLogin === typed.replace(/^@/, ''))?.userId ?? typed
     const role = selectedRole === 'custom' ? customRole.trim().toLowerCase() : selectedRole
     if (!role) return
     setAddState('saving')
@@ -164,8 +166,24 @@ export function RolesManager({ appId, getToken }: Props) {
     }
   }
 
+  // Grant the new role, then drop the old one — unless the old one is the automatic signed-in role (console#23).
+  const handleChangeRole = async (r: RoleAssignment, role: string) => {
+    const token = getToken()
+    if (!token || role === r.roleName) return
+    setRevokeError(null)
+    try {
+      await assignRole(token, appId, r.userId, role)
+      if (r.roleName !== SIGNED_IN_ROLE) await revokeRole(token, appId, r.userId, r.roleName)
+    } catch (err) {
+      setRevokeError((err as Error).message)
+    }
+    await reload()
+  }
+
   const team = roles.filter((r) => r.roleName !== SIGNED_IN_ROLE)
-  const signedIn = roles.filter((r) => r.roleName === SIGNED_IN_ROLE)
+  const teamIds = new Set(team.map((r) => r.userId))
+  // Someone with a team role is listed once, in the team — not again as a signed-in user.
+  const signedIn = roles.filter((r) => r.roleName === SIGNED_IN_ROLE && !teamIds.has(r.userId))
   const pickedDescription = selectedRole === 'custom'
     ? 'A role your app checks for itself. It grants nothing in the console.'
     : ROLE_DESCRIPTIONS[selectedRole]
@@ -177,7 +195,8 @@ export function RolesManager({ appId, getToken }: Props) {
       <MemberRow key={key} r={r} confirming={confirming === key} revoking={revoking === key}
         onAskRemove={() => { setConfirming(key); setRevokeError(null) }}
         onCancel={() => setConfirming(null)}
-        onRemove={() => void handleRevoke(r.userId, r.roleName)} />
+        onRemove={() => void handleRevoke(r.userId, r.roleName)}
+        onChangeRole={(role) => void handleChangeRole(r, role)} />
     )
   }
 
@@ -191,17 +210,21 @@ export function RolesManager({ appId, getToken }: Props) {
       <form onSubmit={handleAdd} className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 space-y-2" aria-label="Add a person">
         <div className="flex gap-2 flex-col sm:flex-row">
           <input
-            aria-label="User ID"
+            aria-label="Person"
             type="text"
+            list="roles-people"
             value={userId}
             onChange={(e) => setUserId(e.target.value)}
-            placeholder="GitHub login, or user ID such as google:1234…"
+            placeholder="Name of someone who signed in, or a GitHub login"
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
             disabled={addState === 'saving'}
-            className={`flex-1 font-mono ${field}`}
+            className={`flex-1 ${field}`}
           />
+          <datalist id="roles-people">
+            {signedIn.filter((r) => r.userLogin).map((r) => <option key={r.userId} value={r.userLogin!} />)}
+          </datalist>
           <select aria-label="Role" value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)}
             disabled={addState === 'saving'} className={field}>
             {ASSIGNABLE_ROLES.map((r) => (
@@ -264,9 +287,9 @@ export function RolesManager({ appId, getToken }: Props) {
   )
 }
 
-function MemberRow({ r, confirming, revoking, onAskRemove, onCancel, onRemove }: {
+function MemberRow({ r, confirming, revoking, onAskRemove, onCancel, onRemove, onChangeRole }: {
   r: RoleAssignment; confirming: boolean; revoking: boolean
-  onAskRemove: () => void; onCancel: () => void; onRemove: () => void
+  onAskRemove: () => void; onCancel: () => void; onRemove: () => void; onChangeRole: (role: string) => void
 }) {
   const [copied, setCopied] = useState(false)
   const name = r.userLogin ? `@${r.userLogin}` : r.userId
@@ -292,6 +315,14 @@ function MemberRow({ r, confirming, revoking, onAskRemove, onCancel, onRemove }:
         className="shrink-0 rounded-lg px-2 py-1 text-xs text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--panel-hover)]">
         {copied ? 'Copied' : 'Copy ID'}
       </button>
+      {!isOwner && (
+        <select aria-label={`Role for ${name}`} value={r.roleName} onChange={(e) => onChangeRole(e.target.value)}
+          className="shrink-0 rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)]">
+          {r.roleName === SIGNED_IN_ROLE && <option value={SIGNED_IN_ROLE}>Give a role…</option>}
+          {!ASSIGNABLE_ROLES.includes(r.roleName) && r.roleName !== SIGNED_IN_ROLE && <option value={r.roleName}>{r.roleName}</option>}
+          {ASSIGNABLE_ROLES.map((role) => <option key={role} value={role}>{role.charAt(0).toUpperCase() + role.slice(1)}</option>)}
+        </select>
+      )}
       {isOwner ? null : confirming ? (
         <span className="shrink-0 flex items-center gap-1">
           <button type="button" onClick={onRemove} disabled={revoking}
