@@ -314,6 +314,17 @@ export function isConflict(e: unknown): boolean {
   return e instanceof ApiError && e.status === 409
 }
 
+/**
+ * The reason the app declared for refusing a row action (platform#697): a guarded
+ * write that changed nothing, explained by one of the contract action's
+ * `refusals`, answers 409 `{ error: 'refused', reason }`. Null for any other error.
+ */
+export function refusalReason(e: unknown): string | null {
+  if (!(e instanceof ApiError) || e.status !== 409 || e.message !== 'refused') return null
+  const reason = (e.body as { reason?: unknown } | null)?.reason
+  return typeof reason === 'string' && reason ? reason : null
+}
+
 /** A cell as plain text. Values come from the app; they are never rendered as HTML. */
 export function formatCell(value: unknown, format: OperatorColumnFormat): string {
   if (value === null || value === undefined || value === '') return '—'
@@ -346,7 +357,10 @@ export function operatorErrorMessage(e: unknown, role?: string, owner = false): 
       return `You don't hold the ${role ? `${role} ` : ''}app role this needs. The app's owner grants roles under Settings → Access.`
     }
     if (e.status === 403 && /owner/.test(e.message)) return "Only the app's owner can see this."
-    // 409: a transition from a status the row has left, or a guarded write that matched nothing.
+    // 409: a refusal the app explained (platform#697), a transition from a status the row has left,
+    // or a guarded write that matched nothing and no declared refusal explains.
+    const reason = refusalReason(e)
+    if (reason) return reason
     if (e.status === 409 && /changed since/.test(e.message)) return 'This record changed since you loaded it, so nothing was changed. It has been reloaded: check it and try again.'
     if (e.status === 409 && /not available from status/.test(e.message)) return "This action doesn't apply to the record's current status any more. It has been reloaded."
     if (e.status === 409) return `Not done: ${e.message}`

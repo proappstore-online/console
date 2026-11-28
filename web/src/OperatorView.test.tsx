@@ -512,6 +512,17 @@ describe('OperatorView — reports & suspensions (#240)', () => {
     expect(JSON.parse(String(init.body))).toEqual({ row: { reason: 'spam', status: 'open', report_id: 'r1' } })
   })
 
+  it('shows the reason the app declared for a refusal (platform#697), and reloads the row', async () => {
+    vi.stubGlobal('confirm', () => true)
+    const { fetchMock, reports } = await openReports({
+      review: { status: 409, body: { error: 'refused', errorCode: 'refused', reason: "You can't review a report you filed." } },
+    })
+    fireEvent.click(within(rowOf(reports, 'spam')).getByRole('button', { name: 'Start review' }))
+    expect(await within(reports).findByText("Start review: You can't review a report you filed.")).toBeTruthy()
+    expect(within(reports).queryByText(/changed since you loaded it/)).toBeNull()
+    await waitFor(() => expect(readsOf(fetchMock, 'reports').length).toBeGreaterThan(1))
+  })
+
   it('styles destructive actions and offers a fresh sign-in when one is required', async () => {
     vi.stubGlobal('confirm', () => true)
     const onReauth = vi.fn()
@@ -665,6 +676,17 @@ describe('OperatorView — ID verification (#240)', () => {
     expect(url).toBe('https://api.proappstore.online/v1/apps/stash/operator/actions/approve_kyc')
     expect(JSON.parse(String(init.body))).toEqual({ row: kycRecord })
     expect(fetchMock.mock.calls.filter(([u]) => String(u).endsWith('/records/k1'))).toHaveLength(2)
+  })
+
+  it('a decision refused for a declared reason shows that reason on the record page (platform#697)', async () => {
+    vi.stubGlobal('confirm', () => true)
+    const fetchMock = await openKyc({
+      approve_kyc: { status: 409, body: { error: 'refused', reason: "You can't review your own application — another staff member must." } },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    expect(await screen.findByText("Approve: You can't review your own application — another staff member must.")).toBeTruthy()
+    // The record is reloaded to its current state, as for any 409.
+    await waitFor(() => expect(fetchMock.mock.calls.filter(([u]) => String(u).endsWith('/records/k1'))).toHaveLength(2))
   })
 
   it('a second app (Parents Clubs) opens its licence PDF through the same code', async () => {

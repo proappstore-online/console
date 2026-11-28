@@ -15,6 +15,7 @@ import { expect, test, type Page, type Request, type Route } from '@playwright/t
 //   update  — Start review (a status transition): the report's status changes
 //   delete  — Delete report (destructive, step_up): the row is gone
 //   custom  — Lift (plain, confirm only) on the new suspension record
+//   refused — Start review on a report the owner filed: a 409 with the reason the app declared (platform#697)
 // Shapes follow src/OperatorView.test.tsx and platform's operator-view-stash fixture.
 
 const API = 'https://api.proappstore.online';
@@ -76,6 +77,8 @@ interface AuditRow {
   kind: 'enter' | 'audit' | 'read' | 'detail' | 'action'; resource: string | null; field: null
   operation: string; action: string | null; target: string | null; target_hidden: false
   status: number; outcome: 'success' | 'refused'
+  /** The declared refusal that explained a 409 (platform#697), else null. */
+  reason: string | null
 }
 
 /** The PAS API as the console sees it, for one owner and one app, with state. */
@@ -88,6 +91,8 @@ class FakeApi {
     { reason: 'spam', status: 'open', report_id: 'r1' },
     { reason: 'abuse', status: 'open', report_id: 'r2' },
     { reason: 'old', status: 'resolved', report_id: 'r3' },
+    // Filed by the owner: the app's SQL refuses to let them review it, and its contract says why (platform#697).
+    { reason: 'mine', status: 'open', report_id: 'r4' },
   ];
   history: Row[] = [];
   audit: AuditRow[] = [];
@@ -101,7 +106,7 @@ class FakeApi {
     this.audit.push({
       id: this.audit.length + 1, at: Date.UTC(2026, 9, 7, 9, 0, this.audit.length), actor: { id: USER.id, login: USER.login }, role: null,
       kind, resource: null, field: null, operation, action: null, target: null, target_hidden: false,
-      status, outcome: status < 400 ? 'success' : 'refused', ...extra,
+      status, outcome: status < 400 ? 'success' : 'refused', reason: null, ...extra,
     });
   }
 
@@ -208,7 +213,7 @@ class FakeApi {
 
   private runAction(action: Action, row: Row, recentSignIn: boolean, reply: (s: number, j: unknown) => Promise<void>) {
     const target = String(row[action.target]);
-    const done = (status: number, json: unknown) => { this.log('action', action.id, status, { target }); return reply(status, json); };
+    const done = (status: number, json: { reason?: string }) => { this.log('action', action.id, status, { target, reason: json.reason ?? null }); return reply(status, json); };
     if (action.step_up && !recentSignIn) return done(403, { error: 'step_up_required', message: 'Recent authentication required', max_age: 300 });
     if (action.transition && !action.transition.from.includes(String(row.status))) {
       return done(409, { error: `"${action.title}" is not available from status ${JSON.stringify(row.status)}` });
@@ -219,7 +224,11 @@ class FakeApi {
         this.history.push({ user_id: row.user_id, status: 'active', suspension_id: `s${this.history.length + 1}` });
         break;
       }
-      case 'review': this.reports.find((r) => r.report_id === row.report_id)!.status = 'reviewing'; break;
+      case 'review':
+        // A guarded write that changed nothing, explained by the contract action's first refusal that holds.
+        if (row.report_id === 'r4') return done(409, { error: 'refused', errorCode: 'refused', reason: "You can't review a report you filed." });
+        this.reports.find((r) => r.report_id === row.report_id)!.status = 'reviewing';
+        break;
       case 'delete_report': this.reports = this.reports.filter((r) => r.report_id !== row.report_id); break;
       case 'lift': {
         this.history.find((h) => h.suspension_id === row.suspension_id)!.status = 'lifted';
@@ -338,12 +347,19 @@ test('owner runs the full admin flow: browse, create, update, delete, custom act
   // ── Update: a status transition, offered only from the states it leaves ──
   const reports = section('Reports');
   await expect(rowOf(reports, 'old').getByRole('button', { name: 'Start review' })).toHaveCount(0);
+  // Refused for a reason the app declared: the console shows that reason, and the row is unchanged.
+  await rowOf(reports, 'mine').getByRole('button', { name: 'Start review' }).click();
+  await expect(reports.getByText("Start review: You can't review a report you filed.")).toBeVisible();
+  await expect(rowOf(reports, 'mine').getByRole('cell').nth(1)).toHaveText('Open');
   await rowOf(reports, 'spam').getByRole('button', { name: 'Start review' }).click();
   expect(dialogs.at(-1)).toBe('Start reviewing this report?');
   await expect(reports.getByText('Start review: done.')).toBeVisible();
   await expect(rowOf(reports, 'spam').getByRole('cell').nth(1)).toHaveText('In review');
   await expect(rowOf(reports, 'spam').getByRole('button', { name: 'Start review' })).toHaveCount(0);
-  expect(api.actionBodies('review')).toEqual([{ row: { reason: 'spam', status: 'open', report_id: 'r1' } }]);
+  expect(api.actionBodies('review')).toEqual([
+    { row: { reason: 'mine', status: 'open', report_id: 'r4' } },
+    { row: { reason: 'spam', status: 'open', report_id: 'r1' } },
+  ]);
 
   // ── Delete: destructive, so it warns; a declined confirmation sends nothing ──
   declineNext();
@@ -365,17 +381,21 @@ test('owner runs the full admin flow: browse, create, update, delete, custom act
   await filters.getByRole('button', { name: 'Apply filters' }).click();
   expect(api.calls.filter((c) => c.url.pathname.endsWith('/operator/audit')).at(-1)!.url.searchParams.get('kind')).toBe('action');
   const cells = (r: number) => trail.getByRole('row').nth(r).getByRole('cell');
-  await expect(trail.getByRole('row')).toHaveCount(1 + 5);
+  await expect(trail.getByRole('row')).toHaveCount(1 + 6);
   // When | Who | What | Record | Outcome — newest first.
   await expect(cells(1).nth(2)).toHaveText('Ran action: Delete report');
   await expect(cells(1).nth(3)).toHaveText('r2');
   await expect(cells(2).nth(2)).toHaveText('Ran action: Start review');
-  await expect(cells(3).nth(2)).toHaveText('Ran action: Lift');
-  await expect(cells(4).nth(2)).toHaveText('Ran action: Suspend');
-  await expect(cells(4).nth(4)).toHaveText('✓ Success');
+  await expect(cells(2).nth(4)).toHaveText('✓ Success');
+  await expect(cells(3).nth(2)).toHaveText('Ran action: Start review');
+  await expect(cells(3).nth(3)).toHaveText('r4');
+  await expect(cells(3).nth(4)).toHaveText('✕ Refused (409)');
+  await expect(cells(4).nth(2)).toHaveText('Ran action: Lift');
   await expect(cells(5).nth(2)).toHaveText('Ran action: Suspend');
-  await expect(cells(5).nth(4)).toHaveText('✕ Refused (403)');
-  for (const r of [1, 2, 3, 4, 5]) await expect(cells(r).nth(1)).toHaveText('octo');
+  await expect(cells(5).nth(4)).toHaveText('✓ Success');
+  await expect(cells(6).nth(2)).toHaveText('Ran action: Suspend');
+  await expect(cells(6).nth(4)).toHaveText('✕ Refused (403)');
+  for (const r of [1, 2, 3, 4, 5, 6]) await expect(cells(r).nth(1)).toHaveText('octo');
 
   await filters.getByLabel('What').selectOption('');
   await filters.getByLabel('Outcome').selectOption('refused');
