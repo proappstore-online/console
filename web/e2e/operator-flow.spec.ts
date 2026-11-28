@@ -141,6 +141,8 @@ class FakeApi {
     if (path === `${API}/v1/me/administered-apps`) return reply(200, { apps: [] });
     if (path === `${API}/v1/me/is-admin`) return reply(200, { admin: false });
     if (path === `${AGENTS}/v1/projects`) return reply(200, { projects: [] });
+    // The app declares no roles (platform#695), so the owner is refused like anyone without the role.
+    if (path === `${API}/v1/apps/stash/roles/declared` && method === 'GET') return reply(200, { roles: [] });
     // Dashboard stats (seen after the re-sign-in lands there): not under test, and both degrade to "—" on an error.
     if (path === `${API}/v1/subscription` || path === `${API}/v1/usage/owner-summary`) return reply(404, { error: 'not in the e2e fake' });
 
