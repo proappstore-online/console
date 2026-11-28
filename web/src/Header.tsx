@@ -155,9 +155,10 @@ export function Header({
             {/* Per-app workspace tabs (sm+). On mobile these live in the fixed
                 bottom tab bar (MobileAppTabBar) instead. */}
             {onAppMode && <AppModeSwitch appMode={appMode} onAppMode={onAppMode} className="hidden sm:flex ml-1" />}
-            {/* data-scroll-x: a tab strip that scrolls sideways by design; the page itself never does (console#27). */}
-            <div data-scroll-x className="hidden sm:flex items-center rounded-lg border border-[var(--line-strong)] overflow-x-auto ml-1 min-w-0">
-              {appTabs.map((t, i) => (
+            {/* Tabs that don't fit wrap onto another row, so every tab stays in view (console#30). The
+                -ml-px/-mt-px borders tuck under the strip's own border at the start of each row. */}
+            <div className="hidden sm:flex flex-wrap items-center rounded-lg border border-[var(--line-strong)] overflow-hidden ml-1 min-w-0">
+              {appTabs.map((t) => (
                 <button
                   key={t.key}
                   type="button"
@@ -165,7 +166,7 @@ export function Header({
                   title={t.label}
                   aria-label={t.label}
                   aria-current={appTab === t.key ? 'page' : undefined}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap ${i > 0 ? 'border-l border-[var(--line-strong)]' : ''} ${
+                  className={`-ml-px -mt-px flex items-center gap-1.5 border-l border-t border-[var(--line-strong)] px-2.5 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap ${
                     appTab === t.key ? 'bg-[var(--accent)] text-white' : 'text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--panel-hover)]'
                   }`}
                 >
@@ -188,8 +189,8 @@ export function Header({
             </a>
           </div>
         ) : (
-          // data-scroll-x: a tab strip that scrolls sideways by design; the page itself never does (console#27).
-          <nav data-scroll-x className="flex gap-0.5 -mb-px overflow-x-auto flex-1 ml-1 sm:ml-2">
+          // Tabs that don't fit wrap onto another row, so every tab stays in view (console#30).
+          <nav className="flex flex-wrap gap-0.5 -mb-px flex-1 min-w-0 ml-1 sm:ml-2">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
@@ -250,11 +251,13 @@ function ProjectSwitcher({
   }, [open])
 
   return (
-    <div className="relative min-w-0" ref={ref}>
+    <div className="relative min-w-0 max-w-[40vw] sm:max-w-xs" ref={ref}>
+      {/* max-w-full: the button truncates the name as the header row squeezes the switcher,
+          rather than spilling over the Operate | Develop switch next to it. */}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 rounded-lg px-2 py-1 hover:bg-[var(--panel-hover)] transition-colors max-w-[40vw] sm:max-w-xs"
+        className="flex items-center gap-1.5 rounded-lg px-2 py-1 hover:bg-[var(--panel-hover)] transition-colors max-w-full"
       >
         <span className="font-semibold text-[var(--ink)] truncate">{current?.name ?? selectedAppId}</span>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--muted)] flex-shrink-0"><polyline points="6 9 12 15 18 9"/></svg>

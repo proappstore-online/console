@@ -88,8 +88,8 @@ async function overflow(page: Page) {
         || (d.scrollWidth > d.clientWidth + 1 && getComputedStyle(d).overflowX === 'visible'));
       return wide.filter((d) => !wide.some((o) => o !== d && d.contains(o))).slice(0, 3).map(name).join(' | ');
     };
-    // Strips meant to scroll sideways: code blocks, and the tab strips marked data-scroll-x.
-    const deliberate = (el: Element) => el.tagName === 'PRE' || el.hasAttribute('data-scroll-x');
+    // Strips meant to scroll sideways: code blocks. Tab strips wrap instead (console#30).
+    const deliberate = (el: Element) => el.tagName === 'PRE';
     const scrolling: string[] = [];
     const outside: string[] = [];
     for (const el of document.body.querySelectorAll('*')) {

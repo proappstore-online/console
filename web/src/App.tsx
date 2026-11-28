@@ -269,7 +269,7 @@ export default function App() {
         onAppMode={changeAppMode}
       />
       <main className={view === 'app-detail'
-        ? 'flex-1 flex flex-col w-full px-1.5 pt-2 pb-[calc(3.5rem+env(safe-area-inset-bottom))] sm:px-2 sm:py-2 sm:pb-2 min-h-0'
+        ? 'flex-1 flex flex-col w-full px-1.5 py-2 sm:px-2 min-h-0'
         : 'flex-1 mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8 overflow-y-auto min-h-0'}>
         {/* Section boundary keyed by view: a crash in any view shows a local
             fallback instead of white-screening the whole console; switching

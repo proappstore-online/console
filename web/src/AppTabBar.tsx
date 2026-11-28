@@ -1,9 +1,9 @@
 // Per-app workspace tab icons + the mobile bottom tab bar.
 //
 // On phones the 8-9 workspace tabs can't fit the header, so they live in a
-// fixed, thumb-reachable bottom bar (native-app pattern) — icon + label, the
-// row scrolls if needed. On sm+ the header tab strip is used instead and this
-// bar is hidden. The icon map is shared with Header.
+// thumb-reachable bottom bar (native-app pattern) — icon + label, wrapping onto
+// a second row when they don't fit (console#30). On sm+ the header tab strip is
+// used instead and this bar is hidden. The icon map is shared with Header.
 
 import type { ReactNode } from 'react'
 import type { AppMode, AppTab } from './nav'
@@ -61,16 +61,15 @@ export function AppModeSwitch({ appMode, onAppMode, className }: { appMode: AppM
   )
 }
 
-/** Fixed bottom tab bar for the per-app workspace — mobile only (sm:hidden).
- *  Icon + label, scrolls horizontally if the tabs exceed the width. */
+/** Bottom tab bar for the per-app workspace — mobile only (sm:hidden). The shell's last
+ *  row, below the scrolling content, so it grows when its tabs wrap without covering any. */
 export function MobileAppTabBar({ tabs, appTab, onAppTab, appMode, onAppMode }: {
   tabs: { key: AppTab; label: string }[]; appTab: AppTab; onAppTab: (t: AppTab) => void
   appMode: AppMode; onAppMode?: (m: AppMode) => void
 }) {
   return (
-    <div className="sm:hidden fixed inset-x-0 bottom-0 z-30 border-t border-[var(--line)] bg-[var(--panel)] backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
-      {/* data-scroll-x: a tab strip that scrolls sideways by design; the page itself never does (console#27). */}
-      <nav aria-label="Workspace" data-scroll-x className="flex items-center overflow-x-auto">
+    <div className="sm:hidden shrink-0 border-t border-[var(--line)] bg-[var(--panel)] backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
+      <nav aria-label="Workspace" className="flex flex-wrap items-center justify-center">
         {onAppMode && <AppModeSwitch appMode={appMode} onAppMode={onAppMode} className="flex mx-1.5" />}
         {tabs.map((t) => {
           const active = appTab === t.key
@@ -90,8 +89,6 @@ export function MobileAppTabBar({ tabs, appTab, onAppTab, appMode, onAppMode }: 
           )
         })}
       </nav>
-      {/* Right-edge fade — hints that the tab row scrolls to more tabs. */}
-      <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-[var(--panel)] to-transparent" />
     </div>
   )
 }
