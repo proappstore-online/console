@@ -8,6 +8,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { OperatorEvidence } from './OperatorEvidence'
+import { OperatorResourcePanel } from './OperatorResourcePanel'
+import { OperatorRecordView } from './OperatorRecordView'
+import type { OperatorAction, OperatorContract, OperatorResource } from './operator'
 import { clearStepUp, passkeysAvailable, stepUpToken, stepUpWithPasskey } from './passkeyStepUp'
 
 const now = () => Math.floor(Date.now() / 1000)
@@ -176,5 +179,80 @@ describe('passkey step-up for documents (#244)', () => {
     // Dropped a little before the platform's 300 s window, so it is never sent stale.
     vi.setSystemTime(start + 291_000)
     expect(stepUpToken()).toBeNull()
+  })
+})
+
+describe('passkey step-up for operator actions (console#28)', () => {
+  const resource: OperatorResource = {
+    id: 'applications', kind: 'verification', title: 'Driver applications', description: null, action: 'op_list_applications',
+    columns: [{ key: 'name', label: 'Name', format: 'text' }, { key: 'application_id', label: 'Application', format: 'text' }],
+  } as OperatorResource
+  const approve = { id: 'approve_application', title: 'Approve', resource: 'applications', action: 'op_approve_application',
+    params: { application_id: 'application_id' }, confirm: 'Approve this application?', step_up: true, destructive: false,
+    transition: null, target: 'application_id' } as OperatorAction
+  const ACTION = '/operator/actions/approve_application'
+
+  it('a row action refused for a passkey offers the check in the panel, then retries the action with the step-up session', async () => {
+    platform()
+    const { get } = credentials({ get: assertion })
+    const confirm = vi.fn(() => true)
+    vi.stubGlobal('confirm', confirm)
+    routes['/operator/resources/applications'] = () => json({ rows: [{ name: 'Ada', application_id: 'a1' }], next_cursor: null })
+    routes[ACTION] = (c) => c.auth === 'Bearer stepped'
+      ? json({ ok: true, changes: 1 })
+      : json({ error: 'step_up_required', message: 'Recent passkey verification required', max_age: 300, method: 'passkey' }, 403)
+    render(<OperatorResourcePanel appId="rideshare" resource={resource} actions={[approve]} getToken={() => 'tok'} onReauth={vi.fn()} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve' }))
+    await screen.findByText('Approve: This needs a passkey check.')
+    expect(screen.queryByRole('button', { name: 'Sign in again' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Verify with passkey' }))
+
+    await screen.findByText('Approve: done.')
+    expect(get).toHaveBeenCalledOnce()
+    // Confirmed once: the retry after the passkey check does not ask again.
+    expect(confirm).toHaveBeenCalledOnce()
+    const posts = calls.filter((c) => c.url.endsWith(ACTION))
+    expect(posts.map((c) => c.auth)).toEqual(['Bearer tok', 'Bearer stepped'])
+    expect(posts[1]!.body).toEqual({ row: { name: 'Ada', application_id: 'a1' } })
+    expect(screen.queryByRole('button', { name: 'Verify with passkey' })).toBeNull()
+  })
+
+  it('without a passkey, the panel offers to set one up in generic words', async () => {
+    platform({ passkey: false })
+    credentials({})
+    vi.stubGlobal('confirm', () => true)
+    routes['/operator/resources/applications'] = () => json({ rows: [{ name: 'Ada', application_id: 'a1' }], next_cursor: null })
+    routes[ACTION] = () => json({ error: 'step_up_required', method: 'passkey', max_age: 300 }, 403)
+    render(<OperatorResourcePanel appId="rideshare" resource={resource} actions={[approve]} getToken={() => 'tok'} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Verify with passkey' }))
+    expect(await screen.findByText('You have no passkey for the console yet. Set one up to continue.')).toBeTruthy()
+  })
+})
+
+describe('passkey step-up for an operator record (console#28)', () => {
+  it('a record read refused for a passkey offers the check, then reloads the record with the step-up session', async () => {
+    platform()
+    const { get } = credentials({ get: assertion })
+    const RECORD = '/operator/resources/drivers/records/d1'
+    routes[RECORD] = (c) => c.auth === 'Bearer stepped'
+      ? json({ record: { name: 'Ada', email: 'ada@ride.test' } })
+      : json({ error: 'step_up_required', message: 'Recent passkey verification required', max_age: 300, method: 'passkey' }, 403)
+    const contract = { version: 1, actions: [], resources: [{
+      id: 'drivers', kind: 'users', title: 'Drivers', description: null, action: 'op_list_drivers',
+      columns: [{ key: 'name', label: 'Name', format: 'text' }],
+      detail: { action: 'op_driver_detail', param: 'driver_id', key: 'driver_id', step_up: true, fields: [
+        { key: 'name', label: 'Name', format: 'text' }, { key: 'email', label: 'Email', format: 'text' },
+      ] },
+    }] } as unknown as OperatorContract
+    render(<OperatorRecordView appId="rideshare" contract={contract} resourceId="drivers" recordKey="d1" getToken={() => 'tok'} onReauth={vi.fn()} />)
+    expect((await screen.findByRole('alert')).textContent).toBe('This needs a passkey check.')
+    expect(screen.queryByRole('button', { name: 'Sign in again' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Verify with passkey' }))
+    expect(await screen.findByText('ada@ride.test')).toBeTruthy()
+    expect(get).toHaveBeenCalledOnce()
+    expect(calls.filter((c) => c.url.endsWith(RECORD)).map((c) => c.auth)).toEqual(['Bearer tok', 'Bearer stepped'])
+    expect(screen.queryByRole('button', { name: 'Verify with passkey' })).toBeNull()
   })
 })

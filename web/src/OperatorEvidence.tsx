@@ -40,7 +40,7 @@ export function OperatorEvidence({ appId, resourceId, recordKey, record, evidenc
       setLoaded((l) => ({ ...l, [field]: { url: URL.createObjectURL(blob), type: blob.type } }))
       setPasskeyFor(null)
     } catch (e) {
-      setErrors((x) => ({ ...x, [field]: operatorErrorMessage(e) }))
+      setErrors((x) => ({ ...x, [field]: needsPasskey(e) ? 'Opening a document needs a passkey check.' : operatorErrorMessage(e) }))
       if (needsPasskey(e)) setPasskeyFor({ field, window: stepUpWindow(e) })
       else if (needsReauth(e)) setReauth(true)
     }
@@ -77,7 +77,7 @@ export function OperatorEvidence({ appId, resourceId, recordKey, record, evidenc
         })}
       </ul>
       {passkeyFor && (
-        <OperatorStepUp getToken={getToken} windowSeconds={passkeyFor.window} onReauth={onReauth}
+        <OperatorStepUp getToken={getToken} windowSeconds={passkeyFor.window} onReauth={onReauth} forDocument
           onVerified={() => view(passkeyFor.field)} />
       )}
       {reauth && onReauth && (

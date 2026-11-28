@@ -12,12 +12,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   fetchOperatorRows, runOperatorRowAction, actionAvailable, statusLabel, needsReauth, formatCell, operatorErrorMessage,
-  returnedKeys, confirmText, isConflict, isRoleRefusal,
+  returnedKeys, confirmText, isConflict, isRoleRefusal, needsPasskey,
   type OperatorResource, type OperatorAction, type OperatorRow,
 } from './operator'
 import { operatorRecordHash } from './nav'
 import { Kpi } from './sectionPrimitives'
 import { assignRole } from './RolesManager'
+import { OperatorStepUp } from './OperatorStepUp'
+import { passkeysAvailable, stepUpToken, stepUpWindow } from './passkeyStepUp'
 
 const BUTTON = 'rounded-lg border px-2.5 py-1 text-xs font-medium disabled:opacity-50'
 
@@ -45,6 +47,8 @@ export function OperatorResourcePanel({ appId, resource, actions, getToken, rela
   const [query, setQuery] = useState('')
   const [state, setState] = useState<string | null>(null)
   const [roleRefused, setRoleRefused] = useState(false)
+  /** The action a passkey check was asked for (#244), retried once verified, and the window the platform reported. */
+  const [stepUp, setStepUp] = useState<{ action: OperatorAction; row: OperatorRow; window: number } | null>(null)
 
   /** First page for the current search and state, or the next page appended after `cursor`. */
   const load = useCallback(async (cursor: string | null = null) => {
@@ -64,12 +68,15 @@ export function OperatorResourcePanel({ appId, resource, actions, getToken, rela
 
   useEffect(() => { load() }, [load])
 
-  const run = async (action: OperatorAction, row: OperatorRow) => {
-    const token = getToken()
-    if (!token || !window.confirm(confirmText(action))) return
+  /** Run a row action; a retry after a passkey check was already confirmed. */
+  const run = async (action: OperatorAction, row: OperatorRow, confirmed = false) => {
+    // A held passkey step-up session (#244) counts as a recent sign-in for actions.
+    const token = stepUpToken() ?? getToken()
+    if (!token || (!confirmed && !window.confirm(confirmText(action)))) return
     setBusy(true)
     setNotice(null)
     setReauth(false)
+    setStepUp(null)
     try {
       await runOperatorRowAction(token, appId, action.id, row)
       setNotice(`${action.title}: done.`)
@@ -78,6 +85,8 @@ export function OperatorResourcePanel({ appId, resource, actions, getToken, rela
       setNotice(`${action.title}: ${operatorErrorMessage(e, role, !!ownerId)}`)
       setRoleRefused(isRoleRefusal(e))
       setReauth(needsReauth(e))
+      // The action needs a passkey; or a recent sign-in, which a passkey check also gives where passkeys work.
+      if (needsPasskey(e) || (needsReauth(e) && passkeysAvailable())) setStepUp({ action, row, window: stepUpWindow(e) })
       if (isConflict(e)) await load() // the row moved on: show its current state
     } finally {
       setBusy(false)
@@ -178,6 +187,10 @@ export function OperatorResourcePanel({ appId, resource, actions, getToken, rela
           </button>
         )}
         {notice && <p className="mt-3 text-sm text-[var(--muted)]">{notice}</p>}
+        {stepUp && (
+          <OperatorStepUp getToken={getToken} windowSeconds={stepUp.window} onReauth={onReauth}
+            onVerified={() => void run(stepUp.action, stepUp.row, true)} />
+        )}
         {reauth && onReauth && (
           <button type="button" onClick={onReauth}
             className="mt-2 rounded-lg border border-[var(--line-strong)] px-3 py-1.5 text-sm font-medium text-[var(--ink)]">

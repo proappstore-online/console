@@ -11,7 +11,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   fetchOperatorRecord, runOperatorRowAction, actionAvailable, needsReauth, formatCell, operatorErrorMessage,
-  returnedKeys, confirmText, isConflict, isRoleRefusal,
+  returnedKeys, confirmText, isConflict, isRoleRefusal, needsPasskey,
   type OperatorAction, type OperatorContract, type OperatorRow,
 } from './operator'
 import { OperatorResourcePanel, GrantMyRole } from './OperatorResourcePanel'
@@ -39,6 +39,9 @@ export function OperatorRecordView({ appId, contract, resourceId, recordKey, get
   const [roleRefused, setRoleRefused] = useState(false)
   /** The step-up window of the last refusal: a passkey check also satisfies a recent-sign-in requirement. */
   const [stepUpSeconds, setStepUpSeconds] = useState(300)
+  /** A passkey check is offered (#244): what was refused needs one, or a recent sign-in, which one also gives where passkeys work.
+   *  `retry` is the decision to take again once verified; null reloads the record. */
+  const [stepUp, setStepUp] = useState<{ retry: OperatorAction | null } | null>(null)
   const [busy, setBusy] = useState(false)
   // A held passkey step-up session (#244) counts as a recent sign-in for the record and its decisions.
   const operatorToken = useCallback(() => stepUpToken() ?? getToken(), [getToken])
@@ -55,6 +58,7 @@ export function OperatorRecordView({ appId, contract, resourceId, recordKey, get
     setRecord(null)
     setError(null)
     setRoleRefused(false)
+    setStepUp(null)
     const token = operatorToken()
     if (!resource || !detail) { setError('This app does not declare a detail page for that record.'); return }
     if (!token) { setError('Your session has expired. Sign in again.'); return }
@@ -65,17 +69,20 @@ export function OperatorRecordView({ appId, contract, resourceId, recordKey, get
         setError(operatorErrorMessage(e, role, !!ownerId))
         setRoleRefused(isRoleRefusal(e))
         setReauth(needsReauth(e))
+        if (needsPasskey(e) || (needsReauth(e) && passkeysAvailable())) setStepUp({ retry: null })
         setStepUpSeconds(stepUpWindow(e))
       })
     return () => { cancelled = true }
   }, [appId, resource, detail, recordKey, operatorToken, version, role, ownerId])
 
-  const decide = async (action: OperatorAction) => {
+  /** Take a decision; a retry after a passkey check was already confirmed. */
+  const decide = async (action: OperatorAction, confirmed = false) => {
     const token = operatorToken()
-    if (!token || !record || !window.confirm(confirmText(action))) return
+    if (!token || !record || (!confirmed && !window.confirm(confirmText(action)))) return
     setBusy(true)
     setNotice(null)
     setReauth(false)
+    setStepUp(null)
     try {
       await runOperatorRowAction(token, appId, action.id, record)
       setNotice(`${action.title}: done.`)
@@ -84,6 +91,7 @@ export function OperatorRecordView({ appId, contract, resourceId, recordKey, get
       setNotice(`${action.title}: ${operatorErrorMessage(e, role, !!ownerId)}`)
       setRoleRefused(isRoleRefusal(e))
       setReauth(needsReauth(e))
+      if (needsPasskey(e) || (needsReauth(e) && passkeysAvailable())) setStepUp({ retry: action })
       setStepUpSeconds(stepUpWindow(e))
       if (isConflict(e)) setVersion((v) => v + 1) // the record moved on: show its current state
     } finally {
@@ -125,9 +133,14 @@ export function OperatorRecordView({ appId, contract, resourceId, recordKey, get
             </div>
           )}
           {notice && <p className="mt-3 text-sm text-[var(--muted)]">{notice}</p>}
-          {reauth && passkeysAvailable() && (
+          {stepUp && (
             <OperatorStepUp getToken={getToken} windowSeconds={stepUpSeconds} onReauth={onReauth}
-              onVerified={() => { setReauth(false); setNotice(null); setVersion((v) => v + 1) }} />
+              onVerified={() => {
+                setReauth(false)
+                setNotice(null)
+                if (stepUp.retry) void decide(stepUp.retry, true)
+                else setVersion((v) => v + 1)
+              }} />
           )}
           {reauth && onReauth && (
             <button type="button" onClick={onReauth}

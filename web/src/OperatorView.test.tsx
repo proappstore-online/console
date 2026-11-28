@@ -539,6 +539,23 @@ describe('OperatorView — reports & suspensions (#240)', () => {
     expect(onReauth).toHaveBeenCalledOnce()
   })
 
+  it('an action refused for a passkey says so generically and, off the console origin, links to the same page there (console#28)', async () => {
+    vi.stubGlobal('confirm', () => true)
+    history.replaceState(null, '', '#/apps/stash/operator')
+    serve({ ...baseline, contract: STASH }, { suspend_member: { status: 403, body: { error: 'step_up_required', method: 'passkey', max_age: 300 } } })
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} onReauth={vi.fn()} />)
+    const members = (await screen.findByText('Members')).closest('section')!
+    await within(members).findByText('Ada')
+    fireEvent.click(within(members).getAllByRole('button', { name: 'Suspend' })[0]!)
+    expect(await within(members).findByText('Suspend: This needs a passkey check.')).toBeTruthy()
+    expect(within(members).getByText(/^Passkey checks work on/)).toBeTruthy()
+    const link = within(members).getByRole('link', { name: 'console.proappstore.online' })
+    expect(link.getAttribute('href')).toBe('https://console.proappstore.online/#/apps/stash/operator')
+    // A fresh sign-in would be refused again; the passkey check is the only way.
+    expect(within(members).queryByRole('button', { name: 'Sign in again' })).toBeNull()
+    expect(within(members).queryByRole('button', { name: 'Verify with passkey' })).toBeNull()
+  })
+
   it("shows a member's suspension history on their record page, scoped to that member, with Lift only on active ones", async () => {
     const fetchMock = serve({ ...baseline, contract: STASH }, {
       'record:members': { status: 200, body: { record: { display_name: 'Ada', email: 'ada@x.test', pocket_count: 1 } } },
@@ -649,6 +666,18 @@ describe('OperatorView — ID verification (#240)', () => {
     expect(screen.queryByRole('button', { name: 'Sign in again' })).toBeNull()
   })
 
+  it('a record read refused for a passkey shows the prompt: off the console origin, a link to the same record there (console#28)', async () => {
+    serve({ ...baseline, contract: STASH }, { 'record:kyc': { status: 403, body: { error: 'step_up_required', method: 'passkey', max_age: 300 } } })
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} onReauth={vi.fn()} />)
+    await screen.findByText('Identity checks', { selector: 'h4' })
+    go('#/apps/stash/operator/kyc/k1')
+    expect((await screen.findByRole('alert')).textContent).toBe('This needs a passkey check.')
+    expect(screen.getByText(/^Passkey checks work on/)).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'console.proappstore.online' }).getAttribute('href'))
+      .toBe('https://console.proappstore.online/#/apps/stash/operator/kyc/k1')
+    expect(screen.queryByRole('button', { name: 'Sign in again' })).toBeNull()
+  })
+
   it('a stale session on the record itself is explained with a re-sign-in', async () => {
     const onReauth = vi.fn()
     serve({ ...baseline, contract: STASH }, { 'record:kyc': { status: 403, body: { error: 'step_up_required' } } })
@@ -687,6 +716,16 @@ describe('OperatorView — ID verification (#240)', () => {
     expect(await screen.findByText("Approve: You can't review your own application — another staff member must.")).toBeTruthy()
     // The record is reloaded to its current state, as for any 409.
     await waitFor(() => expect(fetchMock.mock.calls.filter(([u]) => String(u).endsWith('/records/k1'))).toHaveLength(2))
+  })
+
+  it('a decision refused for a passkey on the record page offers the check, here as a link to the console (console#28)', async () => {
+    vi.stubGlobal('confirm', () => true)
+    await openKyc({ approve_kyc: { status: 403, body: { error: 'step_up_required', method: 'passkey', max_age: 300 } } }, vi.fn())
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    expect(await screen.findByText('Approve: This needs a passkey check.')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'console.proappstore.online' }).getAttribute('href'))
+      .toBe('https://console.proappstore.online/#/apps/stash/operator/kyc/k1')
+    expect(screen.queryByRole('button', { name: 'Sign in again' })).toBeNull()
   })
 
   it('a second app (Parents Clubs) opens its licence PDF through the same code', async () => {

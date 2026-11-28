@@ -289,7 +289,7 @@ export function needsReauth(e: unknown): boolean {
   return e instanceof ApiError && e.message === 'step_up_required' && !needsPasskey(e)
 }
 
-/** True when only a passkey step-up will do (#244): identity documents. A fresh sign-in would be refused again. */
+/** True when only a passkey step-up will do (#244): identity documents, or an action the app declares behind one. A fresh sign-in would be refused again. */
 export function needsPasskey(e: unknown): boolean {
   return e instanceof ApiError && e.message === 'step_up_required' && (e.body as { method?: unknown } | null)?.method === 'passkey'
 }
@@ -350,7 +350,7 @@ export function isRoleRefusal(e: unknown): boolean {
  */
 export function operatorErrorMessage(e: unknown, role?: string, owner = false): string {
   if (e instanceof ApiError) {
-    if (needsPasskey(e)) return 'Opening a document needs a passkey check.'
+    if (needsPasskey(e)) return 'This needs a passkey check.'
     if (e.message === 'step_up_required') return 'This needs a recent sign-in. Sign in again, then retry.'
     if (isRoleRefusal(e)) {
       if (role && owner) return `This needs the ${role} app role, which you don't hold yet.`

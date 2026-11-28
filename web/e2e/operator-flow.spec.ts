@@ -24,6 +24,8 @@ const OWNER_TOKEN = 'e2e-owner-token';
 /** The session the re-sign-in round trip returns: the fake counts it as a recent sign-in. */
 const FRESH_TOKEN = 'e2e-fresh-token';
 const USER = { id: 'gh:1', login: 'octo', name: 'Octo', avatarUrl: null };
+/** A member whose record the fake refuses without a passkey step-up. */
+const LOCKED_MEMBER = 'google:103954887935449123398';
 
 // The Stash contract as the platform stores and returns it (validated, normalized).
 const CONTRACT = {
@@ -197,6 +199,8 @@ class FakeApi {
     const record = /^\/resources\/members\/records\/([^/]+)$/.exec(rest);
     if (record && method === 'GET') {
       const key = decodeURIComponent(record[1]!);
+      // A record the app holds behind a passkey check (console#28): refused on a plain session.
+      if (key === LOCKED_MEMBER) { this.log('detail', 'detail:members', 403, { resource: 'members', target: key }); return reply(403, { error: 'step_up_required', method: 'passkey', max_age: 300 }); }
       const m = this.members.find((r) => r.user_id === key);
       this.log('detail', 'detail:members', m ? 200 : 404, { resource: 'members', target: key });
       if (!m) return reply(404, { error: 'record not found' });
@@ -305,6 +309,15 @@ test('owner runs the full admin flow: browse, create, update, delete, custom act
   await expect(page.getByRole('definition')).toHaveText(['Ada', 'ada@stash.test', '3']);
   await expect(section('Suspension history').getByText('Nothing here.')).toBeVisible();
   expect(api.calls.filter((c) => c.url.pathname.endsWith('/resources/history')).at(-1)!.url.searchParams.get('related')).toBe('u1');
+  await page.getByRole('link', { name: '← Back to operator view' }).click();
+
+  // ── A record behind a passkey check: off console.proappstore.online the prompt links to the same record there ──
+  await page.goto(`/#/apps/stash/operator/members/${encodeURIComponent(LOCKED_MEMBER)}`);
+  await expect(page.getByRole('alert')).toHaveText('This needs a passkey check.');
+  await expect(page.getByText(/^Passkey checks work on/)).toBeVisible();
+  await expect(page.getByRole('link', { name: 'console.proappstore.online' }))
+    .toHaveAttribute('href', `https://console.proappstore.online/#/apps/stash/operator/members/${encodeURIComponent(LOCKED_MEMBER)}`);
+  await expect(page.getByRole('button', { name: 'Sign in again' })).toHaveCount(0);
   await page.getByRole('link', { name: '← Back to operator view' }).click();
 
   // ── Create (Suspend), refused with step_up_required → the step-up UI ──

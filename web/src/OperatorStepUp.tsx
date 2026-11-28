@@ -1,9 +1,9 @@
 /**
- * The passkey step-up prompt (#244), shown where the platform refused a read
- * with `step_up_required` and `method: 'passkey'`. It verifies with the
+ * The passkey step-up prompt (#244), shown where the platform refused a read or
+ * an action with `step_up_required` and `method: 'passkey'`. It verifies with the
  * console passkey, or first sets one up. Setting one up needs a sign-in within
  * the last few minutes, so it may ask for that first. Once verified,
- * `onVerified` retries the refused read with the held step-up session.
+ * `onVerified` retries the refused request with the held step-up session.
  */
 
 import { useState } from 'react'
@@ -12,12 +12,14 @@ import { CONSOLE_HOST, passkeyCode, passkeysAvailable, registerPasskey, stepUpWi
 
 type Stage = 'ready' | 'working' | 'no_passkey' | 'reauth'
 
-export function OperatorStepUp({ getToken, windowSeconds, onVerified, onReauth }: {
+export function OperatorStepUp({ getToken, windowSeconds, onVerified, onReauth, forDocument = false }: {
   /** The console session: the ceremony is authorised by it, and the step-up session is minted from it. */
   getToken: () => string | null
   windowSeconds: number
   onVerified: () => void
   onReauth?: () => void
+  /** The check is for opening a document (evidence), rather than for an action or a record. */
+  forDocument?: boolean
 }) {
   const [stage, setStage] = useState<Stage>('ready')
   const [error, setError] = useState<string | null>(null)
@@ -25,7 +27,7 @@ export function OperatorStepUp({ getToken, windowSeconds, onVerified, onReauth }
   if (!passkeysAvailable()) {
     return (
       <p className="mt-3 text-sm text-[var(--muted)]">
-        Documents open only after a passkey check, which works on{' '}
+        {forDocument && 'Documents open only after a passkey check. '}Passkey checks work on{' '}
         <a className="underline text-[var(--ink)]" href={`https://${CONSOLE_HOST}/${window.location.hash}`}>{CONSOLE_HOST}</a>.
       </p>
     )
@@ -62,7 +64,7 @@ export function OperatorStepUp({ getToken, windowSeconds, onVerified, onReauth }
       )}
       {stage === 'no_passkey' && (
         <>
-          <p className="text-sm text-[var(--muted)]">You have no passkey for the console yet. Set one up to open documents.</p>
+          <p className="text-sm text-[var(--muted)]">You have no passkey for the console yet. Set one up to {forDocument ? 'open documents' : 'continue'}.</p>
           <button type="button" className={button} onClick={() => run(true)}>Set up a passkey</button>
         </>
       )}
