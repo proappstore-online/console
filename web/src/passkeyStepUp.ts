@@ -10,7 +10,7 @@
  * session is left as it is, so step-up never signs anyone out.
  */
 
-import { API_BASE, ApiError, authHeaders } from './api'
+import { API_BASE, ApiError, apiFetch, authHeaders } from './api'
 
 export const CONSOLE_HOST = 'console.proappstore.online'
 /**
@@ -110,9 +110,11 @@ export async function stepUpWithPasskey(sessionToken: string, windowSeconds = DE
 
 /**
  * Register a passkey for the console. The platform requires a sign-in within
- * the last few minutes; otherwise it answers 403 `reauth_required`.
+ * the last few minutes, or, when the account already has a passkey, a passkey
+ * step-up; otherwise it answers 403 `reauth_required`. An empty `name` leaves
+ * the platform to name it from the browser, e.g. "Mac · Chrome".
  */
-export async function registerPasskey(sessionToken: string): Promise<void> {
+export async function registerPasskey(sessionToken: string, name = ''): Promise<void> {
   const opts = await post<{
     challenge: string
     rp: { id: string; name: string }
@@ -144,5 +146,32 @@ export async function registerPasskey(sessionToken: string): Promise<void> {
     authenticatorData: toB64url(response.getAuthenticatorData()),
     publicKey: toB64url(publicKey),
     publicKeyAlgorithm: response.getPublicKeyAlgorithm(),
+    transports: response.getTransports(),
+    ...(name.trim() ? { name: name.trim() } : {}),
   })
+}
+
+/** One of your passkeys, as the platform lists them (platform#700). Times are epoch ms. */
+export interface Passkey {
+  id: string
+  name: string
+  rp_id: string
+  transports: string[]
+  created_at: number
+  last_used_at: number | null
+}
+
+/** Your passkeys, newest first. */
+export async function listPasskeys(token: string): Promise<Passkey[]> {
+  return (await apiFetch<{ credentials: Passkey[] }>('/auth/passkey/credentials', { token })).credentials
+}
+
+/** Rename one of your passkeys (1–60 characters). */
+export async function renamePasskey(token: string, id: string, name: string): Promise<void> {
+  await apiFetch(`/auth/passkey/credentials/${encodeURIComponent(id)}`, { method: 'PATCH', token, body: JSON.stringify({ name: name.trim() }) })
+}
+
+/** Remove one of your passkeys. Needs a recent sign-in or a passkey step-up token, else 403 `reauth_required`. */
+export async function removePasskey(token: string, id: string): Promise<void> {
+  await apiFetch(`/auth/passkey/credentials/${encodeURIComponent(id)}`, { method: 'DELETE', token })
 }

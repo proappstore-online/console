@@ -24,14 +24,7 @@ export function OperatorStepUp({ getToken, windowSeconds, onVerified, onReauth, 
   const [stage, setStage] = useState<Stage>('ready')
   const [error, setError] = useState<string | null>(null)
 
-  if (!passkeysAvailable()) {
-    return (
-      <p className="mt-3 text-sm text-[var(--muted)]">
-        {forDocument && 'Documents open only after a passkey check. '}Passkey checks work on{' '}
-        <a className="underline text-[var(--ink)]" href={`https://${CONSOLE_HOST}/${window.location.hash}`}>{CONSOLE_HOST}</a>.
-      </p>
-    )
-  }
+  if (!passkeysAvailable()) return <PasskeyHostNote className="mt-3" forDocument={forDocument} />
 
   const run = async (register: boolean) => {
     const token = getToken()
@@ -64,8 +57,11 @@ export function OperatorStepUp({ getToken, windowSeconds, onVerified, onReauth, 
       )}
       {stage === 'no_passkey' && (
         <>
-          <p className="text-sm text-[var(--muted)]">You have no passkey for the console yet. Set one up to {forDocument ? 'open documents' : 'continue'}.</p>
+          <p className="text-sm text-[var(--muted)]">You have no passkey yet. Set one up to {forDocument ? 'open documents' : 'continue'}.</p>
           <button type="button" className={button} onClick={() => run(true)}>Set up a passkey</button>
+          <p className="text-sm text-[var(--muted)]">
+            You can also add and manage passkeys in <a className="underline text-[var(--ink)]" href="#/profile">Profile → Passkeys</a>.
+          </p>
         </>
       )}
       {stage === 'reauth' && (
@@ -76,5 +72,15 @@ export function OperatorStepUp({ getToken, windowSeconds, onVerified, onReauth, 
       )}
       {error && <p role="alert" className="text-sm text-[var(--error)]">{error}</p>}
     </div>
+  )
+}
+
+/** Off a console host passkeys cannot work: say where they do, keeping the current route. */
+export function PasskeyHostNote({ className = '', forDocument = false }: { className?: string; forDocument?: boolean }) {
+  return (
+    <p className={`${className} text-sm text-[var(--muted)]`}>
+      {forDocument && 'Documents open only after a passkey check. '}Passkey checks work on{' '}
+      <a className="underline text-[var(--ink)]" href={`https://${CONSOLE_HOST}/${window.location.hash}`}>{CONSOLE_HOST}</a>.
+    </p>
   )
 }

@@ -3,6 +3,7 @@ import type { User } from '@proappstore/sdk'
 import { pro } from './sdk'
 import { API_BASE as API } from './api'
 import { DeveloperReputation } from './DeveloperReputation'
+import { PasskeysSection } from './PasskeysSection'
 
 interface Provider { id: string; name: string; docs_url: string | null; key_prefix: string | null }
 interface KeyStatus { provider: string; label: string | null; createdAt: number; lastUsedAt: number | null }
@@ -14,8 +15,12 @@ function applyTheme(t: Theme) {
   else delete document.documentElement.dataset.theme
 }
 
+// Stable references: PasskeysSection loads the list once per token getter.
+const consoleToken = () => pro.auth.token
+const signInAgain = () => { void pro.auth.signIn() }
+
 /**
- * Full profile/account page: API key vault (BYO Anthropic/OpenAI keys that power
+ * Full profile/account page: passkeys, API key vault (BYO Anthropic/OpenAI keys that power
  * the agents), theme, and account actions. Reached from the avatar.
  */
 export function ProfileView({ user }: { user: User }) {
@@ -34,6 +39,7 @@ export function ProfileView({ user }: { user: User }) {
       </header>
 
       <DeveloperReputation key={`${user.id}:${pro.auth.token ?? ''}`} token={pro.auth.token} />
+      <PasskeysSection getToken={consoleToken} onReauth={signInAgain} />
       <ApiKeysSection />
       <NotificationsSection />
       <ThemeSection />

@@ -60,7 +60,7 @@ function platform(opts: { passkey?: boolean } = {}) {
     : json({ error: 'step_up_required', message: 'Recent passkey verification required', max_age: 300, method: 'passkey' }, 403)
   routes['/auth/passkey/step-up/options'] = () => opts.passkey === false
     ? json({ error: 'no passkey registered for this app', code: 'no_passkey' }, 404)
-    : json({ challenge: 'AAEC', rpId: 'console.proappstore.online', timeout: 60000, userVerification: 'required', allowCredentials: [{ type: 'public-key', id: 'AQID' }] })
+    : json({ challenge: 'AAEC', rpId: 'proappstore.online', timeout: 60000, userVerification: 'required', allowCredentials: [{ type: 'public-key', id: 'AQID' }] })
   routes['/auth/passkey/step-up'] = () => json({ token: 'stepped', auth_time: now(), expires_at: now() + 3600 })
 }
 
@@ -90,7 +90,7 @@ describe('passkey step-up for documents (#244)', () => {
     expect(img.getAttribute('src')).toBe('blob:test/1')
 
     const options = get.mock.calls[0]![0] as { publicKey: PublicKeyCredentialRequestOptions }
-    expect(options.publicKey.rpId).toBe('console.proappstore.online')
+    expect(options.publicKey.rpId).toBe('proappstore.online')
     expect(options.publicKey.userVerification).toBe('required')
     expect([...new Uint8Array(options.publicKey.challenge as ArrayBuffer)]).toEqual([0, 1, 2])
     expect([...new Uint8Array(options.publicKey.allowCredentials![0]!.id as ArrayBuffer)]).toEqual([1, 2, 3])
@@ -129,11 +129,11 @@ describe('passkey step-up for documents (#244)', () => {
       get: assertion,
       create: () => ({
         rawId: bytes(9),
-        response: { clientDataJSON: bytes(7), getAuthenticatorData: () => bytes(8), getPublicKey: () => bytes(10), getPublicKeyAlgorithm: () => -7 },
+        response: { clientDataJSON: bytes(7), getAuthenticatorData: () => bytes(8), getPublicKey: () => bytes(10), getPublicKeyAlgorithm: () => -7, getTransports: () => ['internal', 'hybrid'] },
       }),
     })
     routes['/auth/passkey/register/options'] = () => json({
-      challenge: 'Bwc', rp: { id: 'console.proappstore.online', name: 'console' }, user: { id: 'Z2g6MQ', name: 'owner', displayName: 'owner' },
+      challenge: 'Bwc', rp: { id: 'proappstore.online', name: 'ProAppStore' }, user: { id: 'Z2g6MQ', name: 'owner', displayName: 'owner' },
       pubKeyCredParams: [{ type: 'public-key', alg: -7 }], timeout: 60000, attestation: 'none',
       authenticatorSelection: { userVerification: 'required' }, excludeCredentials: [],
     })
@@ -143,14 +143,14 @@ describe('passkey step-up for documents (#244)', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Verify with passkey' }))
     // The first step-up/options answers no_passkey; after registering, the next one offers the new key.
     await screen.findByRole('button', { name: 'Set up a passkey' })
-    routes['/auth/passkey/step-up/options'] = () => json({ challenge: 'AAEC', rpId: 'console.proappstore.online', timeout: 60000, allowCredentials: [{ id: 'CQ' }] })
+    routes['/auth/passkey/step-up/options'] = () => json({ challenge: 'AAEC', rpId: 'proappstore.online', timeout: 60000, allowCredentials: [{ id: 'CQ' }] })
     fireEvent.click(screen.getByRole('button', { name: 'Set up a passkey' }))
     await screen.findByRole('img', { name: 'ID document' })
     const opts = create.mock.calls[0]![0] as { publicKey: PublicKeyCredentialCreationOptions }
-    expect(opts.publicKey.rp.id).toBe('console.proappstore.online')
+    expect(opts.publicKey.rp.id).toBe('proappstore.online')
     expect(opts.publicKey.attestation).toBe('none')
     expect(calls.find((c) => c.url.endsWith('/auth/passkey/register'))!.body).toEqual({
-      id: 'CQ', clientDataJSON: 'Bw', authenticatorData: 'CA', publicKey: 'Cg', publicKeyAlgorithm: -7,
+      id: 'CQ', clientDataJSON: 'Bw', authenticatorData: 'CA', publicKey: 'Cg', publicKeyAlgorithm: -7, transports: ['internal', 'hybrid'],
     })
   })
 
@@ -227,7 +227,8 @@ describe('passkey step-up for operator actions (console#28)', () => {
     render(<OperatorResourcePanel appId="rideshare" resource={resource} actions={[approve]} getToken={() => 'tok'} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Approve' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Verify with passkey' }))
-    expect(await screen.findByText('You have no passkey for the console yet. Set one up to continue.')).toBeTruthy()
+    expect(await screen.findByText('You have no passkey yet. Set one up to continue.')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Profile → Passkeys' }).getAttribute('href')).toBe('#/profile')
   })
 })
 
