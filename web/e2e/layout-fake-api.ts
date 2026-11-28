@@ -95,7 +95,7 @@ const OPERATOR_ROWS: Record<string, unknown[]> = {
 };
 const AUDIT_ROWS = [
   { id: 4, at: NOW - MIN, actor: { id: UID, login: null }, role: 'ops_pii', kind: 'detail', resource: 'drivers', field: null, operation: 'detail:drivers', action: 'op_driver_detail', target: UID, target_hidden: false, status: 200, outcome: 'success', reason: null },
-  { id: 3, at: NOW - 5 * MIN, actor: { id: UID2, login: 'bartholomew-montgomery-fitzwilliam-logistics' }, role: null, kind: 'action', resource: 'documents', field: null, operation: 'accept', action: 'op_accept', target: UNBROKEN, target_hidden: false, status: 403, outcome: 'refused', reason: null },
+  { id: 3, at: NOW - 5 * MIN, actor: { id: UID2, login: 'bartholomew-montgomery-fitzwilliam-logistics' }, role: null, kind: 'action', resource: 'documents', field: null, operation: 'accept', action: 'op_accept', target: UNBROKEN, target_hidden: false, status: 409, outcome: 'refused', reason: `You can't accept a document you uploaded yourself; a regional compliance auditor has to review it (${UNBROKEN}).` },
   { id: 2, at: NOW - HOUR, actor: { id: UID, login: USER.login }, role: null, kind: 'read', resource: 'documents', field: null, operation: 'read:documents', action: 'op_list_documents', target: null, target_hidden: true, status: 200, outcome: 'success', reason: null },
   { id: 1, at: NOW - DAY, actor: { id: UID, login: USER.login }, role: null, kind: 'enter', resource: null, field: null, operation: 'enter', action: null, target: `visit-${TRACE}`, target_hidden: false, status: 200, outcome: 'success', reason: null },
 ];

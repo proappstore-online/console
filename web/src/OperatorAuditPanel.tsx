@@ -37,7 +37,12 @@ export function describeAudit(row: OperatorAuditRow, contract: OperatorContract 
   return `${kind}: ${resource?.title ?? row.resource}${field ? ` · ${field}` : ''}`
 }
 
-const outcomeText = (row: OperatorAuditRow) => (row.outcome === 'success' ? 'Success' : `Refused (${row.status})`)
+/** How it went: a refusal the app explained (platform#697) shows its reason, any other its status code. */
+function Outcome({ row }: { row: OperatorAuditRow }) {
+  if (row.outcome === 'success') return <span className="whitespace-nowrap">✓ Success</span>
+  if (!row.reason) return <span className="whitespace-nowrap">✕ Refused ({row.status})</span>
+  return <><span className="whitespace-nowrap">✕ Refused</span> — {row.reason}</>
+}
 function who(row: OperatorAuditRow) {
   return row.actor.login ?? <TruncatedId value={row.actor.id} label="user id" />
 }
@@ -162,8 +167,7 @@ export function OperatorAuditPanel({ appId, contract, getToken, onReauth }: {
                     cell: (r) => <>{who(r)}{r.role && <span className="block text-xs text-[var(--muted)]">as {r.role}</span>}</> },
                   { key: 'what', header: 'What', cell: (r) => describeAudit(r, contract) },
                   { key: 'record', header: 'Record', className: 'max-w-0 w-[22%]', cell: (r) => <Target row={r} /> },
-                  { key: 'outcome', header: 'Outcome', className: 'whitespace-nowrap',
-                    cell: (r) => <>{r.outcome === 'success' ? '✓ ' : '✕ '}{outcomeText(r)}</> },
+                  { key: 'outcome', header: 'Outcome', cell: (r) => <Outcome row={r} /> },
                 ]} className="text-sm text-[var(--ink)]" />
               </div>
             )}

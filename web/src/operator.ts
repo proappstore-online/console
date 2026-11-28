@@ -227,6 +227,8 @@ export interface OperatorAuditRow {
   target_hidden: boolean
   status: number
   outcome: 'success' | 'refused'
+  /** The reason the app declared for a refused row action (platform#697), else null. */
+  reason: string | null
 }
 
 export interface OperatorAuditFilters { kind?: string; outcome?: string; actor?: string; target?: string; from?: string; to?: string }

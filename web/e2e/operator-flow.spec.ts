@@ -402,7 +402,7 @@ test('owner runs the full admin flow: browse, create, update, delete, custom act
   await expect(cells(2).nth(4)).toHaveText('✓ Success');
   await expect(cells(3).nth(2)).toHaveText('Ran action: Start review');
   await expect(cells(3).nth(3)).toHaveText('r4');
-  await expect(cells(3).nth(4)).toHaveText('✕ Refused (409)');
+  await expect(cells(3).nth(4)).toHaveText("✕ Refused — You can't review a report you filed.");
   await expect(cells(4).nth(2)).toHaveText('Ran action: Lift');
   await expect(cells(5).nth(2)).toHaveText('Ran action: Suspend');
   await expect(cells(5).nth(4)).toHaveText('✓ Success');

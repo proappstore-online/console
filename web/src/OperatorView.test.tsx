@@ -893,7 +893,7 @@ describe('OperatorView — entry and audit trail (#240)', () => {
   const trail = (overrides: Partial<Record<string, unknown>> = {}) => ({
     rows: [
       { id: 9, at: Date.UTC(2026, 8, 28, 9), actor: { id: 'gh:1', login: 'owner' }, role: 'operator', kind: 'evidence', resource: 'kyc', field: 'document_path', operation: 'evidence:kyc.document_path', action: 'op_kyc_detail', target: null, target_hidden: true, status: 200, outcome: 'success' },
-      { id: 8, at: Date.UTC(2026, 8, 28, 8), actor: { id: 'gh:1', login: null }, role: null, kind: 'action', resource: null, field: null, operation: 'review', action: null, target: null, target_hidden: false, status: 409, outcome: 'refused' },
+      { id: 8, at: Date.UTC(2026, 8, 28, 8), actor: { id: 'gh:1', login: null }, role: null, kind: 'action', resource: null, field: null, operation: 'review', action: null, target: null, target_hidden: false, status: 409, outcome: 'refused', reason: "You can't review your own application" },
       { id: 7, at: Date.UTC(2026, 8, 28, 7), actor: { id: 'gh:1', login: 'owner' }, role: 'operator', kind: 'detail', resource: 'members', field: null, operation: 'detail:members', action: 'op_member_detail', target: XSS, target_hidden: false, status: 200, outcome: 'success' },
       { id: 6, at: Date.UTC(2026, 8, 28, 6), actor: { id: 'gh:1', login: 'owner' }, role: null, kind: 'enter', resource: null, field: null, operation: 'enter', action: null, target: 'visit-1', target_hidden: false, status: 200, outcome: 'success' },
     ],
@@ -950,7 +950,7 @@ describe('OperatorView — entry and audit trail (#240)', () => {
     const cells = within(table).getAllByRole('row').slice(1).map((r) => within(r).getAllByRole('cell').slice(1).map((c) => c.textContent))
     expect(cells).toEqual([
       ['owneras operator', 'Viewed document: Identity checks · ID document', 'Hidden', '✓ Success'],
-      ['gh:1', 'Ran action: Start review', '—', '✕ Refused (409)'],
+      ['gh:1', 'Ran action: Start review', '—', "✕ Refused — You can't review your own application"],
       ['owneras operator', 'Opened record: Members', XSS, '✓ Success'],
       ['owner', 'Opened operator view', 'visit-1', '✓ Success'],
     ])
@@ -970,7 +970,7 @@ describe('OperatorView — entry and audit trail (#240)', () => {
     const cards = within(list).getAllByRole('listitem')
     expect(cards).toHaveLength(4)
     expect(within(cards[1]!).getAllByRole('term').map((t) => t.textContent)).toEqual(['When', 'Who', 'What', 'Record', 'Outcome'])
-    expect(within(cards[1]!).getAllByRole('definition').slice(1).map((d) => d.textContent)).toEqual(['gh:1', 'Ran action: Start review', '—', '✕ Refused (409)'])
+    expect(within(cards[1]!).getAllByRole('definition').slice(1).map((d) => d.textContent)).toEqual(['gh:1', 'Ran action: Start review', '—', "✕ Refused — You can't review your own application"])
   })
 
   it('filters with ordinary form controls and pages with the returned cursor', async () => {
