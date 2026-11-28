@@ -94,6 +94,8 @@ export interface OperatorContract {
   version: 1
   resources: OperatorResource[]
   actions: OperatorAction[]
+  /** The app roles that may use the operator view beside the owner (platform#293). */
+  admin_access?: { roles: string[] }
 }
 
 export interface OperatorContext {
@@ -325,13 +327,23 @@ export function formatCell(value: unknown, format: OperatorColumnFormat): string
   return typeof value === 'object' ? JSON.stringify(value) : String(value)
 }
 
-/** Why an operator read or action failed, in words the owner or an admin can act on. */
-export function operatorErrorMessage(e: unknown): string {
+/** True when the platform refused because the caller lacks the app role the action checks. */
+export function isRoleRefusal(e: unknown): boolean {
+  return e instanceof ApiError && e.status === 403 && /app role/.test(e.message)
+}
+
+/**
+ * Why an operator read or action failed, in words the owner or an admin can act on.
+ * `role` names the app role the refusal is most likely about; `owner` says the
+ * caller can grant it to themselves (console#24).
+ */
+export function operatorErrorMessage(e: unknown, role?: string, owner = false): string {
   if (e instanceof ApiError) {
     if (needsPasskey(e)) return 'Opening a document needs a passkey check.'
     if (e.message === 'step_up_required') return 'This needs a recent sign-in. Sign in again, then retry.'
-    if (e.status === 403 && /app role/.test(e.message)) {
-      return "You don't hold the app role this needs. The app's owner grants roles under Settings → Access."
+    if (isRoleRefusal(e)) {
+      if (role && owner) return `This needs the ${role} app role, which you don't hold yet.`
+      return `You don't hold the ${role ? `${role} ` : ''}app role this needs. The app's owner grants roles under Settings → Access.`
     }
     if (e.status === 403 && /owner/.test(e.message)) return "Only the app's owner can see this."
     // 409: a transition from a status the row has left, or a guarded write that matched nothing.

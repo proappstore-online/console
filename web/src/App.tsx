@@ -301,6 +301,7 @@ export default function App() {
               operatorAccess={access}
               isAdmin={isAdmin}
               userId={user.id}
+              isOwner={!!selected && !selected.adminOnly}
             />
           )}
           {view === 'publish' && <PublishView getToken={() => pro.auth.token} />}

@@ -12,15 +12,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   fetchOperatorRows, runOperatorRowAction, actionAvailable, statusLabel, needsReauth, formatCell, operatorErrorMessage,
-  returnedKeys, confirmText, isConflict,
+  returnedKeys, confirmText, isConflict, isRoleRefusal,
   type OperatorResource, type OperatorAction, type OperatorRow,
 } from './operator'
 import { operatorRecordHash } from './nav'
 import { Kpi } from './sectionPrimitives'
+import { assignRole } from './RolesManager'
 
 const BUTTON = 'rounded-lg border px-2.5 py-1 text-xs font-medium disabled:opacity-50'
 
-export function OperatorResourcePanel({ appId, resource, actions, getToken, related, onReauth }: {
+export function OperatorResourcePanel({ appId, resource, actions, getToken, related, onReauth, role, ownerId }: {
   appId: string
   resource: OperatorResource
   actions: OperatorAction[]
@@ -29,6 +30,10 @@ export function OperatorResourcePanel({ appId, resource, actions, getToken, rela
   related?: string
   /** Start a fresh sign-in, for actions refused with step_up_required. */
   onReauth?: () => void
+  /** The app role this panel most likely needs, named in a role refusal. */
+  role?: string
+  /** The viewer's user id when they own the app: a role refusal then offers to grant them `role`. */
+  ownerId?: string
 }) {
   const [rows, setRows] = useState<OperatorRow[] | null>(null)
   const [next, setNext] = useState<string | null>(null)
@@ -39,6 +44,7 @@ export function OperatorResourcePanel({ appId, resource, actions, getToken, rela
   const [draft, setDraft] = useState('')
   const [query, setQuery] = useState('')
   const [state, setState] = useState<string | null>(null)
+  const [roleRefused, setRoleRefused] = useState(false)
 
   /** First page for the current search and state, or the next page appended after `cursor`. */
   const load = useCallback(async (cursor: string | null = null) => {
@@ -49,10 +55,12 @@ export function OperatorResourcePanel({ appId, resource, actions, getToken, rela
       setRows((prev) => (cursor ? [...(prev ?? []), ...res.rows] : res.rows))
       setNext(res.next_cursor)
       setError(null)
+      setRoleRefused(false)
     } catch (e) {
-      setError(operatorErrorMessage(e))
+      setError(operatorErrorMessage(e, role, !!ownerId))
+      setRoleRefused(isRoleRefusal(e))
     }
-  }, [appId, resource.id, query, state, related, getToken])
+  }, [appId, resource.id, query, state, related, getToken, role, ownerId])
 
   useEffect(() => { load() }, [load])
 
@@ -67,7 +75,8 @@ export function OperatorResourcePanel({ appId, resource, actions, getToken, rela
       setNotice(`${action.title}: done.`)
       await load()
     } catch (e) {
-      setNotice(`${action.title}: ${operatorErrorMessage(e)}`)
+      setNotice(`${action.title}: ${operatorErrorMessage(e, role, !!ownerId)}`)
+      setRoleRefused(isRoleRefusal(e))
       setReauth(needsReauth(e))
       if (isConflict(e)) await load() // the row moved on: show its current state
     } finally {
@@ -175,7 +184,46 @@ export function OperatorResourcePanel({ appId, resource, actions, getToken, rela
             Sign in again
           </button>
         )}
+        {roleRefused && role && ownerId && (
+          <GrantMyRole appId={appId} role={role} userId={ownerId} getToken={getToken}
+            onGranted={() => { setNotice(null); void load() }} />
+        )}
       </div>
     </section>
+  )
+}
+
+/** The owner's one click past an app-role refusal (console#24): grant themselves the role, then retry. */
+export function GrantMyRole({ appId, role, userId, getToken, onGranted }: {
+  appId: string
+  role: string
+  userId: string
+  getToken: () => string | null
+  onGranted: () => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const grant = async () => {
+    const token = getToken()
+    if (!token) return
+    setBusy(true)
+    setError(null)
+    try {
+      await assignRole(token, appId, userId, role)
+      onGranted()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="mt-2">
+      <button type="button" disabled={busy} onClick={() => void grant()}
+        className="rounded-lg border border-[var(--line-strong)] px-3 py-1.5 text-sm font-medium text-[var(--ink)] disabled:opacity-50">
+        {busy ? 'Granting…' : `Give me the ${role} role`}
+      </button>
+      {error && <p className="mt-1 text-xs text-[var(--error)]">{error}</p>}
+    </div>
   )
 }

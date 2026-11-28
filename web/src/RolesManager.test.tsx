@@ -84,4 +84,43 @@ describe('RolesManager (console#19)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Assign role' }))
     await waitFor(() => expect(posts).toEqual([{ userId: 'google:7', role: 'moderator' }]))
   })
+
+  it("offers the app's own roles first, from its manifest, and defaults to the first (console#24)", async () => {
+    const posts: unknown[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') posts.push(JSON.parse(String(init.body)))
+      if (String(url).endsWith('/apps/a/tools')) {
+        return response({ tools: [
+          { name: 'op_a', auth: { app_roles: ['ops'] } },
+          { name: 'op_b', auth: { app_roles: ['ops', 'ops_pii', 'owner'] } },
+          { name: 'pub' },
+        ] })
+      }
+      return response(init?.method ? { ok: true } : { roles: [...roles, { user_id: 'gh:3', role_name: 'tester', granted_at: 4, user_login: 'cy' }] })
+    }))
+    render(<RolesManager appId="a" getToken={() => 't'} />)
+    await screen.findByText('@bob')
+    const select = screen.getByLabelText('Role') as HTMLSelectElement
+    await waitFor(() => expect(select.value).toBe('ops'))
+    const groups = (el: Element) => [...el.querySelectorAll('optgroup')].map((g) => [g.label, [...g.querySelectorAll('option')].map((o) => o.value)])
+    expect(groups(select)).toEqual([["This app's roles", ['ops', 'ops_pii']], ['Platform roles', ['moderator', 'editor', 'viewer']]])
+    expect([...select.options].at(-1)!.value).toBe('custom')
+    expect(screen.getByText("A role this app's actions check.", { selector: 'form p' })).toBeTruthy()
+    expect(groups(screen.getByLabelText('Role for @bob'))).toEqual(groups(select))
+    // A role in neither list is still shown as the row's current role.
+    expect((screen.getByLabelText('Role for @cy') as HTMLSelectElement).value).toBe('tester')
+    fireEvent.change(screen.getByLabelText('Person'), { target: { value: 'gh:5' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Assign role' }))
+    await waitFor(() => expect(posts).toEqual([{ userId: 'gh:5', role: 'ops' }]))
+  })
+
+  it('offers only the platform roles when the manifest cannot be read (console#24)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) =>
+      String(url).endsWith('/tools') ? response({ error: 'nope' }, 500) : response({ roles })))
+    render(<RolesManager appId="a" getToken={() => 't'} />)
+    await screen.findByText('@bob')
+    const select = screen.getByLabelText('Role') as HTMLSelectElement
+    expect(select.value).toBe('moderator')
+    expect(select.querySelector('optgroup')).toBeNull()
+  })
 })

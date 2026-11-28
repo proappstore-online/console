@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { API_BASE, requestJson } from './api'
+import { API_BASE, apiFetch, requestJson } from './api'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -38,6 +38,8 @@ const ROLE_DESCRIPTIONS: Record<string, string> = {
 
 const ASSIGNABLE_ROLES = ['moderator', 'editor', 'viewer']
 
+const APP_ROLE_DESCRIPTION = "A role this app's actions check."
+
 /** `member` is given automatically to everyone who signs in to the app (platform roles.ts ensure-member). */
 const SIGNED_IN_ROLE = 'member'
 
@@ -53,7 +55,16 @@ async function fetchRoles(token: string, appId: string): Promise<RoleAssignment[
   return (data.roles ?? []).map(normalizeRoleAssignment).filter((r): r is RoleAssignment => r !== null)
 }
 
-async function assignRole(token: string, appId: string, userId: string, role: string): Promise<void> {
+/** The roles the app's own actions check (`auth.app_roles` in its manifest), so they can be offered by name (console#24). */
+async function fetchAppRoles(token: string, appId: string): Promise<string[]> {
+  const data = await apiFetch<{ tools?: { auth?: { app_roles?: string[] } }[] }>(`/apps/${encodeURIComponent(appId)}/tools`, { token })
+  const roles = new Set((data.tools ?? []).flatMap((t) => t.auth?.app_roles ?? []))
+  roles.delete('owner')
+  roles.delete(SIGNED_IN_ROLE)
+  return [...roles]
+}
+
+export async function assignRole(token: string, appId: string, userId: string, role: string): Promise<void> {
   const res = await fetch(`${API_BASE}/apps/${encodeURIComponent(appId)}/roles`, {
     method: 'POST',
     headers: {
@@ -94,6 +105,7 @@ interface Props {
 
 export function RolesManager({ appId, getToken }: Props) {
   const [roles, setRoles] = useState<RoleAssignment[]>([])
+  const [appRoles, setAppRoles] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -127,6 +139,19 @@ export function RolesManager({ appId, getToken }: Props) {
     reload()
   }, [reload])
 
+  // Without the manifest only the platform roles are offered.
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    let cancelled = false
+    fetchAppRoles(token, appId).then((found) => {
+      if (cancelled || found.length === 0) return
+      setAppRoles(found)
+      setSelectedRole((cur) => (cur === ASSIGNABLE_ROLES[0] ? found[0]! : cur))
+    }, () => {})
+    return () => { cancelled = true }
+  }, [appId, getToken])
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
     const token = getToken()
@@ -142,7 +167,7 @@ export function RolesManager({ appId, getToken }: Props) {
       await assignRole(token, appId, uid, role)
       setUserId('')
       setCustomRole('')
-      setSelectedRole(ASSIGNABLE_ROLES[0]!)
+      setSelectedRole(appRoles[0] ?? ASSIGNABLE_ROLES[0]!)
       setAddState('idle')
       await reload()
     } catch (err) {
@@ -186,7 +211,7 @@ export function RolesManager({ appId, getToken }: Props) {
   const signedIn = roles.filter((r) => r.roleName === SIGNED_IN_ROLE && !teamIds.has(r.userId))
   const pickedDescription = selectedRole === 'custom'
     ? 'A role your app checks for itself. It grants nothing in the console.'
-    : ROLE_DESCRIPTIONS[selectedRole]
+    : roleDescription(selectedRole, appRoles)
   const field = 'rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--muted)]/60 focus:outline-none focus:border-[var(--ink)] disabled:opacity-50'
 
   const row = (r: RoleAssignment) => {
@@ -196,7 +221,7 @@ export function RolesManager({ appId, getToken }: Props) {
         onAskRemove={() => { setConfirming(key); setRevokeError(null) }}
         onCancel={() => setConfirming(null)}
         onRemove={() => void handleRevoke(r.userId, r.roleName)}
-        onChangeRole={(role) => void handleChangeRole(r, role)} />
+        onChangeRole={(role) => void handleChangeRole(r, role)} appRoles={appRoles} />
     )
   }
 
@@ -227,9 +252,7 @@ export function RolesManager({ appId, getToken }: Props) {
           </datalist>
           <select aria-label="Role" value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)}
             disabled={addState === 'saving'} className={field}>
-            {ASSIGNABLE_ROLES.map((r) => (
-              <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>
-            ))}
+            <RoleOptions appRoles={appRoles} />
             <option value="custom">Custom…</option>
           </select>
           <button
@@ -287,9 +310,10 @@ export function RolesManager({ appId, getToken }: Props) {
   )
 }
 
-function MemberRow({ r, confirming, revoking, onAskRemove, onCancel, onRemove, onChangeRole }: {
+function MemberRow({ r, confirming, revoking, onAskRemove, onCancel, onRemove, onChangeRole, appRoles }: {
   r: RoleAssignment; confirming: boolean; revoking: boolean
   onAskRemove: () => void; onCancel: () => void; onRemove: () => void; onChangeRole: (role: string) => void
+  appRoles: string[]
 }) {
   const [copied, setCopied] = useState(false)
   const name = r.userLogin ? `@${r.userLogin}` : r.userId
@@ -308,7 +332,7 @@ function MemberRow({ r, confirming, revoking, onAskRemove, onCancel, onRemove, o
           <RoleBadge role={r.roleName} />
         </div>
         <p className="text-xs text-[var(--muted)] truncate">
-          {ROLE_DESCRIPTIONS[r.roleName] ?? 'Custom role.'}{r.grantedAt ? ` Added ${formatGrantedDate(r.grantedAt)}.` : ''}
+          {roleDescription(r.roleName, appRoles) ?? 'Custom role.'}{r.grantedAt ? ` Added ${formatGrantedDate(r.grantedAt)}.` : ''}
         </p>
       </div>
       <button type="button" onClick={copy} title={r.userId} aria-label={`Copy user ID ${r.userId}`}
@@ -319,8 +343,8 @@ function MemberRow({ r, confirming, revoking, onAskRemove, onCancel, onRemove, o
         <select aria-label={`Role for ${name}`} value={r.roleName} onChange={(e) => onChangeRole(e.target.value)}
           className="shrink-0 rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)]">
           {r.roleName === SIGNED_IN_ROLE && <option value={SIGNED_IN_ROLE}>Give a role…</option>}
-          {!ASSIGNABLE_ROLES.includes(r.roleName) && r.roleName !== SIGNED_IN_ROLE && <option value={r.roleName}>{r.roleName}</option>}
-          {ASSIGNABLE_ROLES.map((role) => <option key={role} value={role}>{role.charAt(0).toUpperCase() + role.slice(1)}</option>)}
+          {![...ASSIGNABLE_ROLES, ...appRoles].includes(r.roleName) && r.roleName !== SIGNED_IN_ROLE && <option value={r.roleName}>{r.roleName}</option>}
+          <RoleOptions appRoles={appRoles} />
         </select>
       )}
       {isOwner ? null : confirming ? (
@@ -345,6 +369,22 @@ function MemberRow({ r, confirming, revoking, onAskRemove, onCancel, onRemove, o
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function roleDescription(role: string, appRoles: string[]): string | undefined {
+  return ROLE_DESCRIPTIONS[role] ?? (appRoles.includes(role) ? APP_ROLE_DESCRIPTION : undefined)
+}
+
+/** The app's own roles first, then the platform roles (console#24). */
+function RoleOptions({ appRoles }: { appRoles: string[] }) {
+  const platform = ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)
+  if (appRoles.length === 0) return <>{platform}</>
+  return (
+    <>
+      <optgroup label="This app's roles">{appRoles.map((r) => <option key={r} value={r}>{r}</option>)}</optgroup>
+      <optgroup label="Platform roles">{platform}</optgroup>
+    </>
+  )
+}
 
 function RoleBadge({ role }: { role: string }) {
   let cls: string

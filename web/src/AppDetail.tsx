@@ -46,11 +46,13 @@ interface Props {
   operatorAccess?: OperatorAccess
   /** Platform admin: the Server tab offers the worker on/off toggle. */
   isAdmin?: boolean
-  /** The signed-in user id (only used to find their own row in the public-team roster). */
+  /** The signed-in user id: their own row in the public-team roster, and the id an owner grants an operator role to. */
   userId?: string | null
+  /** The signed-in user owns this app (not only administers it). */
+  isOwner?: boolean
 }
 
-export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, onTab, settingsTab, onSettingsTab, operatorAccess, isAdmin, userId }: Props) {
+export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, onTab, settingsTab, onSettingsTab, operatorAccess, isAdmin, userId, isOwner }: Props) {
   const [listing, setListing] = useState<Listing | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -146,7 +148,8 @@ export function AppDetail({ appId, appName, getToken, onDelete, onReauth, tab, o
 
       {tab === 'operator' && (
         <div className="max-w-4xl space-y-4 overflow-y-auto min-h-0 flex-1">
-          <OperatorView appId={appId} appName={appName} getToken={getToken} onReauth={onReauth} access={operatorAccess} />
+          <OperatorView appId={appId} appName={appName} getToken={getToken} onReauth={onReauth} access={operatorAccess}
+            ownerId={isOwner && userId ? userId : undefined} />
         </div>
       )}
 

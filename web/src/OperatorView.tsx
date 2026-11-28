@@ -35,7 +35,7 @@ function errorMessage(e: unknown): string {
   return `Couldn't load the operator view. ${(e as Error).message}`
 }
 
-export function OperatorView({ appId, appName, getToken, onReauth, access }: {
+export function OperatorView({ appId, appName, getToken, onReauth, access, ownerId }: {
   appId: string
   appName: string | null
   getToken: () => string | null
@@ -43,6 +43,8 @@ export function OperatorView({ appId, appName, getToken, onReauth, access }: {
   onReauth?: () => void
   /** The console's access probe for this app (platform#297). When given, the view renders it and fetches nothing. */
   access?: OperatorAccess
+  /** The signed-in user's id when they own the app: a role refusal offers to grant them the role (console#24). */
+  ownerId?: string
 }) {
   const [data, setData] = useState<OperatorContext | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -87,6 +89,9 @@ export function OperatorView({ appId, appName, getToken, onReauth, access }: {
     recordOperatorEntry(token, appId, visit).catch(() => { enteredVisits.delete(key) }) // retried on the next visit to the tab
   }, [appId, loaded, getToken])
 
+  // The role a refusal names: the first of the app's declared admin roles.
+  const role = data?.contract?.admin_access?.roles[0]
+
   return (
     <div className="space-y-4">
       <header className="flex items-center gap-2 flex-wrap">
@@ -99,7 +104,7 @@ export function OperatorView({ appId, appName, getToken, onReauth, access }: {
 
       {data && record && (
         <OperatorRecordView appId={appId} contract={data.contract} resourceId={record.resourceId} recordKey={record.key}
-          getToken={getToken} onReauth={onReauth} />
+          getToken={getToken} onReauth={onReauth} role={role} ownerId={ownerId} />
       )}
 
       {data && !record && (
@@ -117,7 +122,7 @@ export function OperatorView({ appId, appName, getToken, onReauth, access }: {
             </div>
           </section>
 
-          <DeclaredPanels appId={appId} data={data} getToken={getToken} onReauth={onReauth} />
+          <DeclaredPanels appId={appId} data={data} getToken={getToken} onReauth={onReauth} role={role} ownerId={ownerId} />
           <OperatorAuditPanel appId={appId} contract={data.contract} getToken={getToken} onReauth={onReauth} />
         </>
       )}
@@ -126,11 +131,13 @@ export function OperatorView({ appId, appName, getToken, onReauth, access }: {
 }
 
 /** The app's declared resources grouped by kind, each with its row actions. */
-function DeclaredPanels({ appId, data, getToken, onReauth }: {
+function DeclaredPanels({ appId, data, getToken, onReauth, role, ownerId }: {
   appId: string
   data: OperatorContext
   getToken: () => string | null
   onReauth?: () => void
+  role?: string
+  ownerId?: string
 }) {
   const resources = data.contract?.resources ?? []
   const actions = data.contract?.actions ?? []
@@ -147,6 +154,7 @@ function DeclaredPanels({ appId, data, getToken, onReauth }: {
             {ofKind.map((r) => (r.series
               ? <OperatorSeriesPanel key={r.id} appId={appId} resource={r} getToken={getToken} onReauth={onReauth} />
               : <OperatorResourcePanel key={r.id} appId={appId} resource={r} getToken={getToken} onReauth={onReauth}
+                  role={role} ownerId={ownerId}
                   actions={actions.filter((a) => a.resource === r.id)} />
             ))}
           </div>

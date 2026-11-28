@@ -11,21 +11,24 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   fetchOperatorRecord, runOperatorRowAction, actionAvailable, needsReauth, formatCell, operatorErrorMessage,
-  returnedKeys, confirmText, isConflict,
+  returnedKeys, confirmText, isConflict, isRoleRefusal,
   type OperatorAction, type OperatorContract, type OperatorRow,
 } from './operator'
-import { OperatorResourcePanel } from './OperatorResourcePanel'
+import { OperatorResourcePanel, GrantMyRole } from './OperatorResourcePanel'
 import { OperatorEvidence } from './OperatorEvidence'
 import { OperatorStepUp } from './OperatorStepUp'
 import { passkeysAvailable, stepUpToken, stepUpWindow } from './passkeyStepUp'
 
-export function OperatorRecordView({ appId, contract, resourceId, recordKey, getToken, onReauth }: {
+export function OperatorRecordView({ appId, contract, resourceId, recordKey, getToken, onReauth, role, ownerId }: {
   appId: string
   contract: OperatorContract | null
   resourceId: string
   recordKey: string
   getToken: () => string | null
   onReauth?: () => void
+  /** As on OperatorResourcePanel: the role a refusal names, and the owner's id to grant it to. */
+  role?: string
+  ownerId?: string
 }) {
   const resource = contract?.resources.find((r) => r.id === resourceId)
   const related = contract?.resources.filter((r) => r.related?.resource === resourceId) ?? []
@@ -33,6 +36,7 @@ export function OperatorRecordView({ appId, contract, resourceId, recordKey, get
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [reauth, setReauth] = useState(false)
+  const [roleRefused, setRoleRefused] = useState(false)
   /** The step-up window of the last refusal: a passkey check also satisfies a recent-sign-in requirement. */
   const [stepUpSeconds, setStepUpSeconds] = useState(300)
   const [busy, setBusy] = useState(false)
@@ -50,14 +54,21 @@ export function OperatorRecordView({ appId, contract, resourceId, recordKey, get
     let cancelled = false
     setRecord(null)
     setError(null)
+    setRoleRefused(false)
     const token = operatorToken()
     if (!resource || !detail) { setError('This app does not declare a detail page for that record.'); return }
     if (!token) { setError('Your session has expired. Sign in again.'); return }
     fetchOperatorRecord(token, appId, resource.id, recordKey)
       .then((r) => { if (!cancelled) setRecord(r.record) })
-      .catch((e) => { if (!cancelled) { setError(operatorErrorMessage(e)); setReauth(needsReauth(e)); setStepUpSeconds(stepUpWindow(e)) } })
+      .catch((e) => {
+        if (cancelled) return
+        setError(operatorErrorMessage(e, role, !!ownerId))
+        setRoleRefused(isRoleRefusal(e))
+        setReauth(needsReauth(e))
+        setStepUpSeconds(stepUpWindow(e))
+      })
     return () => { cancelled = true }
-  }, [appId, resource, detail, recordKey, operatorToken, version])
+  }, [appId, resource, detail, recordKey, operatorToken, version, role, ownerId])
 
   const decide = async (action: OperatorAction) => {
     const token = operatorToken()
@@ -70,7 +81,8 @@ export function OperatorRecordView({ appId, contract, resourceId, recordKey, get
       setNotice(`${action.title}: done.`)
       setVersion((v) => v + 1)
     } catch (e) {
-      setNotice(`${action.title}: ${operatorErrorMessage(e)}`)
+      setNotice(`${action.title}: ${operatorErrorMessage(e, role, !!ownerId)}`)
+      setRoleRefused(isRoleRefusal(e))
       setReauth(needsReauth(e))
       setStepUpSeconds(stepUpWindow(e))
       if (isConflict(e)) setVersion((v) => v + 1) // the record moved on: show its current state
@@ -123,6 +135,10 @@ export function OperatorRecordView({ appId, contract, resourceId, recordKey, get
               Sign in again
             </button>
           )}
+          {roleRefused && role && ownerId && (
+            <GrantMyRole appId={appId} role={role} userId={ownerId} getToken={getToken}
+              onGranted={() => { setNotice(null); setVersion((v) => v + 1) }} />
+          )}
         </div>
       </section>
       {record && returnedKeys(evidence.map((e) => ({ ...e, key: e.field })), [record]).length > 0 && (
@@ -131,6 +147,7 @@ export function OperatorRecordView({ appId, contract, resourceId, recordKey, get
       )}
       {record && related.map((r) => (
         <OperatorResourcePanel key={r.id} appId={appId} resource={r} getToken={getToken} related={recordKey} onReauth={onReauth}
+          role={role} ownerId={ownerId}
           actions={contract?.actions.filter((a) => a.resource === r.id) ?? []} />
       ))}
     </div>

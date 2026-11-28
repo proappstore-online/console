@@ -321,6 +321,47 @@ describe('OperatorView — generic contract rendering', () => {
   })
 })
 
+describe('OperatorView — owner grants themselves the role (console#24)', () => {
+  afterEach(() => { history.replaceState(null, '', '#/') })
+  const OPS: OperatorContract = { ...STASH, admin_access: { roles: ['ops'] } }
+
+  it('names the role and, for the owner, grants it with one click and reloads the panel', async () => {
+    let granted = false
+    const fetchMock = serve({ ...baseline, contract: OPS }, {
+      'resource:members': () => (granted ? { status: 200, body: ROWS.members } : { status: 403, body: { error: 'requires app role' } }),
+      // Unrouted paths, here only the roles grant.
+      '': (url) => { granted = url.pathname.endsWith('/apps/stash/roles'); return { status: 200, body: { ok: true } } },
+    })
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} ownerId="gh:1" />)
+    const members = (await screen.findByText('Members')).closest('section')!
+    expect((await within(members).findByRole('alert')).textContent).toBe("This needs the ops app role, which you don't hold yet.")
+    fireEvent.click(within(members).getByRole('button', { name: 'Give me the ops role' }))
+    expect(await within(members).findByText('Ada')).toBeTruthy()
+    const grant = fetchMock.mock.calls.find(([u]) => String(u).endsWith('/apps/stash/roles'))! as unknown as [string, RequestInit]
+    expect(grant[1].method).toBe('POST')
+    expect(JSON.parse(String(grant[1].body))).toEqual({ userId: 'gh:1', role: 'ops' })
+    expect(within(members).queryByRole('button', { name: /Give me the/ })).toBeNull()
+  })
+
+  it('offers the same on a refused record page', async () => {
+    serve({ ...baseline, contract: OPS }, { 'record:members': { status: 403, body: { error: 'requires app role' } } })
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} ownerId="gh:1" />)
+    await screen.findByText('Members')
+    act(() => { location.hash = '#/apps/stash/operator/members/u1'; window.dispatchEvent(new HashChangeEvent('hashchange')) })
+    expect((await screen.findByRole('alert')).textContent).toContain('ops app role')
+    expect(screen.getByRole('button', { name: 'Give me the ops role' })).toBeTruthy()
+  })
+
+  it('a non-owner admin gets the role named and no button', async () => {
+    serve({ ...baseline, contract: OPS }, { 'resource:members': { status: 403, body: { error: 'requires app role' } } })
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} />)
+    const members = (await screen.findByText('Members')).closest('section')!
+    expect((await within(members).findByRole('alert')).textContent).toBe(
+      "You don't hold the ops app role this needs. The app's owner grants roles under Settings → Access.")
+    expect(within(members).queryByRole('button', { name: /Give me the/ })).toBeNull()
+  })
+})
+
 describe('OperatorView — users: search, paging, detail (#240 slice 3)', () => {
   afterEach(() => { history.replaceState(null, '', '#/') })
   const openStash = async (routes: Record<string, Route> = {}) => {
