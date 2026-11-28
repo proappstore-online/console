@@ -352,13 +352,29 @@ describe('OperatorView — owner grants themselves the role (console#24)', () =>
     expect(screen.getByRole('button', { name: 'Give me the ops role' })).toBeTruthy()
   })
 
+  it('reads the declared roles once for every panel, and offers nothing when the app declares roles (console#25)', async () => {
+    const fetchMock = serve({ ...baseline, contract: OPS }, {
+      'resource:members': { status: 403, body: { error: 'requires app role' } },
+      '': (url) => (url.pathname.endsWith('/apps/stash/roles/declared')
+        ? { status: 200, body: { roles: [{ id: 'ops', label: 'Operations', description: null, requires: [] }] } }
+        : { status: 200, body: {} }),
+    })
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} ownerId="gh:1" />)
+    const members = (await screen.findByText('Members')).closest('section')!
+    expect((await within(members).findByRole('alert')).textContent).toContain("The app's owner grants roles under Settings → Access")
+    expect(within(members).queryByRole('button', { name: /Give me the/ })).toBeNull()
+    expect(fetchMock.mock.calls.filter(([u]) => String(u).endsWith('/roles/declared'))).toHaveLength(1)
+    expect(readsOf(fetchMock, 'members')).toHaveLength(1) // panels waited for the answer instead of reading twice
+  })
+
   it('a non-owner admin gets the role named and no button', async () => {
-    serve({ ...baseline, contract: OPS }, { 'resource:members': { status: 403, body: { error: 'requires app role' } } })
+    const fetchMock = serve({ ...baseline, contract: OPS }, { 'resource:members': { status: 403, body: { error: 'requires app role' } } })
     render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} />)
     const members = (await screen.findByText('Members')).closest('section')!
     expect((await within(members).findByRole('alert')).textContent).toBe(
       "You don't hold the ops app role this needs. The app's owner grants roles under Settings → Access.")
     expect(within(members).queryByRole('button', { name: /Give me the/ })).toBeNull()
+    expect(fetchMock.mock.calls.some(([u]) => String(u).endsWith('/roles/declared'))).toBe(false)
   })
 })
 

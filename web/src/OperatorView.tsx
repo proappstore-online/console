@@ -18,6 +18,7 @@ import { OperatorSeriesPanel } from './OperatorSeriesPanel'
 import { OperatorRecordView } from './OperatorRecordView'
 import { OperatorAuditPanel } from './OperatorAuditPanel'
 import { parseOperatorRecord } from './nav'
+import { fetchDeclaredRoles } from './RolesManager'
 
 /**
  * Visits whose entry this page has already sent. With the per-tab visit id and
@@ -43,7 +44,11 @@ export function OperatorView({ appId, appName, getToken, onReauth, access, owner
   onReauth?: () => void
   /** The console's access probe for this app (platform#297). When given, the view renders it and fetches nothing. */
   access?: OperatorAccess
-  /** The signed-in user's id when they own the app: a role refusal offers to grant them the role (console#24). */
+  /**
+   * The signed-in user's id when they own the app: for an app that declares no
+   * roles, a role refusal offers to grant them the role (console#24). The owner
+   * holds every declared role (platform#695), so nothing is offered for those.
+   */
   ownerId?: string
 }) {
   const [data, setData] = useState<OperatorContext | null>(null)
@@ -89,6 +94,23 @@ export function OperatorView({ appId, appName, getToken, onReauth, access, owner
     recordOperatorEntry(token, appId, visit).catch(() => { enteredVisits.delete(key) }) // retried on the next visit to the tab
   }, [appId, loaded, getToken])
 
+  // Whether the owner's app declares roles (console#25), read once here for every panel.
+  const [declaresRoles, setDeclaresRoles] = useState<boolean | null>(null)
+  useEffect(() => {
+    setDeclaresRoles(null)
+    const token = getToken()
+    if (!ownerId || !loaded || !token) return
+    let cancelled = false
+    fetchDeclaredRoles(token, appId).then(
+      (roles) => { if (!cancelled) setDeclaresRoles(roles.length > 0) },
+      () => { if (!cancelled) setDeclaresRoles(false) },
+    )
+    return () => { cancelled = true }
+  }, [appId, ownerId, loaded, getToken])
+  // Panels wait for the answer, so they read once with the right offer instead of again when it arrives.
+  const ready = !ownerId || declaresRoles !== null
+  const grantTo = declaresRoles === false ? ownerId : undefined
+
   // The role a refusal names: the first of the app's declared admin roles.
   const role = data?.contract?.admin_access?.roles[0]
 
@@ -100,14 +122,14 @@ export function OperatorView({ appId, appName, getToken, onReauth, access, owner
       </header>
 
       {error && <p role="alert" className="text-sm text-[var(--error)]">{error}</p>}
-      {!error && !data && <p className="text-sm text-[var(--muted)]">Loading...</p>}
+      {!error && (!data || !ready) && <p className="text-sm text-[var(--muted)]">Loading...</p>}
 
-      {data && record && (
+      {data && ready && record && (
         <OperatorRecordView appId={appId} contract={data.contract} resourceId={record.resourceId} recordKey={record.key}
-          getToken={getToken} onReauth={onReauth} role={role} ownerId={ownerId} />
+          getToken={getToken} onReauth={onReauth} role={role} ownerId={grantTo} />
       )}
 
-      {data && !record && (
+      {data && ready && !record && (
         <>
           <section className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
             <div className="flex items-baseline justify-between mb-4">
@@ -122,7 +144,7 @@ export function OperatorView({ appId, appName, getToken, onReauth, access, owner
             </div>
           </section>
 
-          <DeclaredPanels appId={appId} data={data} getToken={getToken} onReauth={onReauth} role={role} ownerId={ownerId} />
+          <DeclaredPanels appId={appId} data={data} getToken={getToken} onReauth={onReauth} role={role} ownerId={grantTo} />
           <OperatorAuditPanel appId={appId} contract={data.contract} getToken={getToken} onReauth={onReauth} />
         </>
       )}

@@ -32,7 +32,7 @@ export function OperatorResourcePanel({ appId, resource, actions, getToken, rela
   onReauth?: () => void
   /** The app role this panel most likely needs, named in a role refusal. */
   role?: string
-  /** The viewer's user id when they own the app: a role refusal then offers to grant them `role`. */
+  /** The viewer's user id when they own an app that declares no roles: a role refusal then offers to grant them `role`. */
   ownerId?: string
 }) {
   const [rows, setRows] = useState<OperatorRow[] | null>(null)
@@ -193,7 +193,11 @@ export function OperatorResourcePanel({ appId, resource, actions, getToken, rela
   )
 }
 
-/** The owner's one click past an app-role refusal (console#24): grant themselves the role, then retry. */
+/**
+ * The owner's one click past an app-role refusal (console#24): grant themselves
+ * the role, then retry. Only for apps that declare no roles; the owner already
+ * holds every declared one (platform#695).
+ */
 export function GrantMyRole({ appId, role, userId, getToken, onGranted }: {
   appId: string
   role: string

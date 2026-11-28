@@ -40,6 +40,25 @@ const ASSIGNABLE_ROLES = ['moderator', 'editor', 'viewer']
 
 const APP_ROLE_DESCRIPTION = "A role this app's actions check."
 
+/**
+ * A role the app itself checks (console#25): one it declares in mcp.json `roles`
+ * (platform#695), or, when it declares none, one its actions name in
+ * `auth.app_roles` (console#24), with the id as its label.
+ */
+export interface AppRole {
+  id: string
+  label: string
+  description: string | null
+  /** Roles a holder also needs; the platform grants them with this one. */
+  requires: string[]
+}
+
+/** The app's roles, and whether they were declared (the owner then holds every one of them). */
+interface AppRoles {
+  roles: AppRole[]
+  declared: boolean
+}
+
 /** `member` is given automatically to everyone who signs in to the app (platform roles.ts ensure-member). */
 const SIGNED_IN_ROLE = 'member'
 
@@ -55,43 +74,41 @@ async function fetchRoles(token: string, appId: string): Promise<RoleAssignment[
   return (data.roles ?? []).map(normalizeRoleAssignment).filter((r): r is RoleAssignment => r !== null)
 }
 
-/** The roles the app's own actions check (`auth.app_roles` in its manifest), so they can be offered by name (console#24). */
-async function fetchAppRoles(token: string, appId: string): Promise<string[]> {
+/** The roles the app declares in mcp.json `roles`, in declared order (platform#695). Empty when it declares none. */
+export async function fetchDeclaredRoles(token: string, appId: string): Promise<AppRole[]> {
+  const data = await apiFetch<{ roles?: AppRole[] }>(`/apps/${encodeURIComponent(appId)}/roles/declared`, { token })
+  return data.roles ?? []
+}
+
+/**
+ * The app's own roles, so they can be offered by name: the declared ones, or,
+ * for an app that declares none (or a platform without the route), the roles
+ * its actions check (`auth.app_roles` in its manifest, console#24).
+ */
+async function fetchAppRoles(token: string, appId: string): Promise<AppRoles> {
+  const declared = await fetchDeclaredRoles(token, appId).catch(() => [])
+  if (declared.length > 0) return { roles: declared, declared: true }
   const data = await apiFetch<{ tools?: { auth?: { app_roles?: string[] } }[] }>(`/apps/${encodeURIComponent(appId)}/tools`, { token })
-  const roles = new Set((data.tools ?? []).flatMap((t) => t.auth?.app_roles ?? []))
-  roles.delete('owner')
-  roles.delete(SIGNED_IN_ROLE)
-  return [...roles]
+  const ids = new Set((data.tools ?? []).flatMap((t) => t.auth?.app_roles ?? []))
+  ids.delete('owner')
+  ids.delete(SIGNED_IN_ROLE)
+  return { roles: [...ids].map((id) => ({ id, label: id, description: null, requires: [] })), declared: false }
 }
 
-export async function assignRole(token: string, appId: string, userId: string, role: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/apps/${encodeURIComponent(appId)}/roles`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ userId, role }),
+/** Grant a role. The platform also grants the declared roles it requires, and names them (platform#695). */
+export async function assignRole(token: string, appId: string, userId: string, role: string): Promise<{ requiredRoles: string[] }> {
+  const data = await apiFetch<{ requiredRoles?: string[] }>(`/apps/${encodeURIComponent(appId)}/roles`, {
+    token, method: 'POST', body: JSON.stringify({ userId, role }),
   })
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(body || `Failed to assign role (${res.status})`)
-  }
+  return { requiredRoles: data?.requiredRoles ?? [] }
 }
 
-async function revokeRole(token: string, appId: string, userId: string, role: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/apps/${encodeURIComponent(appId)}/roles`, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ userId, role }),
+/** Revoke a role. The platform also revokes the declared roles that require it, and names them (platform#695). */
+async function revokeRole(token: string, appId: string, userId: string, role: string): Promise<{ dependentRoles: string[] }> {
+  const data = await apiFetch<{ dependentRoles?: string[] }>(`/apps/${encodeURIComponent(appId)}/roles`, {
+    token, method: 'DELETE', body: JSON.stringify({ userId, role }),
   })
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(body || `Failed to revoke role (${res.status})`)
-  }
+  return { dependentRoles: data?.dependentRoles ?? [] }
 }
 
 // ---------------------------------------------------------------------------
@@ -105,7 +122,7 @@ interface Props {
 
 export function RolesManager({ appId, getToken }: Props) {
   const [roles, setRoles] = useState<RoleAssignment[]>([])
-  const [appRoles, setAppRoles] = useState<string[]>([])
+  const [appRoles, setAppRoles] = useState<AppRoles>({ roles: [], declared: false })
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -119,6 +136,8 @@ export function RolesManager({ appId, getToken }: Props) {
   const [confirming, setConfirming] = useState<string | null>(null)
   const [revoking, setRevoking] = useState<string | null>(null)
   const [revokeError, setRevokeError] = useState<string | null>(null)
+  // What the platform granted or revoked alongside the last change (platform#695 `requires`).
+  const [note, setNote] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
     const token = getToken()
@@ -145,9 +164,9 @@ export function RolesManager({ appId, getToken }: Props) {
     if (!token) return
     let cancelled = false
     fetchAppRoles(token, appId).then((found) => {
-      if (cancelled || found.length === 0) return
+      if (cancelled || found.roles.length === 0) return
       setAppRoles(found)
-      setSelectedRole((cur) => (cur === ASSIGNABLE_ROLES[0] ? found[0]! : cur))
+      setSelectedRole((cur) => (cur === ASSIGNABLE_ROLES[0] ? found.roles[0]!.id : cur))
     }, () => {})
     return () => { cancelled = true }
   }, [appId, getToken])
@@ -163,11 +182,13 @@ export function RolesManager({ appId, getToken }: Props) {
     const role = selectedRole === 'custom' ? customRole.trim().toLowerCase() : selectedRole
     if (!role) return
     setAddState('saving')
+    setNote(null)
     try {
-      await assignRole(token, appId, uid, role)
+      const { requiredRoles } = await assignRole(token, appId, uid, role)
+      setNote(requiredNote(role, requiredRoles, appRoles.roles))
       setUserId('')
       setCustomRole('')
-      setSelectedRole(appRoles[0] ?? ASSIGNABLE_ROLES[0]!)
+      setSelectedRole(appRoles.roles[0]?.id ?? ASSIGNABLE_ROLES[0]!)
       setAddState('idle')
       await reload()
     } catch (err) {
@@ -180,8 +201,10 @@ export function RolesManager({ appId, getToken }: Props) {
     if (!token) return
     setRevoking(`${uid}:${roleName}`)
     setRevokeError(null)
+    setNote(null)
     try {
-      await revokeRole(token, appId, uid, roleName)
+      const { dependentRoles } = await revokeRole(token, appId, uid, roleName)
+      setNote(dependentNote(roleName, dependentRoles, appRoles.roles))
       setConfirming(null)
       await reload()
     } catch (err) {
@@ -191,14 +214,21 @@ export function RolesManager({ appId, getToken }: Props) {
     }
   }
 
-  // Grant the new role, then drop the old one — unless the old one is the automatic signed-in role (console#23).
+  // Grant the new role, then drop the old one — unless the old one is the automatic signed-in role (console#23),
+  // or one the new role requires (platform#695): revoking it would take the new role away again.
   const handleChangeRole = async (r: RoleAssignment, role: string) => {
     const token = getToken()
     if (!token || role === r.roleName) return
     setRevokeError(null)
+    setNote(null)
     try {
-      await assignRole(token, appId, r.userId, role)
-      if (r.roleName !== SIGNED_IN_ROLE) await revokeRole(token, appId, r.userId, r.roleName)
+      const { requiredRoles } = await assignRole(token, appId, r.userId, role)
+      const notes = [requiredNote(role, requiredRoles, appRoles.roles)]
+      if (r.roleName !== SIGNED_IN_ROLE && !requiredRoles.includes(r.roleName)) {
+        const { dependentRoles } = await revokeRole(token, appId, r.userId, r.roleName)
+        notes.push(dependentNote(r.roleName, dependentRoles, appRoles.roles))
+      }
+      setNote(notes.filter(Boolean).join(' ') || null)
     } catch (err) {
       setRevokeError((err as Error).message)
     }
@@ -252,8 +282,7 @@ export function RolesManager({ appId, getToken }: Props) {
           </datalist>
           <select aria-label="Role" value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)}
             disabled={addState === 'saving'} className={field}>
-            <RoleOptions appRoles={appRoles} />
-            <option value="custom">Custom…</option>
+            <RoleOptions appRoles={appRoles.roles} custom />
           </select>
           <button
             aria-label={addState === 'saving' ? 'Adding...' : 'Assign role'}
@@ -305,6 +334,7 @@ export function RolesManager({ appId, getToken }: Props) {
         </>
       )}
 
+      {note && <p role="status" className="text-sm text-[var(--muted)]">{note}</p>}
       {revokeError && <p role="alert" className="text-sm text-[var(--error)]">{revokeError}</p>}
     </section>
   )
@@ -313,11 +343,12 @@ export function RolesManager({ appId, getToken }: Props) {
 function MemberRow({ r, confirming, revoking, onAskRemove, onCancel, onRemove, onChangeRole, appRoles }: {
   r: RoleAssignment; confirming: boolean; revoking: boolean
   onAskRemove: () => void; onCancel: () => void; onRemove: () => void; onChangeRole: (role: string) => void
-  appRoles: string[]
+  appRoles: AppRoles
 }) {
   const [copied, setCopied] = useState(false)
   const name = r.userLogin ? `@${r.userLogin}` : r.userId
   const isOwner = r.roleName === 'owner'
+  const label = roleLabel(r.roleName, appRoles.roles)
   const copy = () => {
     void navigator.clipboard?.writeText(r.userId).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) }, () => {})
   }
@@ -329,7 +360,7 @@ function MemberRow({ r, confirming, revoking, onAskRemove, onCancel, onRemove, o
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-semibold text-[var(--ink)] truncate" title={r.userId}>{name}</span>
-          <RoleBadge role={r.roleName} />
+          <RoleBadge role={r.roleName} label={label} />
         </div>
         <p className="text-xs text-[var(--muted)] truncate">
           {roleDescription(r.roleName, appRoles) ?? 'Custom role.'}{r.grantedAt ? ` Added ${formatGrantedDate(r.grantedAt)}.` : ''}
@@ -343,15 +374,15 @@ function MemberRow({ r, confirming, revoking, onAskRemove, onCancel, onRemove, o
         <select aria-label={`Role for ${name}`} value={r.roleName} onChange={(e) => onChangeRole(e.target.value)}
           className="shrink-0 rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)]">
           {r.roleName === SIGNED_IN_ROLE && <option value={SIGNED_IN_ROLE}>Give a role…</option>}
-          {![...ASSIGNABLE_ROLES, ...appRoles].includes(r.roleName) && r.roleName !== SIGNED_IN_ROLE && <option value={r.roleName}>{r.roleName}</option>}
-          <RoleOptions appRoles={appRoles} />
+          {![...ASSIGNABLE_ROLES, ...appRoles.roles.map((a) => a.id)].includes(r.roleName) && r.roleName !== SIGNED_IN_ROLE && <option value={r.roleName}>{r.roleName}</option>}
+          <RoleOptions appRoles={appRoles.roles} />
         </select>
       )}
       {isOwner ? null : confirming ? (
         <span className="shrink-0 flex items-center gap-1">
           <button type="button" onClick={onRemove} disabled={revoking}
             className="rounded-lg bg-[var(--error)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50">
-            {revoking ? 'Removing…' : `Remove ${r.roleName}`}
+            {revoking ? 'Removing…' : `Remove ${label}`}
           </button>
           <button type="button" onClick={onCancel} disabled={revoking}
             className="rounded-lg px-2 py-1.5 text-xs text-[var(--muted)] hover:text-[var(--ink)]">Cancel</button>
@@ -370,23 +401,57 @@ function MemberRow({ r, confirming, revoking, onAskRemove, onCancel, onRemove, o
 // Helpers
 // ---------------------------------------------------------------------------
 
-function roleDescription(role: string, appRoles: string[]): string | undefined {
-  return ROLE_DESCRIPTIONS[role] ?? (appRoles.includes(role) ? APP_ROLE_DESCRIPTION : undefined)
+/**
+ * What a role means. The owner of an app that declares roles holds all of them
+ * (platform#695); a declared role says what it also includes.
+ */
+function roleDescription(role: string, appRoles: AppRoles): string | undefined {
+  if (role === 'owner' && appRoles.declared) {
+    return `Owner — holds every role this app declares: ${labelList(appRoles.roles.map((r) => r.id), appRoles.roles)}.`
+  }
+  const own = appRoles.roles.find((r) => r.id === role)
+  if (!own) return ROLE_DESCRIPTIONS[role]
+  const text = own.description ?? ROLE_DESCRIPTIONS[role] ?? APP_ROLE_DESCRIPTION
+  return own.requires.length > 0 ? `${text} (includes ${labelList(own.requires, appRoles.roles)})` : text
 }
 
-/** The app's own roles first, then the platform roles (console#24). */
-function RoleOptions({ appRoles }: { appRoles: string[] }) {
-  const platform = ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)
-  if (appRoles.length === 0) return <>{platform}</>
+function roleLabel(role: string, appRoles: AppRole[]): string {
+  return appRoles.find((r) => r.id === role)?.label ?? role
+}
+
+function labelList(roles: string[], appRoles: AppRole[]): string {
+  return roles.map((r) => roleLabel(r, appRoles)).join(', ')
+}
+
+/** The roles the platform granted with `role` because it requires them, in words. */
+function requiredNote(role: string, required: string[], appRoles: AppRole[]): string | null {
+  if (required.length === 0) return null
+  return `${roleLabel(role, appRoles)} also needs ${labelList(required, appRoles)}, so ${required.length === 1 ? 'that was' : 'those were'} granted too.`
+}
+
+/** The roles the platform revoked with `role` because they require it, in words. */
+function dependentNote(role: string, dependents: string[], appRoles: AppRole[]): string | null {
+  if (dependents.length === 0) return null
+  const one = dependents.length === 1
+  return `${labelList(dependents, appRoles)} ${one ? 'needs' : 'need'} ${roleLabel(role, appRoles)}, so ${one ? 'it was' : 'they were'} removed too.`
+}
+
+/** The app's own roles by label first, then the generic ones under "More roles" (console#24, #25). */
+function RoleOptions({ appRoles, custom = false }: { appRoles: AppRole[]; custom?: boolean }) {
+  const own = new Set(appRoles.map((r) => r.id))
+  const more = ASSIGNABLE_ROLES.filter((r) => !own.has(r))
+    .map((r) => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)
+  if (custom) more.push(<option key="custom" value="custom">Custom…</option>)
+  if (appRoles.length === 0) return <>{more}</>
   return (
     <>
-      <optgroup label="This app's roles">{appRoles.map((r) => <option key={r} value={r}>{r}</option>)}</optgroup>
-      <optgroup label="Platform roles">{platform}</optgroup>
+      <optgroup label="This app's roles">{appRoles.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}</optgroup>
+      <optgroup label="More roles">{more}</optgroup>
     </>
   )
 }
 
-function RoleBadge({ role }: { role: string }) {
+function RoleBadge({ role, label }: { role: string; label: string }) {
   let cls: string
   switch (role) {
     case 'owner':
@@ -410,7 +475,7 @@ function RoleBadge({ role }: { role: string }) {
     <span
       className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${cls}`}
     >
-      {role}
+      {label}
     </span>
   )
 }
