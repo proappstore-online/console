@@ -18,10 +18,12 @@ import {
 import { operatorRecordHash } from './nav'
 import { Kpi } from './sectionPrimitives'
 import { assignRole } from './RolesManager'
+import { ResponsiveTable, type ResponsiveColumn } from './ResponsiveTable'
 import { OperatorStepUp } from './OperatorStepUp'
 import { passkeysAvailable, stepUpToken, stepUpWindow } from './passkeyStepUp'
 
-const BUTTON = 'rounded-lg border px-2.5 py-1 text-xs font-medium disabled:opacity-50'
+// Wrap between words only: a table cell may otherwise break a short label mid-word.
+const BUTTON = 'rounded-lg border px-2.5 py-1 text-xs font-medium wrap-break-word disabled:opacity-50'
 
 export function OperatorResourcePanel({ appId, resource, actions, getToken, related, onReauth, role, ownerId }: {
   appId: string
@@ -98,15 +100,15 @@ export function OperatorResourcePanel({ appId, resource, actions, getToken, rela
   const columns = rows ? returnedKeys(resource.columns, rows) : []
 
   return (
-    <section className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6">
+    <section className="min-w-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4 sm:p-6">
       <h4 className="display-font text-base font-bold text-[var(--ink)]">{resource.title}</h4>
       {resource.description && <p className="mt-1 text-sm text-[var(--muted)]">{resource.description}</p>}
 
       {resource.search && (
-        <form role="search" className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); setQuery(draft.trim()) }}>
+        <form role="search" className="mt-3 flex min-w-0 gap-2" onSubmit={(e) => { e.preventDefault(); setQuery(draft.trim()) }}>
           <input type="search" aria-label={`Search ${resource.title}`} value={draft} maxLength={100}
             onChange={(e) => setDraft(e.target.value)} placeholder="Search"
-            className="flex-1 rounded-lg border border-[var(--line-strong)] bg-transparent px-3 py-1.5 text-sm text-[var(--ink)]" />
+            className="min-w-0 flex-1 rounded-lg border border-[var(--line-strong)] bg-transparent px-3 py-1.5 text-sm text-[var(--ink)]" />
           <button type="submit" className="rounded-lg border border-[var(--line-strong)] px-3 py-1.5 text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]">Search</button>
         </form>
       )}
@@ -136,49 +138,40 @@ export function OperatorResourcePanel({ appId, resource, actions, getToken, rela
         )}
 
         {!error && rows && rows.length > 0 && resource.kind !== 'metrics' && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-[var(--muted)]">
-                  {columns.map((col) => <th key={col.key} className="py-2 pr-4 font-semibold">{col.label}</th>)}
-                  {(actions.length > 0 || resource.detail) && <th className="py-2 font-semibold"><span className="sr-only">Actions</span></th>}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, i) => (
-                  <tr key={i} className="border-t border-[var(--line)]">
-                    {columns.map((col) => {
-                      const shown = (col.key === resource.status?.column && statusLabel(resource, row[col.key])) || formatCell(row[col.key], col.format)
-                      return (
-                        <td key={col.key} className="py-2 pr-4 text-[var(--ink)]">
-                          {col.format === 'badge'
-                            ? <span className="rounded-full border border-[var(--line-strong)] px-2 py-0.5 text-xs">{shown}</span>
-                            : shown}
-                        </td>
-                      )
-                    })}
-                    {(actions.length > 0 || resource.detail) && (
-                      <td className="py-2 whitespace-nowrap">
-                        {resource.detail && row[resource.detail.key] != null && (
-                          <a href={operatorRecordHash(appId, resource.id, String(row[resource.detail.key]))}
-                            className={`${BUTTON} border-[var(--line-strong)] text-[var(--muted)] hover:text-[var(--ink)]`}>
-                            Open
-                          </a>
-                        )}
-                        {actions.filter((a) => actionAvailable(a, resource, row)).map((a) => (
-                          <button key={a.id} type="button" title={a.step_up ? 'Needs a recent sign-in' : undefined}
-                            disabled={busy} onClick={() => run(a, row)}
-                            className={`ml-2 ${BUTTON} ${a.destructive ? 'border-[var(--error)] text-[var(--error)]' : 'border-[var(--line-strong)] text-[var(--muted)] hover:text-[var(--ink)]'}`}>
-                            {a.title}
-                          </button>
-                        ))}
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ResponsiveTable caption={resource.title} rows={rows} rowKey={(_, i) => i} columns={[
+            ...columns.map((col): ResponsiveColumn<OperatorRow> => ({
+              key: col.key,
+              header: col.label,
+              cell: (row) => {
+                const shown = (col.key === resource.status?.column && statusLabel(resource, row[col.key])) || formatCell(row[col.key], col.format)
+                return col.format === 'badge'
+                  ? <span className="inline-block rounded-full border border-[var(--line-strong)] px-2 py-0.5 text-xs wrap-break-word">{shown}</span>
+                  : <span className="text-[var(--ink)]">{shown}</span>
+              },
+            })),
+            ...(actions.length > 0 || resource.detail ? [{
+              key: '__actions',
+              header: <span className="sr-only">Actions</span>,
+              label: '',
+              cell: (row: OperatorRow) => (
+                <div className="flex flex-wrap gap-2">
+                  {resource.detail && row[resource.detail.key] != null && (
+                    <a href={operatorRecordHash(appId, resource.id, String(row[resource.detail.key]))}
+                      className={`${BUTTON} border-[var(--line-strong)] text-[var(--muted)] hover:text-[var(--ink)]`}>
+                      Open
+                    </a>
+                  )}
+                  {actions.filter((a) => actionAvailable(a, resource, row)).map((a) => (
+                    <button key={a.id} type="button" title={a.step_up ? 'Needs a recent sign-in' : undefined}
+                      disabled={busy} onClick={() => run(a, row)}
+                      className={`${BUTTON} ${a.destructive ? 'border-[var(--error)] text-[var(--error)]' : 'border-[var(--line-strong)] text-[var(--muted)] hover:text-[var(--ink)]'}`}>
+                      {a.title}
+                    </button>
+                  ))}
+                </div>
+              ),
+            }] : []),
+          ]} />
         )}
         {!error && next && (
           <button type="button" onClick={() => load(next)}

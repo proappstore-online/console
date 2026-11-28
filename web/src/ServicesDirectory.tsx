@@ -116,7 +116,7 @@ export function DirectoryTab({ token }: { token: string | null }) {
       {!loading && !error && devs.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {devs.map((d) => (
-            <div key={d.creatorId} className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-5 hover:border-[var(--accent)] transition-colors">
+            <div key={d.creatorId} className="min-w-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-5 wrap-anywhere hover:border-[var(--accent)] transition-colors">
               <div className="flex items-center gap-3 mb-3">
                 {d.avatarUrl ? (
                   <img src={d.avatarUrl} alt="" className="w-10 h-10 rounded-full ring-1 ring-[var(--line-strong)]" />

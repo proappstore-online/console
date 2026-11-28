@@ -63,7 +63,7 @@ export function AppConnectors({ appId, getToken }: { appId: string; getToken: ()
       )}
 
       {data?.connectors.map((c) => (
-        <div key={c.name} className="mt-2 rounded-lg border border-[var(--line)] px-3 py-2 text-sm">
+        <div key={c.name} className="mt-2 rounded-lg border border-[var(--line)] px-3 py-2 text-sm wrap-anywhere">
           <code className="font-semibold text-[var(--ink)]">{c.name}</code>
           <span className="text-[11px] text-[var(--muted)] ml-2">
             {c.kind} · modes: {c.modes.join(', ')}
@@ -80,12 +80,12 @@ export function AppConnectors({ appId, getToken }: { appId: string; getToken: ()
           <div className="space-y-1.5">
             {data.installations.map((i) => (
               <div key={i.installation_id} className="flex items-center justify-between gap-2 rounded-lg border border-[var(--line)] px-3 py-2">
-                <div className="min-w-0">
+                <div className="min-w-0 wrap-anywhere">
                   <code className="text-sm font-semibold text-[var(--ink)]">{i.account_login}</code>
                   <span className="text-[11px] text-[var(--muted)] ml-2">{i.account_type} · installation {i.installation_id}</span>
                 </div>
                 <button type="button" onClick={() => unbind(i.installation_id)} disabled={busy}
-                  className="text-[11px] text-[var(--muted)] hover:text-[var(--error)] disabled:opacity-50">
+                  className="shrink-0 text-[11px] text-[var(--muted)] hover:text-[var(--error)] disabled:opacity-50">
                   Remove
                 </button>
               </div>

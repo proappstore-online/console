@@ -155,7 +155,8 @@ export function Header({
             {/* Per-app workspace tabs (sm+). On mobile these live in the fixed
                 bottom tab bar (MobileAppTabBar) instead. */}
             {onAppMode && <AppModeSwitch appMode={appMode} onAppMode={onAppMode} className="hidden sm:flex ml-1" />}
-            <div className="hidden sm:flex items-center rounded-lg border border-[var(--line-strong)] overflow-x-auto ml-1 min-w-0">
+            {/* data-scroll-x: a tab strip that scrolls sideways by design; the page itself never does (console#27). */}
+            <div data-scroll-x className="hidden sm:flex items-center rounded-lg border border-[var(--line-strong)] overflow-x-auto ml-1 min-w-0">
               {appTabs.map((t, i) => (
                 <button
                   key={t.key}
@@ -187,7 +188,8 @@ export function Header({
             </a>
           </div>
         ) : (
-          <nav className="flex gap-0.5 -mb-px overflow-x-auto flex-1 ml-1 sm:ml-2">
+          // data-scroll-x: a tab strip that scrolls sideways by design; the page itself never does (console#27).
+          <nav data-scroll-x className="flex gap-0.5 -mb-px overflow-x-auto flex-1 ml-1 sm:ml-2">
             {tabs.map((tab) => (
               <button
                 key={tab.key}

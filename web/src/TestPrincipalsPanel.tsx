@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { relativeTime } from './adminHelpers'
+import { ResponsiveTable } from './ResponsiveTable'
 import {
   type TestPrincipal,
   type OidcGrant,
@@ -127,44 +128,24 @@ export function TestPrincipalsPanel({ getToken }: { getToken: () => string | nul
       {principals.length === 0 ? (
         <p className="text-xs text-[var(--muted)]">No test principals yet.</p>
       ) : (
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="text-left text-[var(--muted)]">
-              <th className="py-1">Slug</th>
-              <th className="py-1">Status</th>
-              <th className="py-1">Description</th>
-              <th className="py-1">Created</th>
-              <th className="py-1" />
-            </tr>
-          </thead>
-          <tbody>
-            {principals.map((p) => (
-              <tr key={p.id} className="border-t border-[var(--line)]">
-                <td className="py-1 font-mono text-[var(--ink)]">
-                  <button onClick={() => setSelected(selected === p.id ? null : p.id)} className="underline">
-                    {p.slug}
-                  </button>
-                </td>
-                <td className="py-1">
-                  <span
-                    className={`rounded px-1.5 py-0.5 ${
-                      p.status === 'active' ? 'bg-[var(--accent)]/15 text-[var(--accent)]' : 'bg-[var(--error)]/10 text-[var(--error)]'
-                    }`}
-                  >
-                    {p.status}
-                  </span>
-                </td>
-                <td className="py-1 text-[var(--muted)]">{p.description ?? '—'}</td>
-                <td className="py-1 text-[var(--muted)]">{relativeTime(p.created_at)}</td>
-                <td className="py-1 text-right">
-                  <button onClick={() => onToggleStatus(p)} className="text-[var(--muted)] underline hover:text-[var(--ink)]">
-                    {p.status === 'active' ? 'Disable' : 'Enable'}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <ResponsiveTable caption="Test principals" rows={principals} rowKey={(p) => p.id} className="text-xs" headClassName="text-[var(--muted)]"
+          columns={[
+            { key: 'slug', header: 'Slug', className: 'font-mono text-[var(--ink)]', cell: (p) => (
+              <button onClick={() => setSelected(selected === p.id ? null : p.id)} className="text-left underline wrap-anywhere">{p.slug}</button>
+            ) },
+            { key: 'status', header: 'Status', cell: (p) => (
+              <span className={`rounded px-1.5 py-0.5 ${p.status === 'active' ? 'bg-[var(--accent)]/15 text-[var(--accent)]' : 'bg-[var(--error)]/10 text-[var(--error)]'}`}>
+                {p.status}
+              </span>
+            ) },
+            { key: 'description', header: 'Description', className: 'text-[var(--muted)]', cell: (p) => p.description ?? '—' },
+            { key: 'created', header: 'Created', className: 'text-[var(--muted)]', cell: (p) => relativeTime(p.created_at) },
+            { key: 'toggle', header: <span className="sr-only">Actions</span>, label: '', className: 'text-right', cell: (p) => (
+              <button onClick={() => onToggleStatus(p)} className="text-[var(--muted)] underline hover:text-[var(--ink)]">
+                {p.status === 'active' ? 'Disable' : 'Enable'}
+              </button>
+            ) },
+          ]} />
       )}
 
       {selected && <PrincipalDetail principalId={selected} getToken={getToken} onChanged={refresh} />}
@@ -230,40 +211,20 @@ function PrincipalDetail({
         {grants.length === 0 ? (
           <p className="mt-1 text-xs text-[var(--muted)]">No grants yet.</p>
         ) : (
-          <table className="mt-2 w-full text-xs">
-            <thead>
-              <tr className="text-left text-[var(--muted)]">
-                <th className="py-1">Repository</th>
-                <th className="py-1">Workflow</th>
-                <th className="py-1">Ref</th>
-                <th className="py-1">Environment</th>
-                <th className="py-1">Expires</th>
-                <th className="py-1">Mints</th>
-                <th className="py-1" />
-              </tr>
-            </thead>
-            <tbody>
-              {grants.map((g) => (
-                <tr key={g.id} className="border-t border-[var(--line)]">
-                  <td className="py-1 font-mono text-[var(--ink)]">{g.repository}</td>
-                  <td className="py-1 text-[var(--muted)]">{g.workflow ?? 'any'}</td>
-                  <td className="py-1 text-[var(--muted)]">{g.ref}</td>
-                  <td className="py-1 text-[var(--muted)]">{g.environment ?? '—'}</td>
-                  <td className="py-1 text-[var(--muted)]">{g.expires_at ? relativeTime(g.expires_at) : '—'}</td>
-                  <td className="py-1 text-[var(--muted)]">{g.mint_count}</td>
-                  <td className="py-1 text-right">
-                    {g.revoked_at ? (
-                      <span className="text-[var(--muted)]">revoked</span>
-                    ) : (
-                      <button onClick={() => onRevoke(g.id)} className="text-[var(--error)] underline">
-                        Revoke
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="mt-2">
+            <ResponsiveTable caption="Grants" rows={grants} rowKey={(g) => g.id} className="text-xs text-[var(--muted)]" headClassName="text-[var(--muted)]"
+              columns={[
+                { key: 'repository', header: 'Repository', className: 'font-mono text-[var(--ink)]', cell: (g) => g.repository },
+                { key: 'workflow', header: 'Workflow', cell: (g) => g.workflow ?? 'any' },
+                { key: 'ref', header: 'Ref', cell: (g) => g.ref },
+                { key: 'environment', header: 'Environment', cell: (g) => g.environment ?? '—' },
+                { key: 'expires', header: 'Expires', cell: (g) => g.expires_at ? relativeTime(g.expires_at) : '—' },
+                { key: 'mints', header: 'Mints', cell: (g) => g.mint_count },
+                { key: 'revoke', header: <span className="sr-only">Actions</span>, label: '', className: 'text-right', cell: (g) => g.revoked_at
+                  ? <span className="text-[var(--muted)]">revoked</span>
+                  : <button onClick={() => onRevoke(g.id)} className="text-[var(--error)] underline">Revoke</button> },
+              ]} />
+          </div>
         )}
         <NewGrantForm principalId={principalId} getToken={getToken} onCreated={() => { refresh(); onChanged() }} />
       </div>

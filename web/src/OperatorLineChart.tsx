@@ -10,6 +10,7 @@
  */
 
 import { useState, useRef, useEffect, type KeyboardEvent, type PointerEvent } from 'react'
+import { ResponsiveTable } from './ResponsiveTable'
 import type { SeriesGrain } from './operator'
 
 const DEFAULT_WIDTH = 640
@@ -192,24 +193,12 @@ export function OperatorLineChart({ label, buckets, grain, series, format }: {
       </div>
       <details className="mt-2 text-sm">
         <summary className="cursor-pointer text-[var(--muted)] hover:text-[var(--ink)]">Show data table</summary>
-        <div className="mt-2 max-h-72 overflow-auto">
-          <table className="w-full text-sm" style={{ fontVariantNumeric: 'tabular-nums' }}>
-            <caption className="sr-only">{label} by {grain}</caption>
-            <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-[var(--muted)]">
-                <th scope="col" className="py-1 pr-4 font-semibold">{grain === 'month' ? 'Month' : grain === 'week' ? 'Week' : 'Day'}</th>
-                {series.map((s, k) => <th key={k} scope="col" className="py-1 pr-4 font-semibold text-right">{nameOf(s)}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {buckets.map((b, i) => (
-                <tr key={b} className="border-t border-[var(--line)]">
-                  <th scope="row" className="py-1 pr-4 font-normal text-left text-[var(--ink)]">{formatBucket(b, grain)}</th>
-                  {series.map((s, k) => <td key={k} className="py-1 pr-4 text-right text-[var(--ink)]">{format(s.values[i] ?? null)}</td>)}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="mt-2 max-h-72 overflow-y-auto">
+          <ResponsiveTable caption={`${label} by ${grain}`} rows={buckets} rowKey={(b) => b} className="text-sm text-[var(--ink)] tabular-nums"
+            columns={[
+              { key: 'bucket', header: grain === 'month' ? 'Month' : grain === 'week' ? 'Week' : 'Day', rowHeader: true, cell: (b) => formatBucket(b, grain) },
+              ...series.map((s, k) => ({ key: String(k), header: nameOf(s), className: 'text-right', cell: (_b: string, i: number) => format(s.values[i] ?? null) })),
+            ]} />
         </div>
       </details>
     </div>

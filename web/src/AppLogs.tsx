@@ -6,6 +6,7 @@ import {
   type SymbolicationStatus, type TelemetryHealth, type TraceTimeline,
 } from './appLogsApi'
 import { Kpi } from './sectionPrimitives'
+import { ResponsiveTable, TruncatedId } from './ResponsiveTable'
 
 interface Props {
   appId: string
@@ -305,7 +306,7 @@ export function AppLogs({ appId, getToken }: Props) {
       {!loading && !error && (
         <>
           <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
-            <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] overflow-x-auto">
+            <div className="min-w-0 rounded-2xl border border-[var(--line)] bg-[var(--panel)]">
               {logs.length === 0 ? (
                 <p className="p-8 text-center text-sm text-[var(--muted)]">
                   {neverLogged
@@ -313,17 +314,31 @@ export function AppLogs({ appId, getToken }: Props) {
                     : 'No matching log entries.'}
                 </p>
               ) : (
-                <table className="w-full min-w-[920px] text-left text-xs"><thead className="border-b border-[var(--line)] text-[var(--muted)]"><tr><th className="p-3">Timestamp</th><th className="p-3">Level</th><th className="p-3">Category / message</th><th className="p-3">SDK / build</th><th className="p-3">Source</th><th className="p-3">User</th><th className="p-3">Trace / correlation</th><th className="p-3">Fingerprint</th></tr></thead><tbody>
-                  {logs.map((log, index) => <tr key={`${log.ts}-${log.traceId ?? 'none'}-${index}`} onClick={() => setSelected(log)} className={`border-b border-[var(--line)] align-top cursor-pointer hover:bg-[var(--panel-hover)] ${selected === log ? 'bg-[var(--panel-hover)]' : ''}`}><td className="p-3 whitespace-nowrap text-[var(--muted)]"><button type="button" onClick={(e) => { e.stopPropagation(); setSelected(log) }} aria-label={`Details for ${safeLogText(log.message)}`} className="text-left hover:text-[var(--ink)]">{formatTime(log.ts)}</button></td><td className="p-3 font-semibold text-[var(--ink)]">{safeLogText(log.level)}</td><td className="p-3"><div className="font-medium text-[var(--ink)]">{safeLogText(log.category)}</div><div className="mt-1 max-w-[300px] text-[var(--muted)]">{safeLogText(log.message)}</div></td><td className="p-3 text-[var(--muted)]">{buildLabel(log.build)}</td><td className="p-3 text-[var(--muted)]">{safeLogText(log.source)}</td><td className="p-3 font-mono text-[var(--muted)]">{log.userId ? safeLogText(log.userId) : '—'}</td><td className="p-3 font-mono text-[var(--muted)]">{safeLogText(log.traceId)}</td><td className="p-3 font-mono text-[var(--muted)]">{safeLogText(log.fingerprint)}</td></tr>)}
-                </tbody></table>
+                <div className="p-3">
+                  <ResponsiveTable caption="App log entries" rows={logs} className="text-xs text-[var(--muted)]" headClassName="text-[var(--muted)]"
+                    rowKey={(log, index) => `${log.ts}-${log.traceId ?? 'none'}-${index}`}
+                    rowProps={(log) => ({ onClick: () => setSelected(log), className: `cursor-pointer hover:bg-[var(--panel-hover)] ${selected === log ? 'bg-[var(--panel-hover)]' : ''}` })}
+                    columns={[
+                      { key: 'ts', header: 'Timestamp', className: 'whitespace-nowrap',
+                        cell: (log) => <button type="button" onClick={(e) => { e.stopPropagation(); setSelected(log) }} aria-label={`Details for ${safeLogText(log.message)}`} className="text-left hover:text-[var(--ink)]">{formatTime(log.ts)}</button> },
+                      { key: 'level', header: 'Level', cell: (log) => <span className="font-semibold text-[var(--ink)]">{safeLogText(log.level)}</span> },
+                      { key: 'message', header: 'Category / message', className: 'w-[30%]',
+                        cell: (log) => <><div className="font-medium text-[var(--ink)]">{safeLogText(log.category)}</div><div className="mt-1">{safeLogText(log.message)}</div></> },
+                      { key: 'build', header: 'SDK / build', cell: (log) => buildLabel(log.build) },
+                      { key: 'source', header: 'Source', cell: (log) => safeLogText(log.source) },
+                      { key: 'user', header: 'User', className: 'max-w-0 w-[12%]', cell: (log) => log.userId ? <TruncatedId value={safeLogText(log.userId)} label="user id" /> : '—' },
+                      { key: 'trace', header: 'Trace / correlation', className: 'max-w-0 w-[12%]', cell: (log) => log.traceId ? <TruncatedId value={safeLogText(log.traceId)} label="trace id" /> : '—' },
+                      { key: 'fingerprint', header: 'Fingerprint', className: 'max-w-0 w-[12%]', cell: (log) => log.fingerprint ? <TruncatedId value={safeLogText(log.fingerprint)} label="fingerprint" /> : '—' },
+                    ]} />
+                </div>
               )}
               {nextCursor && <div className="border-t border-[var(--line)] p-3"><button aria-label={loadingMore ? 'Loading…' : 'Load more'} type="button" onClick={more} disabled={loadingMore} className="rounded-lg border border-[var(--line-strong)] px-3 py-2 text-sm text-[var(--ink)] disabled:opacity-50">{loadingMore ? 'Loading…' : 'Load more'}</button></div>}
             </div>
-            <aside className="space-y-4">
+            <aside className="min-w-0 space-y-4 wrap-break-word">
               {selected && <LogDetail log={selected} onClose={() => setSelected(null)} onViewTrace={loadTrace} />}
               <BuildCard build={build} />
               <TelemetryHealthCard health={health} unavailable={healthUnavailable} />
-              <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4"><h3 className="text-sm font-semibold text-[var(--ink)]">Error groups</h3>{groups.length === 0 ? <p className="mt-2 text-sm text-[var(--muted)]">No warning or error groups in this range.</p> : <ul className="mt-3 space-y-3">{groups.map((group) => <li key={group.fingerprint} className="border-t border-[var(--line)] pt-3 first:border-0 first:pt-0"><p className="font-medium text-[var(--ink)]">{safeLogText(group.sample_message)}</p><p className="mt-1 text-xs text-[var(--muted)]">{group.occurrences} occurrences · latest {formatTime(group.last_seen)}</p><button type="button" onClick={() => { const next = { ...filters, fingerprint: group.fingerprint }; setFilters(next); setApplied(next) }} className="mt-1 font-mono text-xs text-[var(--accent)]">{safeLogText(group.fingerprint)}</button></li>)}</ul>}</div>
+              <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4"><h3 className="text-sm font-semibold text-[var(--ink)]">Error groups</h3>{groups.length === 0 ? <p className="mt-2 text-sm text-[var(--muted)]">No warning or error groups in this range.</p> : <ul className="mt-3 space-y-3">{groups.map((group) => <li key={group.fingerprint} className="border-t border-[var(--line)] pt-3 first:border-0 first:pt-0"><p className="font-medium text-[var(--ink)]">{safeLogText(group.sample_message)}</p><p className="mt-1 text-xs text-[var(--muted)]">{group.occurrences} occurrences · latest {formatTime(group.last_seen)}</p><button type="button" onClick={() => { const next = { ...filters, fingerprint: group.fingerprint }; setFilters(next); setApplied(next) }} className="mt-1 max-w-full text-left font-mono text-xs text-[var(--accent)] break-all">{safeLogText(group.fingerprint)}</button></li>)}</ul>}</div>
               <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4"><h3 className="text-sm font-semibold text-[var(--ink)]">Trace incidents</h3>{incidents.length === 0 ? <p className="mt-2 text-sm text-[var(--muted)]">No correlation IDs in this page.</p> : <ul className="mt-3 space-y-2">{incidents.map((incident) => <li key={incident.traceId}><button type="button" onClick={() => { const next = { ...filters, traceId: incident.traceId }; setFilters(next); setApplied(next); void loadTrace(incident.traceId) }} className="font-mono text-xs text-[var(--accent)] break-all">{safeLogText(incident.traceId)}</button><p className="text-xs text-[var(--muted)]">{incident.occurrences} entries · latest {formatTime(incident.latest)}</p></li>)}</ul>}</div>
               {(traceLoading || traceError || trace) && (
                 <TraceTimelineCard appId={appId} trace={trace} loading={traceLoading} error={traceError} onClose={() => { traceVersion.current += 1; setTrace(null); setTraceError(null); setTraceLoading(false) }} />

@@ -32,10 +32,10 @@ export function CustomEventsPanel({
             <li key={e.kind}>
               <button type="button"
                 onClick={() => onPickKind(e.kind)}
-                className="w-full text-left rounded px-2 py-1.5 hover:bg-[var(--panel)] transition-colors flex items-baseline justify-between"
+                className="w-full text-left rounded px-2 py-1.5 hover:bg-[var(--panel)] transition-colors flex items-baseline justify-between gap-2"
               >
-                <span className="font-mono text-sm text-[var(--ink)]">{e.kind}</span>
-                <span className="text-xs text-[var(--muted)] tabular-nums">{formatViewCount(e.count)}</span>
+                <span className="min-w-0 font-mono text-sm text-[var(--ink)] wrap-anywhere">{e.kind}</span>
+                <span className="shrink-0 text-xs text-[var(--muted)] tabular-nums">{formatViewCount(e.count)}</span>
               </button>
             </li>
           ))}

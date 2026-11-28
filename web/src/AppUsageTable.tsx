@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchAppUsage, formatViewCount, type AppUsageResponse, type AppUsageRow } from './analytics'
+import { ResponsiveTable } from './ResponsiveTable'
 
 // Admin per-app usage (platform#417): every registered app with its page views,
 // a trend sparkline, and a flag on zero views. Unique visitors are not shown:
@@ -59,35 +60,21 @@ export function AppUsageTable({ getToken }: { getToken: () => string | null }) {
         </div>
       </div>
       {data && (
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="text-left text-[var(--muted)]">
-              <th className="py-1"><button onClick={() => toggle('app')}>App</button></th>
-              <th className="py-1 text-right"><button onClick={() => toggle('views')}>Views</button></th>
-              <th className="py-1 pl-3">Trend</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.app_id} className="border-t border-[var(--line)]">
-                <td className="py-1 font-mono text-[var(--ink)]">
-                  {r.app_id}
-                  {!r.registered && <span className="ml-2 text-[var(--muted)]">(unregistered)</span>}
-                  {r.views === 0 && <span className="ml-2 rounded bg-[var(--line)] px-1 text-[var(--muted)]">no views</span>}
-                </td>
-                <td className="py-1 text-right tabular-nums">{formatViewCount(r.views)}</td>
-                <td className="py-1 pl-3"><Sparkline series={r.series} /></td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="border-t border-[var(--line-strong)] font-semibold">
-              <td className="py-1">Total ({data.totals.apps} apps, {data.totals.apps_without_views} with no views)</td>
-              <td className="py-1 text-right tabular-nums">{formatViewCount(data.totals.views)}</td>
-              <td className="py-1 pl-3"><Sparkline series={data.series} /></td>
-            </tr>
-          </tfoot>
-        </table>
+        <ResponsiveTable caption="Page views by app" rows={rows} rowKey={(r) => r.app_id} className="text-xs" headClassName="text-[var(--muted)]"
+          columns={[
+            { key: 'app', header: <button onClick={() => toggle('app')}>App</button>, label: 'App', className: 'font-mono text-[var(--ink)]', cell: (r) => <>
+              {r.app_id}
+              {!r.registered && <span className="ml-2 text-[var(--muted)]">(unregistered)</span>}
+              {r.views === 0 && <span className="ml-2 rounded bg-[var(--line)] px-1 text-[var(--muted)]">no views</span>}
+            </> },
+            { key: 'views', header: <button onClick={() => toggle('views')}>Views</button>, label: 'Views', className: 'text-right tabular-nums', cell: (r) => formatViewCount(r.views) },
+            { key: 'trend', header: 'Trend', cell: (r) => <Sparkline series={r.series} /> },
+          ]}
+          foot={[
+            `Total (${data.totals.apps} apps, ${data.totals.apps_without_views} with no views)`,
+            formatViewCount(data.totals.views),
+            <Sparkline series={data.series} />,
+          ]} />
       )}
     </section>
   )

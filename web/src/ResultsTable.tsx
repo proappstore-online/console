@@ -1,7 +1,9 @@
 import { formatCellValue } from './dbBrowserHelpers'
+import { ResponsiveTable } from './ResponsiveTable'
 
 // ---------------------------------------------------------------------------
-// Shared results table
+// Shared results table: columns share the width, long values truncate with the
+// full value in their title (console#27).
 // ---------------------------------------------------------------------------
 
 export function ResultsTable({
@@ -12,43 +14,21 @@ export function ResultsTable({
   rows: Record<string, unknown>[]
 }) {
   return (
-    <div className="rounded-lg border border-[var(--line)] overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-[var(--line)] bg-[var(--panel)]">
-            {columns.map((col) => (
-              <th
-                key={col}
-                className="px-3 py-2 text-left text-xs font-semibold text-[var(--muted)] uppercase tracking-wide whitespace-nowrap"
-              >
-                {col}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, rowIdx) => (
-            <tr
-              key={row[0] != null ? String(row[0]) : rowIdx}
-              className="border-b border-[var(--line)] last:border-0 hover:bg-[var(--panel-hover)]"
-            >
-              {columns.map((col) => (
-                <td
-                  key={col}
-                  className={`px-3 py-2 font-mono text-xs whitespace-nowrap max-w-[300px] truncate ${
-                    row[col] === null || row[col] === undefined
-                      ? 'text-[var(--muted)] italic'
-                      : 'text-[var(--ink)]'
-                  }`}
-                  title={formatCellValue(row[col])}
-                >
-                  {formatCellValue(row[col])}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="rounded-lg border border-[var(--line)] p-2">
+      <ResponsiveTable<Record<string, unknown>> caption="Query results" fixed rows={rows} rowKey={(row, rowIdx) => (row[0] != null ? String(row[0]) : rowIdx)}
+        className="text-sm" headClassName="text-xs uppercase tracking-wide text-[var(--muted)]"
+        rowProps={() => ({ className: 'hover:bg-[var(--panel-hover)]' })}
+        columns={columns.map((col) => ({
+          key: col,
+          header: <span title={col}>{col}</span>,
+          label: col,
+          cell: (row) => (
+            <span title={formatCellValue(row[col])}
+              className={`font-mono text-xs ${row[col] === null || row[col] === undefined ? 'text-[var(--muted)] italic' : 'text-[var(--ink)]'}`}>
+              {formatCellValue(row[col])}
+            </span>
+          ),
+        }))} />
     </div>
   )
 }

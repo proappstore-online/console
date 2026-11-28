@@ -126,7 +126,7 @@ export function AppMcpTools({ appId, getToken }: { appId: string; getToken: () =
           {tools.map((t) => (
             <div key={t.name} className="rounded-xl border border-[var(--line)] p-3">
               <div className="flex items-center gap-2 flex-wrap">
-                <code className="text-sm font-semibold text-[var(--ink)]">{t.name}</code>
+                <code className="min-w-0 text-sm font-semibold text-[var(--ink)] wrap-anywhere">{t.name}</code>
                 <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border ${t.operation === 'query' ? 'text-[var(--muted)] border-[var(--line)]' : 'text-[var(--warning,#ca8a04)] border-[var(--warning,#ca8a04)]'}`}>
                   {t.operation === 'query' ? 'reads' : 'writes'}
                 </span>

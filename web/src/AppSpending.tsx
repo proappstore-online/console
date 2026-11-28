@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { api } from './agents/lib'
 import { ROLE_COLOR } from './agents/types'
+import { ResponsiveTable } from './ResponsiveTable'
 
 interface RoleBreakdown {
   role: string
@@ -158,39 +159,28 @@ export function AppSpending({ appId, getToken }: { appId: string; getToken: () =
         {data.ledger.length === 0 ? (
           <p className="text-xs text-[var(--muted)]">No cost entries yet.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-left text-[var(--muted)] border-b border-[var(--line)]">
-                  <th className="py-1.5 pr-3 font-medium">Time</th>
-                  <th className="py-1.5 pr-3 font-medium">Role</th>
-                  <th className="py-1.5 pr-3 font-medium">Model</th>
-                  <th className="py-1.5 pr-3 font-medium text-right">Cost</th>
-                  <th className="py-1.5 pr-3 font-medium text-right">Tokens in</th>
-                  <th className="py-1.5 font-medium text-right">Tokens out</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.ledger.map((l, i) => (
-                  <tr key={`${l.createdAt}-${l.role}-${i}`} className="border-b border-[var(--line)]/50 hover:bg-[var(--panel-hover)]">
-                    <td className="py-1 pr-3 text-[var(--muted)] whitespace-nowrap">{fmtTime(l.createdAt)}</td>
-                    <td className="py-1 pr-3">
-                      <span className="font-semibold" style={{ color: ROLE_COLOR[l.role] ?? 'var(--ink)' }}>{l.role}</span>
-                    </td>
-                    <td className="py-1 pr-3 text-[var(--muted)] font-mono">{l.model}</td>
-                    <td className="py-1 pr-3 text-right font-mono font-semibold text-[var(--accent)]">${l.costUsd.toFixed(4)}</td>
-                    <td className="py-1 pr-3 text-right font-mono text-[var(--muted)]">{fmtTokens(l.tokensIn)}</td>
-                    <td className="py-1 text-right font-mono text-[var(--muted)]">{fmtTokens(l.tokensOut)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ResponsiveTable caption="Recent cost entries" rows={data.ledger} rowKey={(l, i) => `${l.createdAt}-${l.role}-${i}`}
+            className="text-xs" headClassName="text-[var(--muted)]" rowProps={() => ({ className: 'hover:bg-[var(--panel-hover)]' })}
+            columns={[
+              { key: 'time', header: 'Time', className: 'whitespace-nowrap text-[var(--muted)]', cell: (l) => fmtTime(l.createdAt) },
+              { key: 'role', header: 'Role', cell: (l) => <span className="font-semibold" style={{ color: ROLE_COLOR[l.role] ?? 'var(--ink)' }}>{l.role}</span> },
+              { key: 'model', header: 'Model', className: 'font-mono text-[var(--muted)]', cell: (l) => l.model },
+              { key: 'cost', header: 'Cost', className: 'text-right font-mono font-semibold text-[var(--accent)]', cell: (l) => `$${l.costUsd.toFixed(4)}` },
+              { key: 'in', header: 'Tokens in', className: 'text-right font-mono text-[var(--muted)]', cell: (l) => fmtTokens(l.tokensIn) },
+              { key: 'out', header: 'Tokens out', className: 'text-right font-mono text-[var(--muted)]', cell: (l) => fmtTokens(l.tokensOut) },
+            ]} />
         )}
       </div>
     </div>
   )
 }
+
+const PRICES = [
+  { model: 'claude-opus-4', input: '$15', output: '$75' },
+  { model: 'claude-sonnet-4', input: '$3', output: '$15' },
+  { model: 'claude-haiku-4.5', input: '$0.80', output: '$4' },
+  { model: 'gpt-4o', input: '$2.50', output: '$10' },
+]
 
 function PricingInfo() {
   const [open, setOpen] = useState(false)
@@ -209,18 +199,15 @@ function PricingInfo() {
         i
       </button>
       {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 w-80 rounded-xl border border-[var(--line)] bg-[var(--paper)] shadow-xl p-4 text-xs text-[var(--ink)] space-y-2">
+        <div className="absolute left-0 top-full mt-1 z-50 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-[var(--line)] bg-[var(--paper)] shadow-xl p-4 text-xs text-[var(--ink)] space-y-2">
           <p className="font-semibold text-sm">How agent costs work</p>
           <p className="text-[var(--muted)]">Agents use your <strong>BYO API key</strong> (Anthropic or OpenAI). You pay the provider directly — ProAppStore charges nothing on top.</p>
-          <table className="w-full text-[11px]">
-            <thead><tr className="text-[var(--muted)] border-b border-[var(--line)]"><th className="text-left py-1">Model</th><th className="text-right py-1">Input</th><th className="text-right py-1">Output</th></tr></thead>
-            <tbody>
-              <tr><td className="py-0.5">claude-opus-4</td><td className="text-right font-mono">$15</td><td className="text-right font-mono">$75</td></tr>
-              <tr><td className="py-0.5">claude-sonnet-4</td><td className="text-right font-mono">$3</td><td className="text-right font-mono">$15</td></tr>
-              <tr><td className="py-0.5">claude-haiku-4.5</td><td className="text-right font-mono">$0.80</td><td className="text-right font-mono">$4</td></tr>
-              <tr><td className="py-0.5">gpt-4o</td><td className="text-right font-mono">$2.50</td><td className="text-right font-mono">$10</td></tr>
-            </tbody>
-          </table>
+          <ResponsiveTable caption="Model prices per 1M tokens" rows={PRICES} rowKey={(p) => p.model} className="text-[11px]" headClassName="text-[var(--muted)]"
+            columns={[
+              { key: 'model', header: 'Model', cell: (p) => p.model },
+              { key: 'input', header: 'Input', className: 'text-right font-mono', cell: (p) => p.input },
+              { key: 'output', header: 'Output', className: 'text-right font-mono', cell: (p) => p.output },
+            ]} />
           <p className="text-[var(--muted)]">Prices per 1M tokens. A typical Dev run uses 50-200k input + 5-15k output tokens.</p>
           <div className="border-t border-[var(--line)] pt-2 space-y-1">
             <p className="font-semibold">Cost tips</p>

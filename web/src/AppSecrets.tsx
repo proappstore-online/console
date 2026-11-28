@@ -99,12 +99,12 @@ export function AppSecrets({ appId, getToken }: { appId: string; getToken: () =>
           {secrets.length === 0 && <p className="text-sm text-[var(--muted)]">No secrets yet.</p>}
           {secrets.map((s) => (
             <div key={s.name} className="group flex items-center justify-between gap-2 rounded-lg border border-[var(--line)] px-3 py-2">
-              <div className="min-w-0">
+              <div className="min-w-0 wrap-anywhere">
                 <code className="text-sm font-semibold text-[var(--ink)]">{s.name}</code>
                 <span className="text-[11px] text-[var(--muted)] ml-2">added {ago(s.createdAt)} · used {ago(s.lastUsedAt)}</span>
               </div>
               <button type="button" onClick={() => remove(s.name)} disabled={busy}
-                className="text-[11px] text-[var(--muted)] hover:text-[var(--error)] opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50">
+                className="shrink-0 text-[11px] text-[var(--muted)] hover:text-[var(--error)] opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50">
                 Delete
               </button>
             </div>

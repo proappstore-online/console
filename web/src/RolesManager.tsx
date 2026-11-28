@@ -353,11 +353,11 @@ function MemberRow({ r, confirming, revoking, onAskRemove, onCancel, onRemove, o
     void navigator.clipboard?.writeText(r.userId).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) }, () => {})
   }
   return (
-    <li className="flex items-center gap-3 px-4 py-3">
+    <li className="flex flex-wrap items-center gap-3 px-4 py-3">
       {r.userAvatarUrl
         ? <img src={r.userAvatarUrl} alt="" className="h-8 w-8 rounded-full border border-[var(--line)] shrink-0" />
         : <span aria-hidden="true" className="h-8 w-8 rounded-full bg-[var(--line)] shrink-0" />}
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 basis-48">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-semibold text-[var(--ink)] truncate" title={r.userId}>{name}</span>
           <RoleBadge role={r.roleName} label={label} />
@@ -372,7 +372,7 @@ function MemberRow({ r, confirming, revoking, onAskRemove, onCancel, onRemove, o
       </button>
       {!isOwner && (
         <select aria-label={`Role for ${name}`} value={r.roleName} onChange={(e) => onChangeRole(e.target.value)}
-          className="shrink-0 rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)]">
+          className="min-w-0 max-w-full rounded-lg border border-[var(--line-strong)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)]">
           {r.roleName === SIGNED_IN_ROLE && <option value={SIGNED_IN_ROLE}>Give a role…</option>}
           {![...ASSIGNABLE_ROLES, ...appRoles.roles.map((a) => a.id)].includes(r.roleName) && r.roleName !== SIGNED_IN_ROLE && <option value={r.roleName}>{r.roleName}</option>}
           <RoleOptions appRoles={appRoles.roles} />

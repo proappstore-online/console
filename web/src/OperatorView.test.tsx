@@ -958,8 +958,19 @@ describe('OperatorView — entry and audit trail (#240)', () => {
     expect(screen.getByText(/hidden until you sign in again/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Sign in again' }))
     expect(onReauth).toHaveBeenCalledOnce()
-    // Narrow screens get the same rows as a stacked list.
-    expect(within(screen.getByRole('list', { name: 'Operator audit trail, newest first' })).getAllByRole('listitem')).toHaveLength(4)
+  })
+
+  it('on a narrow screen shows the trail as stacked cards, each value labelled by its column (console#27)', async () => {
+    serve({ ...baseline, contract: STASH }, { audit: { status: 200, body: trail() } })
+    vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }))
+    render(<OperatorView appId="stash" appName="Stash" getToken={() => 'tok'} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Show audit trail' }))
+    const list = await screen.findByRole('list', { name: 'Operator audit trail, newest first' })
+    expect(screen.queryByRole('table', { name: 'Operator audit trail, newest first' })).toBeNull()
+    const cards = within(list).getAllByRole('listitem')
+    expect(cards).toHaveLength(4)
+    expect(within(cards[1]!).getAllByRole('term').map((t) => t.textContent)).toEqual(['When', 'Who', 'What', 'Record', 'Outcome'])
+    expect(within(cards[1]!).getAllByRole('definition').slice(1).map((d) => d.textContent)).toEqual(['gh:1', 'Ran action: Start review', '—', '✕ Refused (409)'])
   })
 
   it('filters with ordinary form controls and pages with the returned cursor', async () => {

@@ -4,6 +4,7 @@ import { pro } from './sdk'
 import { fetchDatabaseSchema } from './dbBrowserApi'
 import type { DatabaseSchema } from './dbSchema'
 import { ResultsTable } from './ResultsTable'
+import { ResponsiveTable } from './ResponsiveTable'
 import { CopyOpen } from './AppPublishing'
 import { appMcpEndpoint } from './AppMcpTools'
 import {
@@ -497,18 +498,15 @@ function ParamTable({ params }: { params: EndpointManifest['params'] }) {
   const entries = Object.entries(params)
   if (entries.length === 0) return <p className="mt-2 text-xs text-[var(--muted)]">No parameters.</p>
   return (
-    <table className="mt-2 w-full text-left text-xs" aria-label="Parameters">
-      <thead className="text-[var(--muted)]"><tr><th className="py-1">Param</th><th>Type</th><th>Required</th><th>Max</th></tr></thead>
-      <tbody>
-        {entries.map(([k, p]) => (
-          <tr key={k} className="border-t border-[var(--line)] text-[var(--ink)]">
-            <td className="py-1 font-mono">{k}</td><td>{p.type}</td>
-            <td>{paramRequired(p) ? 'yes' : p.default !== undefined ? `no (default ${JSON.stringify(p.default)})` : 'no'}</td>
-            <td>{p.max ?? '—'}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="mt-2">
+      <ResponsiveTable caption="Parameters" rows={entries} rowKey={([k]) => k} className="text-xs text-[var(--ink)]" headClassName="text-[var(--muted)]"
+        columns={[
+          { key: 'param', header: 'Param', className: 'font-mono', cell: ([k]) => k },
+          { key: 'type', header: 'Type', cell: ([, p]) => p.type },
+          { key: 'required', header: 'Required', cell: ([, p]) => paramRequired(p) ? 'yes' : p.default !== undefined ? `no (default ${JSON.stringify(p.default)})` : 'no' },
+          { key: 'max', header: 'Max', cell: ([, p]) => p.max ?? '—' },
+        ]} />
+    </div>
   )
 }
 

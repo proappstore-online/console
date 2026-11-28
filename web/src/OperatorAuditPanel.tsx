@@ -4,7 +4,7 @@
  * an admin opening it is told so in words, not an error code — entries, reads, document views, metric reads, actions and every
  * refused attempt — newest first, 50 at a time. Opened on request (reading the
  * trail is itself recorded), filtered with ordinary form controls, a table on
- * wide screens and a stacked list on narrow ones. Targets of identity data are
+ * wide screens and stacked cards on narrow ones (ResponsiveTable). Targets of identity data are
  * hidden until a recent sign-in. Everything the platform returns renders as
  * text; the trail never carries params, paths or results.
  */
@@ -14,6 +14,7 @@ import {
   fetchOperatorAudit, operatorErrorMessage, needsReauth,
   type OperatorAuditFilters, type OperatorAuditRow, type OperatorContract,
 } from './operator'
+import { ResponsiveTable, TruncatedId } from './ResponsiveTable'
 
 const KINDS: { value: OperatorAuditRow['kind']; label: string }[] = [
   { value: 'enter', label: 'Opened operator view' },
@@ -37,11 +38,13 @@ export function describeAudit(row: OperatorAuditRow, contract: OperatorContract 
 }
 
 const outcomeText = (row: OperatorAuditRow) => (row.outcome === 'success' ? 'Success' : `Refused (${row.status})`)
-const who = (row: OperatorAuditRow) => row.actor.login ?? row.actor.id
+function who(row: OperatorAuditRow) {
+  return row.actor.login ?? <TruncatedId value={row.actor.id} label="user id" />
+}
 
 function Target({ row }: { row: OperatorAuditRow }) {
   if (row.target_hidden) return <span className="italic text-[var(--muted)]">Hidden</span>
-  return <span className="break-all">{row.target ?? '—'}</span>
+  return row.target ? <TruncatedId value={row.target} label="record" /> : <span>—</span>
 }
 
 export function OperatorAuditPanel({ appId, contract, getToken, onReauth }: {
@@ -152,39 +155,16 @@ export function OperatorAuditPanel({ appId, contract, getToken, onReauth }: {
                     {onReauth && <button type="button" onClick={onReauth} className="underline text-[var(--ink)]">Sign in again</button>}
                   </p>
                 )}
-                <table className="hidden w-full text-sm sm:table">
-                  <caption className="sr-only">Operator audit trail, newest first</caption>
-                  <thead>
-                    <tr className="text-left text-xs uppercase tracking-wide text-[var(--muted)]">
-                      <th scope="col" className="py-2 pr-4 font-semibold">When</th>
-                      <th scope="col" className="py-2 pr-4 font-semibold">Who</th>
-                      <th scope="col" className="py-2 pr-4 font-semibold">What</th>
-                      <th scope="col" className="py-2 pr-4 font-semibold">Record</th>
-                      <th scope="col" className="py-2 font-semibold">Outcome</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r) => (
-                      <tr key={r.id} className="border-t border-[var(--line)] align-top">
-                        <td className="py-2 pr-4 whitespace-nowrap text-[var(--muted)]"><time dateTime={new Date(r.at).toISOString()}>{new Date(r.at).toLocaleString()}</time></td>
-                        <td className="py-2 pr-4 text-[var(--ink)]">{who(r)}{r.role && <span className="block text-xs text-[var(--muted)]">as {r.role}</span>}</td>
-                        <td className="py-2 pr-4 text-[var(--ink)]">{describeAudit(r, contract)}</td>
-                        <td className="py-2 pr-4 text-[var(--ink)]"><Target row={r} /></td>
-                        <td className="py-2 whitespace-nowrap text-[var(--ink)]">{r.outcome === 'success' ? '✓ ' : '✕ '}{outcomeText(r)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <ul className="space-y-3 sm:hidden" aria-label="Operator audit trail, newest first">
-                  {rows.map((r) => (
-                    <li key={r.id} className="rounded-xl border border-[var(--line)] p-3 text-sm">
-                      <p className="font-medium text-[var(--ink)]">{describeAudit(r, contract)}</p>
-                      <p className="text-xs text-[var(--muted)]"><time dateTime={new Date(r.at).toISOString()}>{new Date(r.at).toLocaleString()}</time> · {who(r)}</p>
-                      <p className="mt-1 text-[var(--ink)]">Record: <Target row={r} /></p>
-                      <p className="text-[var(--ink)]">{r.outcome === 'success' ? '✓ ' : '✕ '}{outcomeText(r)}</p>
-                    </li>
-                  ))}
-                </ul>
+                <ResponsiveTable caption="Operator audit trail, newest first" rows={rows} rowKey={(r) => r.id} columns={[
+                  { key: 'when', header: 'When', className: 'whitespace-nowrap text-[var(--muted)]',
+                    cell: (r) => <time dateTime={new Date(r.at).toISOString()}>{new Date(r.at).toLocaleString()}</time> },
+                  { key: 'who', header: 'Who', className: 'max-w-0 w-[22%]',
+                    cell: (r) => <>{who(r)}{r.role && <span className="block text-xs text-[var(--muted)]">as {r.role}</span>}</> },
+                  { key: 'what', header: 'What', cell: (r) => describeAudit(r, contract) },
+                  { key: 'record', header: 'Record', className: 'max-w-0 w-[22%]', cell: (r) => <Target row={r} /> },
+                  { key: 'outcome', header: 'Outcome', className: 'whitespace-nowrap',
+                    cell: (r) => <>{r.outcome === 'success' ? '✓ ' : '✕ '}{outcomeText(r)}</> },
+                ]} className="text-sm text-[var(--ink)]" />
               </div>
             )}
             {!error && next && (

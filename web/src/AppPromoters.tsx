@@ -84,7 +84,7 @@ export function AppPromoters({ appId, load = loadOwnerPromoters }: { appId: stri
     </div>
     {!state && !error && <p role="status">Loading…</p>}
     {error && <div role="alert"><p>{error}</p><button className={BUTTON} onClick={() => setReload((n) => n + 1)}>Retry</button></div>}
-    {state && totals && acq && <fieldset disabled={busy} className="mt-4 space-y-5">
+    {state && totals && acq && <fieldset disabled={busy} className="mt-4 min-w-0 space-y-5">
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--line)] px-4 py-3">
         <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${state.settings.enrollment_open ? 'bg-[var(--success)]/15 text-[var(--success)]' : 'bg-[var(--line)] text-[var(--muted)]'}`}>Enrollment {state.settings.enrollment_open ? 'open' : 'closed'}</span>
         <span className="flex-1 min-w-[12rem] text-sm text-[var(--muted)]">{state.settings.enrollment_open ? 'Anyone can sign up to promote this app.' : 'No new promoters can sign up. Existing links keep working.'}</span>
@@ -130,7 +130,7 @@ export function AppPromoters({ appId, load = loadOwnerPromoters }: { appId: stri
       {state.people.promoters.length > 0 && <div>
         <h4 className="font-bold text-[var(--ink)]">Promoters</h4>
         <p className="text-xs text-[var(--muted)]">{state.people.counts.active} active · {state.people.counts.suspended} suspended · {state.people.counts.withdrawn} withdrawn (all time)</p>
-        <ul className="mt-2 divide-y divide-[var(--line)]">{state.people.promoters.map((p) => <li key={p.promoter_id} className="flex flex-wrap items-center gap-3 py-2 text-sm">
+        <ul className="mt-2 divide-y divide-[var(--line)] wrap-anywhere">{state.people.promoters.map((p) => <li key={p.promoter_id} className="flex flex-wrap items-center gap-3 py-2 text-sm">
           <span className="flex-1 min-w-0 truncate text-[var(--ink)]">{p.display_name || 'Unnamed promoter'} <span className="font-mono text-xs text-[var(--muted)]">{p.code}</span></span>
           <span className="text-xs text-[var(--muted)]">{p.status}{p.status_reason ? ` — ${p.status_reason}` : ''}</span>
           {p.status !== 'withdrawn' && <button className={BUTTON} onClick={() => openPreview({ type: 'status', id: p.promoter_id, name: p.display_name || p.code, status: p.status === 'active' ? 'suspended' : 'active' })}>{p.status === 'active' ? 'Suspend' : 'Restore'} {p.display_name || p.code}</button>}
@@ -141,7 +141,7 @@ export function AppPromoters({ appId, load = loadOwnerPromoters }: { appId: stri
       {state.referrals.referrals.length > 0 && <div>
         <h4 className="font-bold text-[var(--ink)]">Referral review</h4>
         <p className="text-xs text-[var(--muted)]">Reversing or restoring a referral changes the totals and is recorded in History.</p>
-        <ul className="mt-2 divide-y divide-[var(--line)]">{state.referrals.referrals.map((r) => <li key={r.referral_id} className="flex flex-wrap items-center gap-3 py-2 text-sm">
+        <ul className="mt-2 divide-y divide-[var(--line)] wrap-anywhere">{state.referrals.referrals.map((r) => <li key={r.referral_id} className="flex flex-wrap items-center gap-3 py-2 text-sm">
           <span className="flex-1 min-w-0 text-[var(--ink)]"><span className="font-mono text-xs">{r.referral_id}</span> · {r.status} · {new Date(r.confirmed_at ?? r.captured_at).toUTCString()} {r.reversal_kind} {r.reversal_reason}</span>
           {(r.status === 'confirmed' || r.status === 'reversed') && <button className={BUTTON} onClick={() => openPreview({ type: 'referral', id: r.referral_id, action: r.status === 'confirmed' ? 'reverse' : 'restore' })}>{r.status === 'confirmed' ? 'Reverse' : 'Restore'} referral {r.referral_id}</button>}
         </li>)}</ul>
@@ -159,7 +159,7 @@ export function AppPromoters({ appId, load = loadOwnerPromoters }: { appId: stri
       <details className="rounded-xl border border-[var(--line)] px-4 py-3">
         <summary className="cursor-pointer text-sm font-semibold text-[var(--ink)]">History <span className="font-normal text-[var(--muted)]">{history === 0 ? 'no changes yet' : `${history}${state.events.next || state.referralEvents.next ? '+' : ''} changes`}</span></summary>
         {(['events', 'referralEvents'] as const).map((key) => state[key].events.length > 0 && <section key={key} className="mt-3"><h4 className="text-sm font-bold">{key === 'events' ? 'Promoter changes' : 'Referral changes'}</h4>
-          <ul className="text-xs text-[var(--muted)] space-y-1">{state[key].events.map((e) => <li key={e.id}>{new Date(e.created_at).toUTCString()} · {e.actor_kind} · {e.action} · {e.from_status || 'none'} → {e.to_status || 'none'} · {e.reason || 'No reason recorded'}</li>)}</ul>
+          <ul className="text-xs text-[var(--muted)] space-y-1 wrap-anywhere">{state[key].events.map((e) => <li key={e.id}>{new Date(e.created_at).toUTCString()} · {e.actor_kind} · {e.action} · {e.from_status || 'none'} → {e.to_status || 'none'} · {e.reason || 'No reason recorded'}</li>)}</ul>
           {state[key].next && <button className={BUTTON} onClick={() => void more(key)}>More {key === 'events' ? 'promoter' : 'referral'} audit</button>}
         </section>)}
       </details>

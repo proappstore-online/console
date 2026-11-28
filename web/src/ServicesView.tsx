@@ -51,7 +51,7 @@ export function ServicesView({ getToken }: { getToken: () => string | null }) {
         Hire a developer to build your app, or offer your skills. Per-prompt billing, 10% platform fee.
       </p>
 
-      <div className="flex items-center gap-0.5 rounded-lg border border-[var(--line-strong)] p-0.5 w-fit">
+      <div className="flex flex-wrap items-center gap-0.5 rounded-lg border border-[var(--line-strong)] p-0.5 w-fit max-w-full">
         {([
           { key: 'directory' as Tab, label: 'Developers' },
           { key: 'engagements' as Tab, label: 'Engagements', badge: unreadTotal },

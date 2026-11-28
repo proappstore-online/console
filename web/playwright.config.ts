@@ -31,7 +31,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: /(operator|promoter|contributions|developer-profile|recruitment)-flow\.spec\.ts/,
+      testIgnore: /((operator|promoter|contributions|developer-profile|recruitment)-flow|layout)\.spec\.ts/,
       use: { browserName: 'chromium', baseURL: 'https://console.proappstore.online' },
     },
     {
@@ -67,6 +67,11 @@ export default defineConfig({
     {
       name: 'operator-flow',
       testMatch: /operator-flow\.spec\.ts/,
+      use: { browserName: 'chromium', baseURL: `http://localhost:${PREVIEW_PORT}` },
+    },
+    {
+      name: 'layout',
+      testMatch: /layout\.spec\.ts/,
       use: { browserName: 'chromium', baseURL: `http://localhost:${PREVIEW_PORT}` },
     },
     {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ApiError } from './api'
 import { AppConnectors } from './AppConnectors'
 import { safeLogText } from './AppLogs'
+import { ResponsiveTable, TruncatedId } from './ResponsiveTable'
 import { hashFor } from './nav'
 import {
   getHookDeliveries, getHooks, getScheduledRuns, getVisibility, getVisibilityConfig, getWorker, getWorkerUsage,
@@ -207,27 +208,28 @@ export function AppServer({ appId, getToken, isAdmin = false }: Props) {
 
             <h4 className="mt-4 mb-1.5 text-xs font-semibold text-[var(--muted)] uppercase tracking-wide">Last 20 deploys</h4>
             {(w.deploys ?? []).length === 0 ? <Empty>No deploys yet.</Empty> : (
-              <Table head={['When', 'Commit', 'Ref', 'Status', 'Detail']}>
-                {(w.deploys ?? []).map((d, i) => (
-                  <tr key={`${d.created_at}:${d.sha}:${i}`} className="border-b border-[var(--line)] align-top">
-                    <Td>{formatTime(d.created_at)}</Td><Td><code>{d.sha.slice(0, 7)}</code></Td><Td>{d.ref}</Td>
-                    <Td><Status status={d.status} /></Td><Td>{d.detail ? safeLogText(d.detail) : '—'}</Td>
-                  </tr>
-                ))}
-              </Table>
+              <Table caption="Last 20 deploys" rows={w.deploys ?? []} rowKey={(d, i) => `${d.created_at}:${d.sha}:${i}`} columns={[
+                { key: 'when', header: 'When', cell: (d) => formatTime(d.created_at) },
+                { key: 'sha', header: 'Commit', cell: (d) => <code title={d.sha}>{d.sha.slice(0, 7)}</code> },
+                { key: 'ref', header: 'Ref', cell: (d) => d.ref },
+                { key: 'status', header: 'Status', cell: (d) => <Status status={d.status} /> },
+                { key: 'detail', header: 'Detail', cell: (d) => d.detail ? safeLogText(d.detail) : '—' },
+              ]} />
             )}
 
             <h4 className="mt-4 mb-1.5 text-xs font-semibold text-[var(--muted)] uppercase tracking-wide">Last 20 invocations</h4>
             {w.invocations.length === 0 ? <Empty>No invocations yet.</Empty> : (
-              <Table head={['Started', 'Type', 'Name', 'Attempt', 'Status', 'HTTP', 'PAS calls', 'Finished', 'Error']}>
-                {w.invocations.map((i) => (
-                  <tr key={i.id} className="border-b border-[var(--line)] align-top">
-                    <Td>{formatTime(i.started_at)}</Td><Td>{i.type}</Td><Td>{i.name ?? '—'}</Td><Td>{i.attempt}</Td>
-                    <Td><Status status={i.status} /></Td><Td>{i.http_status ?? '—'}</Td><Td>{i.pas_calls ?? '—'}</Td>
-                    <Td>{formatTime(i.finished_at)}</Td><Td>{i.error ? safeLogText(i.error) : '—'}</Td>
-                  </tr>
-                ))}
-              </Table>
+              <Table caption="Last 20 invocations" rows={w.invocations} rowKey={(i) => i.id} columns={[
+                { key: 'started', header: 'Started', cell: (i) => formatTime(i.started_at) },
+                { key: 'type', header: 'Type', cell: (i) => i.type },
+                { key: 'name', header: 'Name', cell: (i) => i.name ?? '—' },
+                { key: 'attempt', header: 'Attempt', cell: (i) => i.attempt },
+                { key: 'status', header: 'Status', cell: (i) => <Status status={i.status} /> },
+                { key: 'http', header: 'HTTP', cell: (i) => i.http_status ?? '—' },
+                { key: 'pas', header: 'PAS calls', cell: (i) => i.pas_calls ?? '—' },
+                { key: 'finished', header: 'Finished', cell: (i) => formatTime(i.finished_at) },
+                { key: 'error', header: 'Error', cell: (i) => i.error ? safeLogText(i.error) : '—' },
+              ]} />
             )}
           </>
         )}
@@ -268,13 +270,13 @@ export function AppServer({ appId, getToken, isAdmin = false }: Props) {
               {u.days.length > 0 && (
                 <details className="mt-2">
                   <summary className="cursor-pointer text-xs text-[var(--muted)]">Last 30 days</summary>
-                  <Table head={['Day', 'Invocations', label.cpu_ms, 'Hook deliveries', 'PAS calls']}>
-                    {u.days.map((d) => (
-                      <tr key={d.day} className="border-b border-[var(--line)]">
-                        <Td>{d.day}</Td><Td>{d.invocations}</Td><Td>{d.cpu_ms}</Td><Td>{d.hook_deliveries}</Td><Td>{d.pas_calls}</Td>
-                      </tr>
-                    ))}
-                  </Table>
+                  <Table caption="Worker usage, last 30 days" rows={u.days} rowKey={(d) => d.day} columns={[
+                    { key: 'day', header: 'Day', cell: (d) => d.day },
+                    { key: 'invocations', header: 'Invocations', cell: (d) => d.invocations },
+                    { key: 'cpu', header: label.cpu_ms, cell: (d) => d.cpu_ms },
+                    { key: 'hooks', header: 'Hook deliveries', cell: (d) => d.hook_deliveries },
+                    { key: 'pas', header: 'PAS calls', cell: (d) => d.pas_calls },
+                  ]} />
                 </details>
               )}
             </>
@@ -312,19 +314,16 @@ export function AppServer({ appId, getToken, isAdmin = false }: Props) {
         {runs.loading && <Loading />}
         {!!runs.error && <ErrorText>{errorMessage(runs.error, 'Scheduled runs')}</ErrorText>}
         {runs.data && (runs.data.runs.length === 0 ? <Empty>No runs.</Empty> : (
-          <Table head={['Due', 'Schedule', 'Status', 'Changes', 'Finished', 'Error']}>
-            {runs.data.runs.map((r) => {
-              const isWorker = r.action_name.startsWith(WORKER_RUN_PREFIX)
-              return (
-                <tr key={r.run_id} className="border-b border-[var(--line)] align-top">
-                  <Td>{formatTime(r.due_at)}</Td>
-                  <Td>{isWorker ? <>{r.action_name.slice(WORKER_RUN_PREFIX.length)} <span className="text-[10px] text-[var(--muted)]">worker run</span></> : r.action_name}</Td>
-                  <Td><Status status={r.status} /></Td><Td>{r.changes ?? '—'}</Td><Td>{formatTime(r.finished_at)}</Td>
-                  <Td>{r.error ? safeLogText(r.error) : '—'}</Td>
-                </tr>
-              )
-            })}
-          </Table>
+          <Table caption="Recent scheduled runs" rows={runs.data.runs} rowKey={(r) => r.run_id} columns={[
+            { key: 'due', header: 'Due', cell: (r) => formatTime(r.due_at) },
+            { key: 'schedule', header: 'Schedule', cell: (r) => r.action_name.startsWith(WORKER_RUN_PREFIX)
+              ? <>{r.action_name.slice(WORKER_RUN_PREFIX.length)} <span className="text-[10px] text-[var(--muted)]">worker run</span></>
+              : r.action_name },
+            { key: 'status', header: 'Status', cell: (r) => <Status status={r.status} /> },
+            { key: 'changes', header: 'Changes', cell: (r) => r.changes ?? '—' },
+            { key: 'finished', header: 'Finished', cell: (r) => formatTime(r.finished_at) },
+            { key: 'error', header: 'Error', cell: (r) => r.error ? safeLogText(r.error) : '—' },
+          ]} />
         ))}
       </Panel>
 
@@ -371,15 +370,15 @@ export function AppServer({ appId, getToken, isAdmin = false }: Props) {
         {deliveries.loading && <Loading />}
         {!!deliveries.error && <ErrorText>{errorMessage(deliveries.error, 'Hook deliveries')}</ErrorText>}
         {deliveries.data && (deliveries.data.deliveries.length === 0 ? <Empty>No deliveries.</Empty> : (
-          <Table head={['Received', 'Hook', 'Event', 'Delivery', 'Status', 'Attempts', 'Error']}>
-            {deliveries.data.deliveries.map((d) => (
-              <tr key={d.id} className="border-b border-[var(--line)] align-top">
-                <Td>{formatTime(d.received_at)}</Td><Td>{d.hook}</Td><Td>{d.event ?? '—'}</Td>
-                <Td><code className="text-[11px]">{safeLogText(d.delivery_id)}</code></Td>
-                <Td><Status status={d.status} /></Td><Td>{d.attempts}</Td><Td>{d.error ? safeLogText(d.error) : '—'}</Td>
-              </tr>
-            ))}
-          </Table>
+          <Table caption="Recent hook deliveries" rows={deliveries.data.deliveries} rowKey={(d) => d.id} columns={[
+            { key: 'received', header: 'Received', cell: (d) => formatTime(d.received_at) },
+            { key: 'hook', header: 'Hook', cell: (d) => d.hook },
+            { key: 'event', header: 'Event', cell: (d) => d.event ?? '—' },
+            { key: 'delivery', header: 'Delivery', className: 'max-w-0 w-[18%]', cell: (d) => <TruncatedId value={safeLogText(d.delivery_id)} label="delivery id" /> },
+            { key: 'status', header: 'Status', cell: (d) => <Status status={d.status} /> },
+            { key: 'attempts', header: 'Attempts', cell: (d) => d.attempts },
+            { key: 'error', header: 'Error', cell: (d) => d.error ? safeLogText(d.error) : '—' },
+          ]} />
         ))}
       </Panel>
 
@@ -426,18 +425,10 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   return <div className="flex gap-2"><dt className="text-[var(--muted)]">{label}:</dt><dd className="text-[var(--ink)] min-w-0">{children}</dd></div>
 }
 
-function Table({ head, children }: { head: string[]; children: ReactNode }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[640px] text-left text-xs">
-        <thead className="border-b border-[var(--line)] text-[var(--muted)]"><tr>{head.map((h) => <th key={h} className="p-2">{h}</th>)}</tr></thead>
-        <tbody>{children}</tbody>
-      </table>
-    </div>
-  )
+/** The server tab's tables: small text, muted headers. */
+function Table<T>(props: Omit<Parameters<typeof ResponsiveTable<T>>[0], 'className' | 'headClassName'>) {
+  return <ResponsiveTable {...props} className="text-xs text-[var(--ink)]" headClassName="text-[var(--muted)]" />
 }
-
-const Td = ({ children }: { children: ReactNode }) => <td className="p-2 text-[var(--ink)]">{children}</td>
 
 function Status({ status }: { status: string }) {
   const failed = status === 'failed' || status === 'timeout' || status === 'quota_exceeded'

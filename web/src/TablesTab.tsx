@@ -40,7 +40,7 @@ export function TablesTab({
             <button
               key={t}
               onClick={() => onSelectTable(selectedTable === t ? null : t)}
-              className={`rounded-lg border px-3 py-1.5 text-sm font-mono transition-colors ${
+              className={`max-w-full rounded-lg border px-3 py-1.5 text-left text-sm font-mono wrap-anywhere transition-colors ${
                 selectedTable === t
                   ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)] font-semibold'
                   : 'border-[var(--line-strong)] text-[var(--ink)] hover:bg-[var(--panel-hover)]'

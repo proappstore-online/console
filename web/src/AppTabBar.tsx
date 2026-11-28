@@ -69,7 +69,8 @@ export function MobileAppTabBar({ tabs, appTab, onAppTab, appMode, onAppMode }: 
 }) {
   return (
     <div className="sm:hidden fixed inset-x-0 bottom-0 z-30 border-t border-[var(--line)] bg-[var(--panel)] backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
-      <nav aria-label="Workspace" className="flex items-center overflow-x-auto">
+      {/* data-scroll-x: a tab strip that scrolls sideways by design; the page itself never does (console#27). */}
+      <nav aria-label="Workspace" data-scroll-x className="flex items-center overflow-x-auto">
         {onAppMode && <AppModeSwitch appMode={appMode} onAppMode={onAppMode} className="flex mx-1.5" />}
         {tabs.map((t) => {
           const active = appTab === t.key
